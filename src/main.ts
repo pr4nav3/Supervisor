@@ -2415,7 +2415,6 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
   if (step === "catch") {
     const target = practiceTarget();
     const voice = practiceVoiceName();
-    const speaks = voice ? `a card pops up on your screen and ${escapeHtml(voice)} tells you to get back to work` : "a card pops up on your screen";
     if (!target) {
       return `
         <p class="first-run-copy">There's nothing on your distractions list to practise with. Go back and add one.</p>
@@ -2424,20 +2423,20 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
     }
     if (!practice) {
       return `
-        <p class="first-run-copy">Press Start practice, then open <b>${escapeHtml(target)}</b> and leave it open. After about 30 seconds, ${speaks}. This practice isn't saved.</p>
+        <p class="first-run-copy">Press <b>Start practice</b>, then open <b>${escapeHtml(target)}</b> and leave it open. About 30 seconds later, a reminder pops up on your screen${voice ? `, and ${escapeHtml(voice)} tells you to get back to work` : ""}.</p>
+        ${renderReminderPreview(target, voice)}
         <div class="first-run-actions">${back}<button class="primary" type="button" data-action="first-run-practice">Start practice</button></div>
       `;
     }
     if (!practice.caught) {
       return `
-        <p class="first-run-copy">Open <b>${escapeHtml(target)}</b> now and leave it open. Supervisor is watching.</p>
-        <p class="first-run-live" id="first-run-live">${escapeHtml(firstRunLiveText(snapshot?.current ?? null))}</p>
-        <div class="first-run-actions"><button type="button" data-action="first-run-end-practice">End practice</button><span></span></div>
+        <p class="first-run-copy">Open <b>${escapeHtml(target)}</b> and leave it open. Supervisor notices after about 30 seconds.</p>
+        ${renderPracticeLive(snapshot?.current ?? null, target)}
+        <div class="first-run-actions"><span></span><button type="button" data-action="first-run-end-practice">End practice</button></div>
       `;
     }
     return `
-      <p class="first-run-copy">That's how it works. In a session, whenever a distraction stays open, this card pops up${voice ? ` and ${escapeHtml(voice)} speaks` : ""}.</p>
-      <p class="first-run-where">On the card, Back to my task closes it. Allow once lets that site or app stay open for the rest of the session. To stop something counting for good, take it off your distractions list in Settings.</p>
+      <p class="first-run-copy">That was the reminder. In a session it pops up whenever a distraction stays open${voice ? `, and ${escapeHtml(voice)} speaks` : ""}.</p>
       <div class="first-run-actions"><span></span><button class="primary" type="button" data-action="first-run-end-practice">Next</button></div>
     `;
   }
@@ -2448,13 +2447,54 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
   `;
 }
 
-/** What the practice is watching right now, in the words a report would use. */
-function firstRunLiveText(current: CurrentSession | null): string {
+/** The reminder at a third of its size, with what each of its buttons does beside it. */
+function renderReminderPreview(target: string, voice: string | null): string {
+  const line = voice ? momentPhrases(voiceTone(selectedVoice()), "nudge")[0]?.text ?? "" : "";
+  return `
+    <div class="reminder-preview">
+      <div>
+        <p class="reminder-preview-cap">The reminder</p>
+        <div class="reminder-mini">
+          <span class="reminder-mini-kicker">Distraction</span>
+          <strong>You opened ${escapeHtml(target)}.</strong>
+          ${voice && line ? `<span class="reminder-mini-voice"><i></i><span><small>${escapeHtml(voice)} said</small><em>${escapeHtml(line)}</em></span></span>` : ""}
+          <span class="reminder-mini-buttons"><span>Allow once</span><span class="is-primary">Back to my task</span></span>
+        </div>
+      </div>
+      <dl class="reminder-preview-keys">
+        <div><dt>Back to my task</dt><dd>Closes the reminder. Open any distraction again and a reminder will reappear.</dd></div>
+        <div><dt>Allow once</dt><dd>Removes this website or app from your distractions list for this session, allowing you to use it freely.</dd></div>
+        <p class="reminder-preview-foot">To permanently remove something from distractions, go to Settings.</p>
+      </dl>
+    </div>
+  `;
+}
+
+/** What Supervisor sees right now, as one row: nothing, something harmless, or the target
+ *  with the seconds until the reminder. Painted in place by the poll. */
+function renderPracticeLive(current: CurrentSession | null, target: string): string {
   const focus = current?.focus;
-  if (!focus) {
-    return "Watching · nothing in front yet";
+  let title = "Nothing open yet";
+  let sub = "Supervisor is waiting for a window to come to the front.";
+  let tag = "Watching";
+  let hit = false;
+  if (focus && focus.distracting) {
+    hit = true;
+    title = `${focus.activity.label} is open`;
+    const left = focus.next_nudge_in_seconds;
+    sub = left && left > 1 ? `Stay there. The reminder comes in about ${left} seconds.` : "Stay there. The reminder is on its way.";
+    tag = "Counting";
+  } else if (focus) {
+    title = `${focus.activity.label} is open`;
+    sub = `That one's fine. Switch to ${target}.`;
   }
-  return `Watching · ${focus.distracting ? "distraction" : "in front"}: ${focus.activity.label}`;
+  return `
+    <div class="practice-live ${hit ? "is-hit" : ""}" id="practice-live" aria-live="polite">
+      <i></i>
+      <div><b>${escapeHtml(title)}</b><small>${escapeHtml(sub)}</small></div>
+      <span class="practice-live-tag">${tag}</span>
+    </div>
+  `;
 }
 
 /** The practice's line and its catch, painted in place by the poll. */
@@ -2467,9 +2507,10 @@ function paintFirstRunLive(current: CurrentSession | null): void {
     paintFirstRun();
     return;
   }
-  const line = document.getElementById("first-run-live");
-  if (line) {
-    line.textContent = firstRunLiveText(current);
+  const live = document.getElementById("practice-live");
+  const target = practiceTarget();
+  if (live && target) {
+    live.outerHTML = renderPracticeLive(current, target);
   }
 }
 

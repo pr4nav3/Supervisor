@@ -1145,8 +1145,7 @@ button.share-card:active {
   min-height: 44px;
 }
 
-.first-run-ok,
-.first-run-live {
+.first-run-ok {
   color: var(--sv-muted);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
@@ -1154,8 +1153,184 @@ button.share-card:active {
   text-transform: uppercase;
 }
 
-.first-run-live {
+/* The reminder at a third of its size, beside what its two buttons do. */
+.reminder-preview {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-panel-alt);
+}
+
+.reminder-preview-cap {
+  margin: 0 0 8px;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini {
+  display: grid;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-coral);
+  box-shadow: var(--shadow-control);
+  color: var(--sv-colored-ink);
+}
+
+.reminder-mini-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini > strong {
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.reminder-mini-voice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--white-soft);
+  color: var(--ink);
+}
+
+.reminder-mini-voice i {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-green);
+}
+
+.reminder-mini-voice small {
+  display: block;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini-voice em {
+  display: block;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.reminder-mini-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.reminder-mini-buttons > span {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--white-soft);
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.reminder-mini-buttons > span.is-primary {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.reminder-preview-keys {
+  display: grid;
+  gap: 10px;
   margin: 0;
+  font-size: var(--sv-type-3);
+  line-height: 1.4;
+}
+
+.reminder-preview-keys dt {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-3);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.reminder-preview-keys dd {
+  margin: 0;
+  color: var(--sv-muted);
+}
+
+.reminder-preview-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+/* While the practice runs: what Supervisor sees right now. */
+.practice-live {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--white-soft);
+}
+
+.practice-live i {
+  width: 12px;
+  height: 12px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-yellow);
+}
+
+.practice-live.is-hit i {
+  background: var(--sv-coral);
+}
+
+.practice-live b {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.practice-live small {
+  display: block;
+  margin-top: 2px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.practice-live-tag {
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .first-run-voices {

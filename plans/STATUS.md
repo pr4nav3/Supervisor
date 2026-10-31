@@ -71,6 +71,10 @@ pass from Windows, and what is left for a release, is
 - [x] Away comes only from the webcam (nobody in view for a minute, no input since) or
       from sleep (2026-10-30). The 3-minute idle rule and the media check are gone, so no
       one working is marked Away by mistake; without a camera there is no Away at all
+- [x] Getting started, step 3 (2026-10-31): before the practice, a small copy of the reminder
+      with what its two buttons do; while it runs, a live row saying what Supervisor sees and
+      the seconds until the reminder; after the catch, one line and Next. "Reminder" is the
+      word everywhere users read (not nudge)
 - [x] The distraction card offers Allow once and Back to my task, one row (2026-10-31).
       Always allow is gone from the card and the backend: taking something off the list
       for good is a Settings job. The session timer row is pause/stop icons plus More
