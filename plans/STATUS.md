@@ -3,8 +3,7 @@
 Living log of what is done and what is left. Update this file when an item
 moves, rather than appending a second tracker.
 
-Last updated: 2026-10-25 night (`app-v2-simplified-rules` at `ab3c544`, merged
-and pushed; `main` points at the same commit)
+Last updated: 2026-10-31 (`main` at `94b329d`, the second Mac pass; not yet pushed)
 
 Product OS targets: **macOS and Windows**. Linux is a workshop only, not a V1
 ship target. Everything through 2026-10-24 was written and run on Windows. On
@@ -13,6 +12,28 @@ ship target. Everything through 2026-10-24 was written and run on Windows. On
 `plans/mac-handoff-2026-10-25.md` is that day's summary. The review of that
 pass from Windows, and what is left for a release, is
 `plans/review-2026-10-25.md`.
+
+## Second Mac pass (2026-10-31, Tejal's MacBook, `main`)
+
+- [x] Fresh Mac from zero: toolchain, venvs, YOLO export, dev certificate, signed
+      debug bundle, voice engine download. Every screen and flow driven through
+      the automation hook; with Accessibility, Camera and Microphone granted,
+      address reads in Safari and Chrome, the card with its voice, webcam preview
+      on CPU and GPU, a session with the camera live, a microphone recording,
+      crash recovery, the tray, Cmd-Q. 215 tests, `npm run check`, 50-state
+      WebKit check. Details and machine notes: `plans/mac-handoff.md`
+- [x] Fixed: CI's retired `macos-14` image (now `macos-latest`); the Swift-only
+      layout harness (Objective-C now); the GPU note showing on a fresh install
+      (`[hidden]` lost to `display: block`); the practice asking for a website on
+      a Mac without Accessibility; an unlocked Mac with its display asleep, or
+      another console user, earning focused time; Finder folders going to the
+      previous app without permissions; Cmd-Q skipping the quit confirmation;
+      the status window mis-measured while hidden
+- [ ] Not verified on this Mac: line generation inside the app (the 4 GB RAM
+      gate held with the user's apps open; the worker made a line from the
+      command line), a second camera, a display-sleep run while away, Intel.
+      Decide whether the macOS RAM measure should change (`known-issues.md`)
+- [ ] Push and watch both CI jobs; the Mac job has not run since 2026-10-30
 
 ## Post-Mac review (2026-10-25, Windows, `fix/post-mac-review`)
 
