@@ -719,7 +719,7 @@ impl Session {
                 .is_some_and(|until| now.as_secs() >= until)
         {
             self.unmute();
-            self.push_event(now, "Nudges unmuted", "WATCHING");
+            self.push_event(now, "Reminders unmuted", "WATCHING");
         }
     }
 
@@ -924,7 +924,7 @@ impl Session {
 
         if focus.should_nudge {
             self.metrics.nudges += 1;
-            self.push_event(now, "Voice nudge queued", "VOICE 01");
+            self.push_event(now, "Voice reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("voice"), storage);
         }
 
@@ -964,7 +964,7 @@ impl Session {
             self.persist_event(now, "resume", None, storage);
         } else if self.status == SessionStatus::Snoozed {
             self.unmute();
-            self.push_event(now, "Nudges unmuted", "LIVE");
+            self.push_event(now, "Reminders unmuted", "LIVE");
             self.persist_event(now, "unsnooze", None, storage);
         }
     }
@@ -981,7 +981,7 @@ impl Session {
             focus.should_nudge = false;
             focus.next_nudge_in_seconds = None;
         }
-        self.push_event(now, "Nudges muted", &format!("{} MIN", seconds / 60));
+        self.push_event(now, "Reminders muted", &format!("{} MIN", seconds / 60));
         self.persist_event(now, "snooze", Some(&seconds.to_string()), storage);
     }
 
@@ -1514,7 +1514,7 @@ impl Session {
             self.engine.note_nudge(now);
             self.camera.phone_nudged = true;
             self.metrics.nudges += 1;
-            self.push_event(now, "Phone nudge queued", "VOICE 01");
+            self.push_event(now, "Phone reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("phone"), storage);
         }
     }

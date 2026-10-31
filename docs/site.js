@@ -144,7 +144,7 @@
       copy: "Finish the session storage migration.",
       progress: 58,
       elapsed: "Elapsed 34:12",
-      nudges: "Nudges 0"
+      nudges: "Reminders 0"
     },
     watch: {
       className: "",
@@ -154,27 +154,27 @@
       copy: "Two minutes on YouTube.",
       progress: 61,
       elapsed: "Elapsed 36:40",
-      nudges: "Nudges 0"
+      nudges: "Reminders 0"
     },
     drifting: {
       className: "is-drifting",
       status: "Distracted",
       strictness: "Normal",
       title: "Distracted",
-      copy: "Six minutes on YouTube. Playing a nudge in Mum.",
+      copy: "Six minutes on YouTube. Playing a reminder in Mum.",
       progress: 66,
       elapsed: "Elapsed 39:05",
-      nudges: "Nudges 1"
+      nudges: "Reminders 1"
     },
     away: {
       className: "is-away",
       status: "Away",
       strictness: "Normal",
       title: "Away",
-      copy: "No keyboard or mouse for four minutes. Nudges paused.",
+      copy: "No keyboard or mouse for four minutes. Reminders paused.",
       progress: 66,
       elapsed: "Elapsed 39:05",
-      nudges: "Nudges 1"
+      nudges: "Reminders 1"
     }
   };
 

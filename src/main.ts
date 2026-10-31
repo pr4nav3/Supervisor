@@ -1736,7 +1736,7 @@ function renderSoFarTiles(current: CurrentSession): string {
   return [
     tile("Focused", formatHours(current.metrics.focused_seconds), "Time on work: not on a distraction, your phone, or away"),
     tile("Longest", formatHours(longest), "Longest unbroken run of work"),
-    tile("Nudges", String(current.metrics.nudges), "Times Supervisor spoke up"),
+    tile("Reminders", String(current.metrics.nudges), "Times Supervisor spoke up"),
   ].join("");
 }
 
@@ -1922,7 +1922,7 @@ function renderOverlay(current: CurrentSession | null): string {
   return `
     <main class="overlay-shell">
       <section class="state-slab overlay-slab ${stateClass(current)}" aria-live="polite">
-        ${nudgesMuted ? `<span class="overlay-muted-tag" title="Nudges muted. Still tracking.">Muted</span>` : ""}
+        ${nudgesMuted ? `<span class="overlay-muted-tag" title="Reminders muted. Still tracking.">Muted</span>` : ""}
         <h2>${escapeHtml(stateTitle(current))}</h2>
         <p>${escapeHtml(current?.goal || stateCopy(current))}</p>
         ${current ? renderOverlayProgress(current) : ""}
@@ -2082,7 +2082,7 @@ function renderOverlayWatchControls(current: CurrentSession, held: boolean, nudg
     <label class="overlay-mute">
       <span>Mute for 5 min</span>
       <span class="toggle-field">
-        <input id="overlay-snooze" class="toggle-input" type="checkbox" ${nudgesMuted ? "checked" : ""} ${held ? "disabled" : ""} aria-label="Mute nudges for 5 minutes" />
+        <input id="overlay-snooze" class="toggle-input" type="checkbox" ${nudgesMuted ? "checked" : ""} ${held ? "disabled" : ""} aria-label="Mute reminders for 5 minutes" />
         <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
       </span>
     </label>
@@ -2347,7 +2347,7 @@ function renderFirstRun(): string {
   const counted = steps.length - 1;
   const titles: Record<FirstRunStep, string> = {
     access: "Let Supervisor see the address bar",
-    voice: "Who should nudge you?",
+    voice: "Who should remind you?",
     list: "These count as distractions",
     catch: "Get caught once",
     done: "You're all set",
@@ -3594,7 +3594,7 @@ function renderVoiceHelpModal(): string {
           </div>
           <button class="small-button" type="button" data-action="close-voice-help">Close</button>
         </div>
-        <p>Supervisor nudges you with short spoken lines. Record anyone for about twenty seconds, generate their lines once, and from then on they play instantly, offline.</p>
+        <p>Supervisor reminds you with short spoken lines. Record anyone for about twenty seconds, generate their lines once, and from then on they play instantly, offline.</p>
         <ol class="voice-help-steps">
           <li><strong>Record a voice.</strong> Press + New voice and read the prompt aloud. The starter voices come ready.</li>
           <li><strong>Pick a personality.</strong> It's what the voice says, from Gentle to Stern, or one you write. Each has lines for when you get distracted, when your phone shows up, and when a round or session ends.</li>
@@ -4564,7 +4564,7 @@ function renderHistoryItem(item: SessionSummary): string {
         <dl>
           <div title="Time on work: not on a distraction, your phone, or away"><dt>Focused</dt><dd>${escapeHtml(formatHours(item.focus_seconds))}</dd></div>
           <div title="How long the session ran"><dt>Duration</dt><dd>${formatDuration(item.duration_seconds)}</dd></div>
-          <div title="Times Supervisor spoke up about a distraction"><dt>Nudges</dt><dd>${item.nudges}</dd></div>
+          <div title="Times Supervisor spoke up about a distraction"><dt>Reminders</dt><dd>${item.nudges}</dd></div>
         </dl>
         ${renderMiniTimeline(item)}
       </div>
@@ -5194,7 +5194,7 @@ function renderSessionReport(report: SessionReport): string {
           ${reportStat("Duration", formatClockWithUnit(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
         ${reportStat("Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
         ${reportStat("Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
-        ${reportStat("Nudges", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
+        ${reportStat("Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
         ${pomodoroStat(report)}
         ${report.phone_seconds > 0 ? reportStat("Phone", formatClockWithUnit(report.phone_seconds), "How long the webcam saw a phone in your hand.") : ""}
       </section>
@@ -7984,7 +7984,7 @@ function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
 
 function webcamCopy(frame: WebcamFrame | null, alerting: boolean): string {
   if (!webcamSettings.phoneUse) {
-    return "Turn them on to get a nudge when your phone comes out.";
+    return "Turn them on to get a reminder when your phone comes out.";
   }
   if (!frame) {
     return "Waiting for the first picture.";
@@ -8724,7 +8724,7 @@ async function toggleVoicePreview(): Promise<void> {
 
 /** Mirrors `Strictness::focus_config` in the backend: the seconds a distraction may stay open
  * before Supervisor speaks up. */
-const STRICTNESS_HELP = "How long a distraction can stay open before a nudge.";
+const STRICTNESS_HELP = "How long a distraction can stay open before a reminder.";
 const STRICTNESS_SECONDS: Record<Strictness, number> = { gentle: 90, normal: 60, strict: 30 };
 
 function strictnessOptions(selected: Strictness): string {

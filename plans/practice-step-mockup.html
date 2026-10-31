@@ -32,6 +32,7 @@
   .preview dl { margin:0; display:grid; gap:10px; font-size:.9rem; line-height:1.4; }
   .preview dt { font-weight:700; }
   .preview dd { margin:0; color:var(--muted); }
+  .preview .foot { padding-top:10px; border-top:1px solid color-mix(in srgb, var(--ink) 25%, transparent); color:var(--muted); font-size:.82rem; }
   /* Running: what Supervisor sees right now, as a live row. */
   .live { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:12px; padding:12px 14px; border:2px solid var(--border-c); border-radius:6px; background:var(--soft); }
   .live i { width:12px; height:12px; border-radius:50%; border:2px solid var(--border-c); background:var(--yellow); }
@@ -48,9 +49,9 @@
 <div><p class="label">1 · Before Start practice</p>
 <section class="t">
   <div class="head"><div><p class="eyebrow">Getting started · 3 of 3</p><h2>Get caught once</h2></div><button class="small">Skip</button></div>
-  <p class="copy">Press <strong>Start practice</strong>, then open <strong>youtube.com</strong> and leave it open. About 30 seconds later this pops up on your screen, and Elise tells you to get back to work.</p>
+  <p class="copy">Press <strong>Start practice</strong>, then open <strong>youtube.com</strong> and leave it open. About 30 seconds later, a reminder pops up on your screen, and Elise tells you to get back to work.</p>
   <div class="preview">
-    <div><p class="cap">What pops up when you get distracted</p>
+    <div><p class="cap">The reminder</p>
       <div class="card">
         <div class="k">Distraction</div>
         <h3>You opened youtube.com.</h3>
@@ -59,11 +60,11 @@
       </div>
     </div>
     <dl>
-      <div><dt>Back to my task</dt><dd>Closes it. Open the same thing again and it comes back.</dd></div>
-      <div><dt>Allow once</dt><dd>Lets you keep that site or app open until the session ends.</dd></div>
+      <div><dt>Back to my task</dt><dd>Closes the reminder. Open any distraction again and a reminder will reappear.</dd></div>
+      <div><dt>Allow once</dt><dd>Removes this website or app from your distractions list for this session, allowing you to use it freely.</dd></div>
+      <div class="foot">To permanently remove something from distractions, go to Settings.</div>
     </dl>
   </div>
-  <p class="where">To stop something counting at all, remove it from your distractions in Settings.</p>
   <div class="actions"><button class="btn">Back</button><button class="btn p">Start practice</button></div>
 </section></div>
 
@@ -79,7 +80,7 @@
 <section class="t">
   <div class="head"><div><p class="eyebrow">Getting started · 3 of 3</p><h2>Get caught once</h2></div></div>
   <p class="copy">Open <strong>youtube.com</strong> and leave it open. Supervisor notices after about 30 seconds.</p>
-  <div class="live hit"><i></i><div><b>YouTube is open</b><small>Stay there. The nudge comes in about 20 seconds.</small></div><span class="t2">Counting</span></div>
+  <div class="live hit"><i></i><div><b>YouTube is open</b><small>Stay there. The reminder comes in about 20 seconds.</small></div><span class="t2">Counting</span></div>
   <div class="actions"><span></span><button class="btn">End practice</button></div>
 </section></div>
 
@@ -87,7 +88,7 @@
 <section class="t dark">
   <div class="head"><div><p class="eyebrow">Getting started · 3 of 3</p><h2>Get caught once</h2></div></div>
   <p class="copy">Open <strong>youtube.com</strong> and leave it open. Supervisor notices after about 30 seconds.</p>
-  <div class="live hit"><i></i><div><b>YouTube is open</b><small>Stay there. The nudge comes in about 20 seconds.</small></div><span class="t2">Counting</span></div>
+  <div class="live hit"><i></i><div><b>YouTube is open</b><small>Stay there. The reminder comes in about 20 seconds.</small></div><span class="t2">Counting</span></div>
   <div class="actions"><span></span><button class="btn">End practice</button></div>
 </section></div>
 </body>
