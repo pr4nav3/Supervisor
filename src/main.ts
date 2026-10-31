@@ -4204,10 +4204,16 @@ async function fetchShareMonth(): Promise<MonthRecap | null> {
   }
 }
 
+/** The Monday of the first recorded week. With no history yet it is this week: nothing
+ *  before the app was in use can be reached, by arrow or by picker. */
+function oldestWeekMonday(): string {
+  return historyWeek?.oldest_day ? mondayKey(historyWeek.oldest_day) : thisMondayKey();
+}
+
 function renderHistoryToolbar(weekStart: string): string {
-  const oldestMonday = historyWeek?.oldest_day ? mondayKey(historyWeek.oldest_day) : null;
+  const oldestMonday = oldestWeekMonday();
   const current = thisMondayKey();
-  const prevDisabled = !oldestMonday || weekStart <= oldestMonday;
+  const prevDisabled = weekStart <= oldestMonday;
   const nextDisabled = weekStart >= current;
   const tag = weekStart === current ? "This week" : weekStart === addDaysKey(current, -7) ? "Last week" : "";
   return `
@@ -4251,20 +4257,20 @@ const PICKER_GRID_DAYS = 42;
 
 /** A month of days, shaded by focused time, with the viewed week outlined; a click picks that
  * day's week. */
-function renderWeekPicker(weekStart: string, oldestMonday: string | null): string {
+function renderWeekPicker(weekStart: string, oldestMonday: string): string {
   const month = pickerMonth || monthKey(weekStart);
   const today = dayKey(new Date());
   const currentMonth = monthKey(today);
   const weekEnd = addDaysKey(weekStart, 6);
   const gridStart = pickerGridStart(month);
-  const prevDisabled = !oldestMonday || month <= monthKey(oldestMonday);
+  const prevDisabled = month <= monthKey(oldestMonday);
   const nextDisabled = month >= currentMonth;
   const title = parseDayKey(month).toLocaleDateString(undefined, { month: "long", year: "numeric" });
   const cells = Array.from({ length: PICKER_GRID_DAYS }, (_, index) => {
     const day = addDaysKey(gridStart, index);
     const inMonth = day.slice(0, 7) === month.slice(0, 7);
     // Nothing before the first recorded week, same bound as the ‹ arrow.
-    const future = day > today || (oldestMonday !== null && mondayKey(day) < oldestMonday);
+    const future = day > today || mondayKey(day) < oldestMonday;
     const focus = pickerDays[day]?.focus_seconds ?? 0;
     const level = focus <= 0 ? "" : focus >= 90 * 60 ? "l3" : focus >= 25 * 60 ? "l2" : "l1";
     const classes = [
@@ -4338,7 +4344,7 @@ function renderWeekHero(weekStart: string, recap: WeekRecap | null, animate: boo
     ? ""
     : empty
       ? current
-        ? "No sessions yet this week. Finish one\nand today's bar fills in."
+        ? "No sessions yet this week. Finish one and today's bar fills in."
         : "No sessions that week."
       : current && recap.session_count === 1
         ? "1 session so far"
@@ -4432,7 +4438,7 @@ function renderTrendsDoor(weekStart: string, recap: WeekRecap | null, animate: b
         <p class="eyebrow">Trends</p>
         <span class="trend-door-go" aria-hidden="true">View trends ›</span>
       </div>
-      <div class="trend-door-line">
+      <div class="trend-door-line ${weeks.length === 0 && recap ? "is-stacked" : ""}">
         <strong class="trend-door-value">${escapeHtml(value)}</strong>
         <span class="trend-door-caption">${escapeHtml(caption)}</span>
       </div>
@@ -5844,8 +5850,7 @@ function afterPointer(paint: () => void): void {
 
 /** The picker and the toolbar button that opens it. */
 function paintWeekPicker(): void {
-  const oldestMonday = historyWeek?.oldest_day ? mondayKey(historyWeek.oldest_day) : null;
-  paintSlot("week-picker-slot", weekPickerOpen ? renderWeekPicker(historyWeekShown(), oldestMonday) : "");
+  paintSlot("week-picker-slot", weekPickerOpen ? renderWeekPicker(historyWeekShown(), oldestWeekMonday()) : "");
   const label = document.querySelector<HTMLElement>(".history-week-label");
   label?.classList.toggle("is-open", weekPickerOpen);
   label?.setAttribute("aria-expanded", String(weekPickerOpen));
@@ -6211,8 +6216,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "pick-week") {
     const day = source?.dataset.day;
     closeWeekPicker();
-    const oldestMonday = historyWeek?.oldest_day ? mondayKey(historyWeek.oldest_day) : null;
-    if (day && day <= dayKey(new Date()) && (oldestMonday === null || mondayKey(day) >= oldestMonday)) {
+    if (day && day <= dayKey(new Date()) && mondayKey(day) >= oldestWeekMonday()) {
       historyWeekStart = mondayKey(day);
     }
     await refreshHistoryWeek();
@@ -6257,7 +6261,10 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "history-week-prev") {
     closeWeekPicker();
-    historyWeekStart = addDaysKey(historyWeekStart || thisMondayKey(), -7);
+    const previous = addDaysKey(historyWeekStart || thisMondayKey(), -7);
+    if (previous >= oldestWeekMonday()) {
+      historyWeekStart = previous;
+    }
     await refreshHistoryWeek();
     return;
   }
