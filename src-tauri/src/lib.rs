@@ -195,13 +195,6 @@ async fn allow_current_for_session(state: State<'_, AppState>) -> Result<Session
 }
 
 #[tauri::command]
-async fn allow_current_always(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
-    let now = state.started_at.elapsed();
-    Ok(sessions.allow_current_always(now))
-}
-
-#[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<SessionSummary>, String> {
     Ok(lock_sessions(&state)?.history())
 }
@@ -761,7 +754,6 @@ pub fn run() {
             stop_session,
             flag_current_distracting,
             allow_current_for_session,
-            allow_current_always,
             get_history,
             get_history_week,
             get_week_recap,

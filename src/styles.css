@@ -3953,6 +3953,11 @@ button.voice-orb:active .voice-orb-core {
   grid-column: 1 / -1;
 }
 
+/* Allow once beside Back to my task, one row. */
+.interrupt-actions.is-pair .primary {
+  grid-column: auto;
+}
+
 .interrupt-actions button {
   min-height: 40px;
 }

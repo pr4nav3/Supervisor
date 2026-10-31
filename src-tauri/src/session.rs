@@ -482,17 +482,6 @@ impl SessionManager {
         self.snapshot(now)
     }
 
-    /// The rule on the window in front is removed, for good.
-    pub fn allow_current_always(&mut self, now: Duration) -> SessionSnapshot {
-        let Some(session) = self.current.as_mut() else {
-            return self.snapshot(now);
-        };
-        if let Some(rules) = session.unflag_current(now, self.storage.as_ref()) {
-            self.save_rules(rules);
-        }
-        self.snapshot(now)
-    }
-
     pub fn settings(&self) -> SessionSettings {
         self.settings.clone()
     }
@@ -1044,15 +1033,6 @@ impl Session {
             self.exceptions.push(rule);
         }
         self.remark_current(&focus, None, now, storage, "Allowed this session", "allowed", Some(&detail));
-    }
-
-    /// The rule on the window in front goes, for good. Returns the rules to persist.
-    fn unflag_current(&mut self, now: Duration, storage: Option<&SessionStorage>) -> Option<Vec<AppRule>> {
-        let (focus, _) = self.current_rule()?;
-        self.rules.retain(|rule| !rule.matches(&focus.activity));
-        self.exceptions.retain(|exception| !exception.matches(&focus.activity));
-        self.remark_current(&focus, None, now, storage, "Rule removed", "rule_removed", None);
-        Some(self.rules.clone())
     }
 
     /// After a rule change on the window in front: close the span under the old decision,
@@ -2650,10 +2630,9 @@ mod tests {
                         manager.snooze(t, 300);
                     }
                     11 => {
-                        match next(3) {
+                        match next(2) {
                             0 => manager.flag_current(t),
-                            1 => manager.allow_current_for_session(t),
-                            _ => manager.allow_current_always(t),
+                            _ => manager.allow_current_for_session(t),
                         };
                     }
                     12 => {
@@ -2905,21 +2884,6 @@ mod tests {
         manager.start(input("Again", Strictness::Strict), seconds(100));
         let focus = record(&mut manager, site("youtube.com/watch", 0.0), seconds(101)).current.unwrap().focus.unwrap();
         assert!(focus.distracting);
-    }
-
-    #[test]
-    fn allowing_always_removes_the_rule() {
-        let mut manager = test_manager();
-        manager.start(input("Focus", Strictness::Strict), seconds(0));
-        record(&mut manager, site("youtube.com/watch", 0.0), seconds(0));
-        let allowed = manager.allow_current_always(seconds(1));
-        assert_eq!(allowed.current.unwrap().focus.unwrap().state, FocusState::Focused);
-        assert!(manager.rules().iter().all(|rule| rule.value != "youtube.com"));
-        manager.stop(seconds(50));
-
-        manager.start(input("Again", Strictness::Strict), seconds(100));
-        let focus = record(&mut manager, site("youtube.com/watch", 0.0), seconds(101)).current.unwrap().focus.unwrap();
-        assert!(!focus.distracting);
     }
 
     #[test]

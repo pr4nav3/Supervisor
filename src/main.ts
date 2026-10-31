@@ -2027,10 +2027,9 @@ function renderDistractionOverlay(current: CurrentSession): string {
           <span><span class="interrupt-time">${formatDuration(current.remaining_seconds)}</span> left</span>
         </div>
       </section>
-      <div class="interrupt-actions">
+      <div class="interrupt-actions ${phone ? "" : "is-pair"}">
+        ${phone ? "" : `<button type="button" data-action="allow-session" title="Allowed until this session ends">Allow once</button>`}
         <button class="primary" type="button" data-action="dismiss-distraction">Back to my task</button>
-        ${phone ? "" : `<button type="button" data-action="allow-session" title="Allowed until this session ends">Allow once</button>
-        <button type="button" data-action="allow-always" title="Takes it off your distractions list">Always allow</button>`}
       </div>
     </main>
   `;
@@ -2438,7 +2437,7 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
     }
     return `
       <p class="first-run-copy">That's how it works. In a session, whenever a distraction stays open, this card pops up${voice ? ` and ${escapeHtml(voice)} speaks` : ""}.</p>
-      <p class="first-run-where">On the card, Back to work closes it. Allow once lets that site or app stay open for the rest of the session.</p>
+      <p class="first-run-where">On the card, Back to my task closes it. Allow once lets that site or app stay open for the rest of the session. To stop something counting for good, take it off your distractions list in Settings.</p>
       <div class="first-run-actions"><span></span><button class="primary" type="button" data-action="first-run-end-practice">Next</button></div>
     `;
   }
@@ -5964,7 +5963,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
 
-  if (action === "allow-session" || action === "allow-always") {
+  if (action === "allow-session") {
     const live = snapshot?.current;
     if (live) {
       distractionDismissedFor = distractionIdentity(live);
@@ -5973,8 +5972,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     distractionLatchLabel = "";
     overlayMoreOpen = false;
     const name = live?.focus?.activity.label || "This window";
-    if (await invokeSnapshot(action === "allow-session" ? "allow_current_for_session" : "allow_current_always")) {
-      showFeedback(action === "allow-session" ? `${name} is allowed for this session` : `${name} is no longer a distraction`);
+    if (await invokeSnapshot("allow_current_for_session")) {
+      showFeedback(`${name} is allowed for this session`);
     }
     return;
   }

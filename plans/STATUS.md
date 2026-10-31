@@ -71,6 +71,9 @@ pass from Windows, and what is left for a release, is
 - [x] Away comes only from the webcam (nobody in view for a minute, no input since) or
       from sleep (2026-10-30). The 3-minute idle rule and the media check are gone, so no
       one working is marked Away by mistake; without a camera there is no Away at all
+- [x] The distraction card offers Allow once and Back to my task, one row (2026-10-31).
+      Always allow is gone from the card and the backend: taking something off the list
+      for good is a Settings job. The session timer row is pause/stop icons plus More
 - [x] The voice engine looks for updates by itself (2026-10-30): once a day, two minutes
       after launch, when it is installed and nothing is using it, the same check as the
       popup's button runs quietly; a new worker build installs and a toast says so, a
