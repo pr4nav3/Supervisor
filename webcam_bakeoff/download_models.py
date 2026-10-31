@@ -25,10 +25,14 @@ REQUIRED = {
     DETECTOR: {
         # The Windows export that was benchmarked (RESULTS.md).
         "sha256": "ad1008fe5d198e6a9cbf11233ce50826d2a12aba2b6f5a0987476a120141e77b",
-        # Same weights exported on the Mac on 2026-10-25 with ultralytics 8.4.188 / onnx 1.23.2;
-        # the Windows tools venv was older, so the bytes differ. Either file ships; both pass
-        # the worker's tests and self-tests.
-        "also_sha256": "00db196e9bdaa36036abd5ff6621331aee013420e411133fe674f0494bef55f9",
+        # Same weights exported on other machines; the bytes differ with the tool versions.
+        # Any of these ships; each passed the worker's tests and both self-tests.
+        "also_sha256": [
+            # Mac, 2026-10-25: ultralytics 8.4.188 / onnx 1.23.2.
+            "00db196e9bdaa36036abd5ff6621331aee013420e411133fe674f0494bef55f9",
+            # Mac, 2026-10-31: the same ultralytics and onnx pins, current onnxslim.
+            "2d70a7fb62dd66df0961ae7f481a50d571d9b2d6fb3df10db676e46ee6a4c0e3",
+        ],
     },
 }
 
@@ -60,7 +64,7 @@ def verify_models(models_dir: Path = MODELS_DIR) -> Dict[str, Path]:
         path = models_dir / name
         if not path.is_file():
             problems.append(f"{name} is missing")
-        elif sha256_file(path) not in (spec["sha256"], spec.get("also_sha256")):
+        elif sha256_file(path) not in (spec["sha256"], *spec.get("also_sha256", [])):
             problems.append(f"{name} does not match its pinned sha256")
     if problems:
         raise RuntimeError(f"webcam models in {models_dir}: " + "; ".join(problems))

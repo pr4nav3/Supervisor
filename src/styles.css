@@ -77,6 +77,11 @@
   box-sizing: border-box;
 }
 
+/* The hidden attribute must win over any display rule (a .field-help is display: block). */
+[hidden] {
+  display: none !important;
+}
+
 /* No rubber-band bounce on a Mac trackpad: the window is the app, not a page. */
 html,
 body {

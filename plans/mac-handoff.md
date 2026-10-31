@@ -1,8 +1,92 @@
 # Mac handoff: things to build and test on a real Mac
 
-Last updated: 2026-10-25 (first Mac pass, MacBook Pro M-series, macOS 14.5). Baseline:
-branch `app-v2-simplified-rules`; `origin/main` was fast-forwarded to it the same day. Tracker:
+Last updated: 2026-10-31 (second Mac pass, a different MacBook, Apple Silicon, macOS 14.5).
+Baseline: `main` (ahead of `app-v2-simplified-rules` since 2026-10-29). Tracker:
 `plans/STATUS.md`. Holes to expect: `plans/known-issues.md`.
+
+**Second Mac pass (2026-10-31, Tejal's MacBook, fresh clone, nothing installed).** Everything
+below was done from zero: rustup, `npm install`, both Python venvs, the YOLO export, the dev
+certificate, the signed debug bundle, the voice engine download. Then the app was driven through
+`SUPERVISOR_AUTOMATION`: Getting started (all four steps, the practice session, its discard),
+Settings, the Voice page (starter clips play through `asset://`), the Webcam page (FaceTime HD
+Camera listed), History (empty week, three sessions, a report), a timer session (start, pause,
+resume, end, the Session done card), the tray menu (pause, resume, mute, status window, end), a
+strict session with an app distraction (TextEdit: suspicious at 2 s, the reminder and voice at
+30 s, 1 nudge in the report), crash recovery (`kill -9` mid-session comes back `abandoned`
+with its checkpointed 16 s), and the status window at 228x161 (corner) with zero slack.
+`cargo test` 215 pass, `npm run check`, `check.sh` 50 states. Fixed on the way:
+
+- CI's macOS job never ran: the `macos-14` runner image is being retired (brownout on
+  2026-10-31, gone 2026-11-02), so every push since 2026-10-30 was "cancelled" on the Mac
+  side. Now `macos-15`.
+- `check.sh` could not build its Swift harness on this Mac (the Command Line Tools' `swiftc`
+  refuses every SDK after a partial update: "this SDK is not supported by the compiler").
+  The harness is Objective-C now (`webkit-eval.m`, built with clang, which always matches its
+  SDK). Same behaviour, same output.
+- The webcam page showed "The GPU couldn't run the webcam models" on a fresh install with GPU
+  off: `.field-help { display: block }` beat the `hidden` attribute on every platform. A
+  global `[hidden] { display: none !important }` fixes it.
+- Getting started's practice asked for YouTube on a Mac without Accessibility, which can never
+  be caught (every site is Other websites). It now asks for an app when the list has one, and
+  with websites only it says why the practice cannot catch it yet.
+- `webcam_bakeoff/download_models.py` accepts the YOLO export this Mac produced
+  (`2d70a7fb…`; same ultralytics/onnx pins as 2026-10-25, a newer onnxslim) after the unit
+  tests and both self-tests passed with it (CPU 304 ms, CoreML 3.2 s first frame).
+- `lib.rs` imported `Instant` only for the non-Mac clock (a warning on every Mac build).
+
+A second read of the Mac code paths, the frontend and the scripts (three reviewers, every
+finding checked against the code or measured in the running app) added:
+
+- `screen_locked()` also answers true when another user holds the console or the main display
+  is asleep (`CGDisplayIsAsleep`). Before, a Mac whose "require password" is later than
+  immediately kept crediting the front window as focused for as long as the display slept,
+  since Away no longer comes from input. Checked with the probe that it stays false with the
+  display on; not sat through a display sleep.
+- A Finder window counts as Finder whether or not its title can be read. Without Screen
+  Recording and Accessibility (this Mac's state) no title comes through, so every folder
+  window was shell UI and the previous app kept the time. The desktop itself has no window
+  and never reaches that rule.
+- Cmd-Q and the app menu's Quit go through the same "End this session and quit?" step as the
+  tray's Quit. The default menu's Quit calls `terminate:` directly and Tauri 2.11 emits no
+  `ExitRequested` for it (a first attempt relied on that and did nothing), so the item is
+  replaced at setup by our own with the same text and shortcut (`take_over_quit_menu`).
+- The status window measures its card with a timer while hidden: WebKit stops animation
+  frames in a hidden window (measured: none in 800 ms, a 16 ms timer fires), so with the
+  timer window off a card came up at the size of the previous layout and then jumped.
+- `camera_names()` runs in an autorelease pool like the capture tick.
+
+Looked at and left alone, on purpose: the voice RAM gate (macOS's own "available" is free
+plus file cache plus purgeable, 2.3 GB on this Mac now, less than the 3.9 GB the current
+free-plus-inactive measure reports, so the gate is not stricter than Activity Monitor would
+be); `AXEnhancedUserInterface` on Chromium (set deliberately for old builds; its window
+animation side effect is real but the read works and cannot be retested here); the camera
+index order against OpenCV (needs two cameras); "zen" and newer browsers in the name list (a
+test excludes "zen" on purpose); the install script's `codesign --verify` (measured: it passes
+for an untrusted self-signed certificate, with and without the certificate on the Mac, so a
+reviewer's claim that it would fail for every user was wrong).
+
+Machine notes for whoever uses this Mac: Homebrew `python@3.12` is installed but has no
+binaries, and `/opt/anaconda3`'s Python is x86_64 (a venv from it pulls Intel wheels and
+onnxruntime 1.23), so the webcam venv is Homebrew Python 3.13 (arm64) and the voice venv is
+Homebrew 3.11. The "Supervisor Dev" certificate here was minted fresh; it is not the one
+Pranav's releases are signed with (`plans/distribution.md`), so do not release from this Mac
+without importing that backup. About 20 GB of disk is free.
+
+With the grants given (Accessibility, Camera, Microphone, the same day): Safari read
+youtube.com by address on the first tick and Chrome within 8 s (one "Other websites" tick
+while Chrome built its tree, as documented); Wikipedia in Safari counted as work; a strict
+session showed the 420x297 card with "Elise said" and the replay orb at 30 s, Back to my task
+returned the window to its 228x161 corner, and the Session done card spoke its line; the
+user's own session recorded Gmail and YouTube by address with one voice nudge. The Webcam
+page streamed 13 KB previews from the FaceTime camera, the GPU toggle restarted the worker
+with `--device gpu` and no error note, leaving the page stopped the worker, and a session with
+the camera on reported it live and present. A 4 s microphone recording was accepted (48 kHz,
+384 KB). Voice generation inside the app stayed gated on 4 GB of available RAM (this Mac sat
+at 3.7-3.9 GB with the user's apps open), so the Generate path was proved from the command
+line instead (`chatterbox_nano_worker.py`, one 2.9 s line: imports 59 s on a cold venv, model
+load 14 s, conditioning 18 s, synthesis 3.4 s). The voice engine download (1.8 GB, about
+6 minutes) and its "Voice engine ready" popup were run in the app. Not seen on this Mac: a
+second camera, a display-sleep run while away, an Intel Mac.
 
 **After the pass (2026-10-25, Windows):** `plans/review-2026-10-25.md` reviewed every Mac
 commit and fixed: bundled starter clips (`src-tauri/voices/<id>/`), the silent Voice page on a

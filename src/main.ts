@@ -2176,7 +2176,18 @@ function syncOverlayPlacement(current: CurrentSession | null): void {
       lastError = errorText(error);
     });
   }
-  requestAnimationFrame(() => fitOverlayWindow());
+  overlayFrame(() => fitOverlayWindow());
+}
+
+/** Next frame, or a timer while the window is hidden: WebKit stops animation frames for a hidden
+ *  window, and the status window is hidden whenever the timer is off, so a card due then would
+ *  only be measured once it was already on screen at the wrong size. */
+function overlayFrame(run: () => void): void {
+  if (document.hidden) {
+    window.setTimeout(run, 16);
+  } else {
+    requestAnimationFrame(run);
+  }
 }
 
 function fitOverlayWindow(attempt = 0): void {
@@ -2204,7 +2215,7 @@ function fitOverlayWindow(attempt = 0): void {
       });
     }
     if (attempt < 60) {
-      requestAnimationFrame(() => fitOverlayWindow(attempt + 1));
+      overlayFrame(() => fitOverlayWindow(attempt + 1));
     }
     return;
   }
@@ -2326,11 +2337,23 @@ function paintFirstRun(): void {
   paintSlot("first-run-layer", renderFirstRun());
 }
 
-/** The name the practice asks the user to open, as its chip shows it: the newest website on the
- *  list (a tab is quicker to open than an app), else the newest app. */
+/** What the practice asks the user to open: the newest website on the list (a tab is quicker to
+ *  open than an app), else the newest app. A Mac without Accessibility cannot tell websites
+ *  apart, so there an app comes first; a website is left only when the list has nothing else. */
+function practiceRule(): AppRule | null {
+  const first = (target: RuleTarget) => permanentRules.find((item) => item.target === target);
+  return (accessibilityMissing() ? first("app") ?? first("website") : first("website") ?? permanentRules[0]) ?? null;
+}
+
+/** The practice target's name, as its chip shows it. */
 function practiceTarget(): string | null {
-  const rule = permanentRules.find((item) => item.target === "website") ?? permanentRules[0];
+  const rule = practiceRule();
   return rule ? ruleName(rule) : null;
+}
+
+/** A website target on a Mac that cannot read addresses yet: the practice would never catch it. */
+function practiceNeedsAccessibility(): boolean {
+  return accessibilityMissing() && practiceRule()?.target === "website";
 }
 
 function practiceVoiceName(): string | null {
@@ -2425,6 +2448,7 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
       return `
         <p class="first-run-copy">Press <b>Start practice</b>, then open <b>${escapeHtml(target)}</b> and leave it open. About 30 seconds later, a reminder pops up on your screen${voice ? `, and ${escapeHtml(voice)} tells you to get back to work` : ""}.</p>
         ${renderReminderPreview(target, voice)}
+        ${practiceNeedsAccessibility() ? `<p class="first-run-where">Supervisor can't tell one website from another until Accessibility is allowed (step 1), so this practice can't catch ${escapeHtml(target)} yet. Go back and allow it, or add an app to the list.</p>` : ""}
         <div class="first-run-actions">${back}<button class="primary" type="button" data-action="first-run-practice">Start practice</button></div>
       `;
     }
@@ -6754,7 +6778,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     overlayMoreOpen = !overlayMoreOpen;
     lastOverlayFit = "";
     render();
-    requestAnimationFrame(() => fitOverlayWindow());
+    overlayFrame(() => fitOverlayWindow());
     return;
   }
 

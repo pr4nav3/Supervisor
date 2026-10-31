@@ -374,8 +374,9 @@ pub fn camera_names() -> Vec<String> {
     // OpenCV's AVFoundation backend (cap_avfoundation_mac.mm) numbers cameras as: every video
     // device, then every muxed one, sorted by uniqueID. The index the worker opens is the
     // index here, so the list must be built the same way.
+    // Called from a command thread with no pool of its own; the device list is autoreleased.
     #[allow(deprecated)]
-    unsafe {
+    objc2::rc::autoreleasepool(|_| unsafe {
         use objc2_av_foundation::{AVCaptureDevice, AVMediaTypeMuxed, AVMediaTypeVideo};
         let mut devices: Vec<(String, String)> = Vec::new();
         for kind in [AVMediaTypeVideo, AVMediaTypeMuxed].into_iter().flatten() {
@@ -385,7 +386,7 @@ pub fn camera_names() -> Vec<String> {
         }
         devices.sort_by(|a, b| a.0.cmp(&b.0));
         devices.into_iter().map(|(_, name)| name).collect()
-    }
+    })
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]

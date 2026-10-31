@@ -103,9 +103,13 @@ pub fn classify_macos_surface(
     if at("loginwindow.app") {
         return ForegroundDisposition::NoSample;
     }
-    if at("Finder.app") && window_title.is_some() {
+    // A Finder window is a folder: the desktop itself has no window and never gets here.
+    // Without Screen Recording or Accessibility its title cannot be read, so the title must
+    // not decide.
+    if at("Finder.app") {
         return ForegroundDisposition::Sample;
     }
+    let _ = window_title;
     ForegroundDisposition::ShellSurface
 }
 
@@ -396,6 +400,11 @@ mod tests {
         );
         assert_eq!(
             classify("/System/Library/CoreServices/Finder.app", Some("Downloads")),
+            ForegroundDisposition::Sample
+        );
+        // No permission to read the title: still a folder window, never the previous app's time.
+        assert_eq!(
+            classify("/System/Library/CoreServices/Finder.app", None),
             ForegroundDisposition::Sample
         );
         assert_eq!(

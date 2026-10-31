@@ -23,7 +23,7 @@ On macOS the venv path is `.venv-webcam/bin/python`. macOS 14 or newer.
 - copy it from an earlier build, e.g. `~/.cargo-target/supervisor/release/webcam/models/yolo26s.onnx`, or
 - export it with `export_models.py` in `.venv-webcam-tools` (Ultralytics, telemetry off).
 
-Either way, `download_models.py` must then pass. It accepts two pinned sha256s: the Windows export that was benchmarked (`ad1008fe…`) and the Mac re-export of the same weights from 2026-10-25 (`00db196e…`, ultralytics 8.4.188 / onnx 1.23.2). A fresh export with other tool versions gives a third hash and is rejected; add it to `download_models.py` only after `pytest` and both self-tests pass with it.
+Either way, `download_models.py` must then pass. It accepts the pinned sha256s listed in it: the Windows export that was benchmarked (`ad1008fe…`) and the Mac re-exports of the same weights (`00db196e…` from 2026-10-25, `2d70a7fb…` from 2026-10-31; the same ultralytics 8.4.188 / onnx 1.23.2 pins, a different onnxslim). A fresh export with other tool versions gives a new hash and is rejected; add it to `also_sha256` only after the unit tests and both self-tests pass with it.
 
 On a Mac the export is `python3 -m venv .venv-webcam-tools && .venv-webcam-tools/bin/pip install ultralytics onnx onnxslim onnxruntime && (cd webcam_bakeoff && ../.venv-webcam-tools/bin/python export_models.py)`. A python.org Python needs its `Install Certificates.command` run once first, or every download fails with `CERTIFICATE_VERIFY_FAILED`.
 

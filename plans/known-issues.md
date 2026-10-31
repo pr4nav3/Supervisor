@@ -1,6 +1,6 @@
 # Known issues
 
-Last updated: 2026-10-25
+Last updated: 2026-10-31
 
 Starter list when swapping agents. Baseline is **`app-v2-simplified-rules`**; `origin/main` was
 fast-forwarded to it on 2026-10-25, and everything since is merged into both.
@@ -101,9 +101,12 @@ and the deadpan Gen Z set needs a flat delivery. Listen before keeping those cli
 
 ---
 
-## macOS (first pass 2026-10-25)
+## macOS (first pass 2026-10-25, second pass 2026-10-31)
 
-Checklist with what was seen: `plans/mac-handoff.md`. The app builds, tests pass, the debug bundle runs, and the address read works for Safari and Chrome. What still bites:
+Checklist with what was seen: `plans/mac-handoff.md`. The app builds, tests pass, the debug bundle runs, and the address read works for Safari and Chrome. The second pass (a fresh Mac) drove every screen and flow again through the automation hook and fixed CI's retired `macos-14` runner, the Swift-only layout harness (Objective-C now), a GPU note that showed on a fresh install, and a practice step that asked for a website on a Mac without Accessibility. What still bites:
+
+- **The voice RAM gate reads tight on a 16 GB Mac with other apps open.** `available_ram_bytes` is free + inactive pages; with Chrome, an IDE and a chat app running this Mac showed 3.7-3.9 GB against the 4.0 GB gate, so Generate stayed locked while the kernel's own level (`kern.memorystatus_level`) said 48 % free. Not changed: the gate is what keeps an 8 GB Mac from swapping. Decide whether the Mac measure should count purgeable pages or use the kernel level.
+- **The voice engine download is a blocking popup** for its whole 1.8 GB (about 6 minutes here); the rest of the app, and the Session done card behind it, wait for it. By design today, but the first thing a new user does after Getting started.
 
 - **An unsigned rebuild silently drops the Accessibility grant.** An ad-hoc debug bundle carries a per-build identifier, and macOS keys the grant to it: System Settings keeps showing Supervisor on, but `AXIsProcessTrusted` is false, every browser is Other websites and the first run's Accessibility step still asks for it. Build with `npm run bundle:mac-dev` after `scripts/make_mac_dev_cert.sh` (once per Mac) and the grant follows the certificate instead. There is no Developer ID certificate on any machine yet; a release needs one.
 - **Webcam and voice are verified through the UI on the Mac** (camera prompt, preview, a session with the camera live, five clips generated from the Voice page). Not seen: recording a new voice (microphone prompt), the tray menu.

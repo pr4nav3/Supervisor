@@ -20,7 +20,7 @@ use storage::{DailyFocus, HistoryWeek, MonthRecap, WeekRecap, SessionReport, Sto
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
@@ -60,8 +60,8 @@ impl SessionClock {
 
     #[cfg(not(target_os = "macos"))]
     fn read() -> Duration {
-        static ORIGIN: std::sync::OnceLock<Instant> = std::sync::OnceLock::new();
-        ORIGIN.get_or_init(Instant::now).elapsed()
+        static ORIGIN: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        ORIGIN.get_or_init(std::time::Instant::now).elapsed()
     }
 }
 
@@ -737,6 +737,8 @@ pub fn run() {
                 size_page_exactly(&main);
             }
             setup_tray(app)?;
+            #[cfg(target_os = "macos")]
+            take_over_quit_menu(app)?;
             start_session_ticker(app.handle().clone());
             start_voice_worker_ticker(app.handle().clone());
             start_voice_update_check(app.handle().clone());
@@ -892,6 +894,37 @@ fn setup_status_window(app: &mut tauri::App) -> tauri::Result<()> {
         }
     }
 
+    Ok(())
+}
+
+/// The default app menu's Quit (Cmd-Q) calls `terminate:` straight away, so nothing in the app
+/// hears about it first. It is swapped for our own item, which asks the same way the tray's
+/// Quit does when a session is running. The rest of the default menu (Edit, Window) stays.
+#[cfg(target_os = "macos")]
+fn take_over_quit_menu(app: &mut tauri::App) -> tauri::Result<()> {
+    use tauri::menu::MenuItemKind;
+
+    const MENU_QUIT_ID: &str = "menu_quit";
+    let Some(menu) = app.menu() else {
+        return Ok(());
+    };
+    let Some(MenuItemKind::Submenu(app_menu)) = menu.items()?.into_iter().next() else {
+        return Ok(());
+    };
+    let Some(MenuItemKind::Predefined(default_quit)) = app_menu.items()?.pop() else {
+        return Ok(());
+    };
+    let text = default_quit.text()?;
+    if !text.starts_with("Quit") {
+        return Ok(());
+    }
+    app_menu.remove(&default_quit)?;
+    app_menu.append(&MenuItem::with_id(app, MENU_QUIT_ID, text, true, Some("CmdOrCtrl+Q"))?)?;
+    app.on_menu_event(|app, event| {
+        if event.id() == MENU_QUIT_ID {
+            quit(app);
+        }
+    });
     Ok(())
 }
 

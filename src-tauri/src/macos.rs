@@ -61,21 +61,31 @@ pub fn frontmost_app() -> Option<(u64, String, std::path::PathBuf)> {
     Some((pid, name, path))
 }
 
-/// The login screen or the lock screen is up. Like the Windows lock screen, it records nothing.
+/// Nobody is at this Mac: the lock screen is up, another user has the console (fast user
+/// switching), or the display is asleep without a lock ("require password" set to later than
+/// immediately). Like the Windows lock screen, each records nothing; the front window would
+/// otherwise earn focused time for hours.
 pub fn screen_locked() -> bool {
     use objc2_core_foundation::{CFBoolean, CFString};
 
     let Some(session) = objc2_core_graphics::CGSessionCopyCurrentDictionary() else {
         return false;
     };
-    let key = CFString::from_static_str("CGSSessionScreenIsLocked");
     // SAFETY: a CFDictionary from CoreGraphics; the key and value are CF types.
     let session: &objc2_core_foundation::CFDictionary<CFString, objc2_core_foundation::CFType> =
         unsafe { &*(&*session as *const objc2_core_foundation::CFDictionary).cast() };
-    session
-        .get(&key)
-        .and_then(|value| value.downcast_ref::<CFBoolean>().map(CFBoolean::value))
-        .unwrap_or(false)
+    let flag = |name: &'static str| {
+        session
+            .get(&CFString::from_static_str(name))
+            .and_then(|value| value.downcast_ref::<CFBoolean>().map(CFBoolean::value))
+    };
+    flag("CGSSessionScreenIsLocked").unwrap_or(false)
+        || flag("kCGSSessionOnConsoleKey") == Some(false)
+        || display_asleep()
+}
+
+fn display_asleep() -> bool {
+    objc2_core_graphics::CGDisplayIsAsleep(objc2_core_graphics::CGMainDisplayID())
 }
 
 /// `/System/Library/CoreServices` as macOS reports it: home of the Dock, Spotlight,

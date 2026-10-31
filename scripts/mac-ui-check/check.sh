@@ -8,8 +8,7 @@ HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
 OUT=${TMPDIR:-/tmp}/mac-ui-check
 mkdir -p "$OUT"
-swiftc -O -target arm64-apple-macos14.0 -o "$OUT/webkit-eval" "$HERE/webkit-eval.swift" 2>/dev/null \
-  || swiftc -O -o "$OUT/webkit-eval" "$HERE/webkit-eval.swift"
+clang -O -fobjc-arc -framework Cocoa -framework WebKit -o "$OUT/webkit-eval" "$HERE/webkit-eval.m"
 STARTED=0
 if ! curl -sf -o /dev/null http://127.0.0.1:1420/mock.html; then
   (cd "$ROOT" && npx vite --host 127.0.0.1 --port 1420 --strictPort >"$OUT/vite.log" 2>&1 &)
