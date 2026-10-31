@@ -4302,10 +4302,11 @@ button.history-week-label.is-open h2 span {
 .week-picker-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 5px;
+  gap: 0 5px;
 }
 
 .wp-dow {
+  padding-bottom: 5px;
   color: var(--sv-muted);
   font-family: var(--font-mono);
   font-size: 0.6rem;
@@ -4357,10 +4358,15 @@ button.wp-day.is-today {
   font-weight: 700;
 }
 
-/* A row is a week; it lays out as its days. Hovering any day lifts the whole week it would
-   pick; the week that is showing keeps its yellow. */
+/* A row is a week and one box, gaps included, so the pointer never leaves it between two
+   days. Hovering anywhere on it lifts the whole week it would pick; the week that is showing
+   keeps its yellow. */
 .wp-week {
-  display: contents;
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  padding: 2.5px 0;
 }
 
 .wp-week:hover button.wp-day:not(:disabled) {
