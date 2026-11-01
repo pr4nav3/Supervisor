@@ -3,7 +3,7 @@
 Living log of what is done and what is left. Update this file when an item
 moves, rather than appending a second tracker.
 
-Last updated: 2026-10-31 (`main` at `94b329d`, the second Mac pass; not yet pushed)
+Last updated: 2026-10-31 (`main` at `a0759de`, the second Mac pass, pushed; both CI jobs green)
 
 Product OS targets: **macOS and Windows**. Linux is a workshop only, not a V1
 ship target. Everything through 2026-10-24 was written and run on Windows. On
@@ -33,7 +33,8 @@ pass from Windows, and what is left for a release, is
       gate held with the user's apps open; the worker made a line from the
       command line), a second camera, a display-sleep run while away, Intel.
       Decide whether the macOS RAM measure should change (`known-issues.md`)
-- [ ] Push and watch both CI jobs; the Mac job has not run since 2026-10-30
+- [x] Pushed; CI run 100 passed on macos-latest and windows-latest. Windows re-ran
+      211 tests and `npm run check` on the same commit
 
 ## Post-Mac review (2026-10-25, Windows, `fix/post-mac-review`)
 

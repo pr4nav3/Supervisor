@@ -2228,10 +2228,6 @@ dt {
   grid-column: 1 / -1;
 }
 
-.rule-name-field[hidden] {
-  display: none;
-}
-
 .rule-preview {
   display: flex;
   flex-wrap: wrap;

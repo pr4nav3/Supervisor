@@ -18,7 +18,7 @@ with its checkpointed 16 s), and the status window at 228x161 (corner) with zero
 
 - CI's macOS job never ran: the `macos-14` runner image is being retired (brownout on
   2026-10-31, gone 2026-11-02), so every push since 2026-10-30 was "cancelled" on the Mac
-  side. Now `macos-15`.
+  side. Now `macos-latest`.
 - `check.sh` could not build its Swift harness on this Mac (the Command Line Tools' `swiftc`
   refuses every SDK after a partial update: "this SDK is not supported by the compiler").
   The harness is Objective-C now (`webkit-eval.m`, built with clang, which always matches its
