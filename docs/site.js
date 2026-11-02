@@ -140,7 +140,7 @@
       className: "is-focused",
       status: "Focused",
       strictness: "Strict",
-      title: "Locked in",
+      title: "On task",
       copy: "Finish the session storage migration.",
       progress: 58,
       elapsed: "Elapsed 34:12",

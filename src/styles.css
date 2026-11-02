@@ -587,25 +587,8 @@ h1 {
   font-size: var(--sv-type-3);
 }
 
-.session-rule-set .session-rule-tail {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  width: auto;
-  max-width: 100%;
-  min-width: 0;
-  overflow: visible;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  white-space: nowrap;
-}
-
-.session-rule-set .session-rule-tail > span:first-child {
-  min-width: 0;
-}
-
-.session-rule-set .session-rule-more {
+/* The live session shows six distractions and a "…" for the rest: Edit distractions has them all. */
+.session-rule-chips .session-rule-more {
   width: auto;
   max-width: none;
   flex: 0 0 auto;
@@ -1647,15 +1630,16 @@ button[data-action="cancel-delete-voice"] {
   overflow: hidden;
   height: 16px;
   margin-top: 28px;
-  border: var(--border);
+  /* Fixed colours, like the live strip: the card is the same in both themes. */
+  border: 2px solid #141410;
   border-radius: var(--radius-control);
-  background: var(--white-soft);
+  background: #fff7df;
 }
 
 .progress span {
   display: block;
   height: 100%;
-  background: var(--ink);
+  background: #141410;
 }
 
 .state-meta,
@@ -5931,7 +5915,8 @@ button.history-item {
   box-shadow: 1px 1px 0 var(--sv-shadow-color);
 }
 
-/* The front sets the tile's size; the description lies over it, so the tile stays snug and never jumps. */
+/* Both faces share the one cell, so the tile is as tall as the longer of them and the
+   explanation is never cut off; the tile does not change size when it turns over. */
 .report-stat {
   position: relative;
   grid-template-columns: minmax(0, 1fr);
@@ -5939,6 +5924,7 @@ button.history-item {
 
 .report-stat-face {
   display: grid;
+  grid-area: 1 / 1;
   align-content: center;
   gap: 2px;
   min-width: 0;
@@ -5950,9 +5936,6 @@ button.history-item {
 }
 
 .report-stat-back {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
   padding: 4px 8px;
   font-size: var(--sv-type-4);
   line-height: 1.2;
@@ -6745,6 +6728,8 @@ dt,
 
 .review-chip.is-distraction {
   background: var(--sv-coral);
+  box-shadow: none;
+  transform: translate(2px, 2px);
 }
 
 .review-chip.is-distraction :is(button, small) {
@@ -6932,7 +6917,7 @@ dt,
 .round-dots i {
   width: 17px;
   height: 17px;
-  border: 2px solid var(--sv-ink);
+  border: 2px solid #141410;
   border-radius: 50%;
   background: #fff7df;
 }
@@ -6946,7 +6931,7 @@ dt,
 }
 
 .round-dots i.now {
-  background: var(--sv-ink);
+  background: #141410;
 }
 
 /* The round-over and break-over cards: the distraction card's shape, yellow and green. */

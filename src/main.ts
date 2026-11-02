@@ -1746,11 +1746,14 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   if (rules.length === 0) {
     return `<p class="session-rules-empty">Nothing on the list yet.</p>`;
   }
+  // Six fit the card; the rest are behind Edit distractions, and an allowed one is named below.
   const chips = rules
+    .slice(0, 6)
     .map((rule, index) => {
       const allowed = exceptions.some((exception) => exception.target === rule.target && exception.value === rule.value);
       return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Tap to count it as a distraction again." : "Tap to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
     })
+    .concat(rules.length > 6 ? [`<span class="session-rule-more" aria-label="${rules.length - 6} more">…</span>`] : [])
     .join("");
   const allowed = rules.filter((rule) => exceptions.some((exception) => exception.target === rule.target && exception.value === rule.value)).map(ruleName);
   return `
@@ -1950,15 +1953,47 @@ function renderOverlayActions(current: CurrentSession, held: boolean, nudgesMute
       <button class="overlay-icon danger" type="button" data-action="stop" title="End session" aria-label="End session">${OVERLAY_STOP_ICON}</button>
       <button class="overlay-more ${overlayMoreOpen ? "is-open" : ""}" type="button" data-action="toggle-overlay-more" aria-expanded="${overlayMoreOpen}">More</button>
     </div>
-    ${
-      overlayMoreOpen
-        ? `<div class="overlay-more-body">
-            ${isOnBreak(current) ? "" : renderOverlayWatchControls(current, held, nudgesMuted)}
-            <button class="overlay-pin" type="button" data-action="${pinned ? "unpin-window" : "pin-window"}">${pinned ? "Unpin window" : "Pin window"}</button>
-          </div>`
-        : ""
-    }
+    ${overlayMoreOpen ? renderOverlayMoreBody(current, held, nudgesMuted, pinned) : ""}
   `;
+}
+
+function renderOverlayMoreBody(current: CurrentSession, held: boolean, nudgesMuted: boolean, pinned: boolean): string {
+  return `
+    <div class="overlay-more-body">
+      ${isOnBreak(current) ? "" : renderOverlayWatchControls(current, held, nudgesMuted)}
+      <button class="overlay-pin" type="button" data-action="${pinned ? "unpin-window" : "pin-window"}">${pinned ? "Unpin window" : "Pin window"}</button>
+    </div>
+  `;
+}
+
+/** More opens and closes in place. Redrawing the whole card for it made the card flash while
+ *  the page was rebuilt; now only the menu comes and goes, and the window is fitted after. */
+function paintOverlayMore(): void {
+  const current = snapshot?.current ?? null;
+  const actions = document.querySelector<HTMLElement>(".overlay-actions");
+  const more = actions?.querySelector<HTMLButtonElement>(".overlay-more");
+  if (!current || !actions || !more) {
+    render();
+    return;
+  }
+  more.classList.toggle("is-open", overlayMoreOpen);
+  more.setAttribute("aria-expanded", String(overlayMoreOpen));
+  const body = actions.nextElementSibling;
+  if (body?.classList.contains("overlay-more-body")) {
+    body.remove();
+  }
+  if (overlayMoreOpen) {
+    actions.insertAdjacentHTML(
+      "afterend",
+      renderOverlayMoreBody(current, current.status === "paused", current.status === "snoozed", settings.status_window_on_top),
+    );
+    const added = actions.nextElementSibling;
+    if (added) {
+      bindEvents(added);
+    }
+  }
+  lastOverlayFit = "";
+  overlayFrame(() => fitOverlayWindow());
 }
 
 /** A round just ended or its break ran out, and the user hasn't closed that card. */
@@ -2002,7 +2037,7 @@ function renderMomentOverlay(current: CurrentSession): string {
         <div class="tomatoes" aria-label="${pomodoro.round} of ${pomodoro.rounds} rounds done">
           ${Array.from({ length: pomodoro.rounds }, (_, index) => `<span class="tomato ${index < pomodoro.round ? "is-done" : ""} ${index === pomodoro.round - 1 ? "is-new" : ""}"></span>`).join("")}
         </div>
-        <p class="moment-focused"><b>${Math.round(focused / 60)} min</b> focused</p>
+        <p class="moment-focused"><b>${escapeHtml(formatHours(focused))}</b> focused</p>
         ${renderInterruptVoice(momentShownAt)}
         <div class="moment-gap"></div>
       </section>
@@ -2318,6 +2353,7 @@ function closeFirstRun(): void {
   firstRunOpen = false;
   firstRunStep = null;
   ruleEditor = null;
+  stopClip();
   writeLocal(FIRST_RUN_KEY, "1");
   render();
 }
@@ -2327,6 +2363,7 @@ function moveFirstRun(by: number): void {
   const next = steps[Math.min(steps.length - 1, Math.max(0, steps.indexOf(currentFirstRunStep()) + by))];
   firstRunStep = next;
   ruleEditor = null;
+  stopClip();
   if (next === "done") {
     writeLocal(FIRST_RUN_KEY, "1");
   }
@@ -3882,7 +3919,7 @@ function renderSessionOver(): string {
         <section class="state-slab interrupt-alert moment-round-over">
           <h2 class="moment-title" id="session-over-title">Session done.</h2>
           ${session ? `<p class="moment-goal">${escapeHtml(session.goal)}</p>
-          <p class="moment-focused"><b>${Math.round(session.focus_seconds / 60)} min</b> focused</p>` : ""}
+          <p class="moment-focused"><b>${escapeHtml(formatHours(session.focus_seconds))}</b> focused</p>` : ""}
           ${renderVoiceRow(voice)}
           <div class="moment-gap"></div>
         </section>
@@ -5256,12 +5293,12 @@ function renderSessionReport(report: SessionReport): string {
         ${renderReportTimeline(report)}
       </section>
       <section class="report-stats" aria-label="Session stats">
-          ${reportStat("Duration", formatClockWithUnit(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
+          ${reportStat("Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
         ${reportStat("Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
         ${reportStat("Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
         ${reportStat("Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
         ${pomodoroStat(report)}
-        ${report.phone_seconds > 0 ? reportStat("Phone", formatClockWithUnit(report.phone_seconds), "How long the webcam saw a phone in your hand.") : ""}
+        ${report.phone_seconds > 0 ? reportStat("Phone", formatSpan(report.phone_seconds), "How long the webcam saw a phone in your hand.") : ""}
       </section>
       <section class="panel recap-apps">
         <h2 class="eyebrow recap-apps-title">Apps &amp; sites</h2>
@@ -5294,7 +5331,7 @@ function pomodoroStat(report: SessionReport): string {
     return "";
   }
   const rounds = report.events.filter((event) => event.kind === "round_over").length + 1;
-  return reportStat("Rounds", `${Math.min(rounds, Number(plan[3]))} of ${plan[3]}`, `Pomodoro: ${plan[1]}-minute rounds with ${plan[2]}-minute breaks. Breaks are not in the timeline or the duration.`);
+  return reportStat("Rounds", `${Math.min(rounds, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
 }
 
 function reportStat(labelText: string, value: string, help: string): string {
@@ -5945,6 +5982,7 @@ function leaveVoiceScreen(): void {
     clipQueue = null;
   }
   stopVoicePreview();
+  stopClip();
   releaseVoiceWorker();
 }
 
@@ -6776,9 +6814,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "toggle-overlay-more") {
     overlayMoreOpen = !overlayMoreOpen;
-    lastOverlayFit = "";
-    render();
-    overlayFrame(() => fitOverlayWindow());
+    paintOverlayMore();
     return;
   }
 
@@ -8168,7 +8204,7 @@ function stateTitle(current: CurrentSession | null): string {
 
   switch (current.focus?.state) {
     case "focused":
-      return "Locked in";
+      return "On task";
     case "suspicious":
       return "Distraction open";
     case "distracted":
@@ -8453,6 +8489,15 @@ async function playClip(path: string): Promise<void> {
   } catch (error) {
     voiceError = `Could not play the line: ${errorText(error)}`;
     render();
+  }
+}
+
+/** A line a play button started stops with the screen that showed the button: a voice sample
+ *  does not play on past the step, tab or page it was on. A reminder is not a play button's
+ *  line, so it plays on. */
+function stopClip(): void {
+  if (playingClipPath) {
+    nudgeAudio?.pause();
   }
 }
 
@@ -10290,14 +10335,19 @@ function formatDuration(totalSeconds: number): string {
   return `${minutes}:${String(seconds).padStart(2, "0")}`;
 }
 
-function formatClockWithUnit(totalSeconds: number): string {
+/** "1h 40m", "13m 05s", "13s": a report's duration and phone time, down to the second. */
+function formatSpan(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
-  if (safe >= 3600) {
-    const hours = Math.floor(safe / 3600);
-    const minutes = Math.floor((safe % 3600) / 60);
-    return `${hours}:${String(minutes).padStart(2, "0")} hr`;
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const seconds = safe % 60;
+  if (hours > 0) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}m`;
   }
-  return `${formatDuration(safe)} min`;
+  if (minutes > 0) {
+    return `${minutes}m ${String(seconds).padStart(2, "0")}s`;
+  }
+  return `${seconds}s`;
 }
 
 function label(value: string): string {

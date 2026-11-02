@@ -1186,8 +1186,27 @@ const SESSION_END_EVENT: &str = "session-end";
 /// in view, not as a voice from nowhere.
 fn session_ended(app: &AppHandle) {
     hide_status_window(app);
-    show_main_window(app);
+    raise_main_window(app);
     let _ = app.emit(SESSION_END_EVENT, ());
+}
+
+/// The main window up front without taking the keyboard. Nobody asked for the window here (a
+/// timer ran out), so Windows refuses `set_focus`, and tao then presses and releases a fake Alt
+/// key to take the foreground anyway. That key press reaches whatever the user is doing, and
+/// can leave Alt-Tab and Task View in a strange state. A topmost flip raises the window
+/// without any key press; the user's own window keeps the keyboard, as Windows intends.
+fn raise_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        let _ = window.unminimize();
+        let _ = window.show();
+        #[cfg(windows)]
+        {
+            let _ = window.set_always_on_top(true);
+            let _ = window.set_always_on_top(false);
+        }
+        #[cfg(not(windows))]
+        let _ = window.set_focus();
+    }
 }
 
 /// Quit while a session is running asks first, in the main window ("End this session and

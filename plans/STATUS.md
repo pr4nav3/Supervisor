@@ -13,6 +13,25 @@ ship target. Everything through 2026-10-24 was written and run on Windows. On
 pass from Windows, and what is left for a release, is
 `plans/review-2026-10-25.md`.
 
+## Windows polish (2026-11-02, `main`, uncommitted)
+
+- [x] Session timer card and the live card: the progress bar and round dots keep their ink
+      and cream in dark mode (fixed colours, like the live strip), so the card is the same in
+      both themes; the current-round dot is ink in both too
+- [x] More on the timer card opens and closes in place: no page rebuild, so no flash
+- [x] "Locked in" is "On task" (status card, landing page)
+- [x] Round over and Session done say "1h 40m focused" (`formatHours`), not "100 min"
+- [x] Report tiles fit both faces (no clipped explanation); Duration and Phone read
+      "1h 40m", "13m 05s", "13s" (`formatSpan`); Rounds explanation shorter
+- [x] "Any distractions here?": a tapped chip presses in
+- [x] The live session's distractions show six and a "…" (dropped by mistake on 2026-10-28
+      when the chips became Allow-once buttons); Edit distractions has them all
+- [x] A voice sample stops when the Getting started step changes or closes, and when the
+      Voice page is left
+- [x] Session end raises the main window on Windows with a topmost flip, not `set_focus`:
+      tao's focus fallback presses a fake Alt key, a likely cause of the broken Alt-Tab /
+      Task View seen on 2026-11-02 (`known-issues.md`). Not reproduced; watch for it
+
 ## Second Mac pass (2026-10-31, Tejal's MacBook, `main`)
 
 - [x] Fresh Mac from zero: toolchain, venvs, YOLO export, dev certificate, signed
