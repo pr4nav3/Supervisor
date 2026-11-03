@@ -1,20 +1,25 @@
-# Voice lines: audit and proposed set (2026-10-31)
+# Voice lines: proposed set (2026-10-31, final pass 2026-11-02)
 
-Rules the new set follows. One spoken sentence, or two that flow; no staccato fragments
+Rules the set follows. One spoken sentence, or two that flow; no staccato fragments
 ("Phone. Down."), which text-to-speech reads as separate utterances with dead air between.
-Six to twelve words. Commas where a person would breathe, not full stops. No "not this,
-that" constructions. No lecture ("This is why you're behind"). Slang only where it is
-stable and the personality earns it. Every line must survive being heard forty times.
+Four to twelve words. Commas where a person would breathe, not full stops. No "not this,
+that" constructions. No lecture ("This is why you're behind"). Nothing that is only true
+sometimes ("you're nearly there" at minute three is a lie). Slang only where it is stable
+and the personality earns it. Each personality has one habit of speech that nobody else
+has, so the four never blur. Back to work also plays when a break ends, so at least two
+lines in each set mention nothing about closing anything. Every line must survive being
+heard forty times.
+
+Five Back to work, four Phone down, two Take a break, two Session done per personality.
 
 ## Gentle
 
 Back to work
-- Hey, that's not what we're doing right now.
+- Hey, that's not what we're working on.
 - Come on back, you were doing well.
-- Leave that for later, you're nearly there.
+- Leave that for later, it'll keep.
 - Okay, that's enough of that, back we go.
-- You drifted a little, no big deal, come back.
-- Finish the thing first, then you can have that.
+- Finish this first, then you can have that.
 
 Phone down
 - Put the phone down for a bit, you can check it after.
@@ -37,14 +42,13 @@ Back to work
 - Back to the task, please.
 - You know what you should be doing, so do it.
 - You set this time aside. Use it.
-- Close that and get back to work.
 - Not now. Finish what you started.
 
 Phone down
 - Put the phone down.
 - The phone goes away until you're done.
 - Phone down, eyes on the work.
-- I can see the phone. Away with it.
+- I can see the phone. Put it away.
 
 Take a break
 - Round's over. Five minutes, then straight back.
@@ -60,23 +64,22 @@ Back to work
 - Bro, lock in.
 - Nah, we're not doing that right now.
 - Lowkey not the assignment.
-- You're cooked if you keep this up. Close it.
 - Okay, back to work, that was a whole detour.
 - Respectfully, get back to it.
 
 Phone down
-- Phone down, lock in.
+- Phone down, bestie.
 - Bro, the phone. Put it down.
 - Whatever's on there can wait, trust.
-- Not the phone again. Down.
+- Not the phone again, come on.
 
 Take a break
 - Round done, go get a snack or something.
 - Okay that's a round, take five, you're cooking.
 
 Session done
-- Session done. Lowkey proud of you.
-- That's a wrap, you actually locked in.
+- Session done, you ate that.
+- That's a wrap. Lowkey proud of you.
 
 ## Mum (any mum, not a specific one)
 
@@ -86,13 +89,12 @@ Back to work
 - Finish first, then you can look at whatever that is.
 - Don't make me come over there.
 - Five more minutes of that becomes an hour. I know you.
-- Eyes on your work, love.
 
 Phone down
 - Phone down. I'm not asking twice.
 - Who could you possibly be texting right now?
 - Put that phone away, it's not going anywhere.
-- I can see the phone from here.
+- That phone again? Put it away.
 
 Take a break
 - Good job. Now go and drink some water.
