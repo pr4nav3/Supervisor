@@ -3421,30 +3421,30 @@ mod tests {
         let clips = dir.join("clips");
         fs::create_dir_all(&clips).unwrap();
         // The user already regenerated one bundled line before this version.
-        fs::write(clips.join("03_gentle_back_to_it.wav"), vec![9u8; 100]).unwrap();
+        fs::write(clips.join("03_gentle_come_on_back.wav"), vec![9u8; 100]).unwrap();
         seed_starter_profiles(&root, None);
 
         let bundled = fs::read_dir(starter_resource("derek", None).unwrap()).unwrap().count();
         assert!(bundled >= 20, "the starter voice ships its phrase clips ({bundled})");
         let found = clip_summaries(&clips).unwrap();
         assert_eq!(found.len(), bundled, "one clip per bundled line, the user's kept");
-        assert!(!clips.join("gentle_back_to_it.wav").exists());
-        assert_eq!(fs::read(clips.join("03_gentle_back_to_it.wav")).unwrap(), vec![9u8; 100]);
+        assert!(!clips.join("gentle_come_on_back.wav").exists());
+        assert_eq!(fs::read(clips.join("03_gentle_come_on_back.wav")).unwrap(), vec![9u8; 100]);
 
         // A clip deleted afterwards stays deleted.
-        fs::remove_file(clips.join("stern_close_it_now.wav")).unwrap();
+        fs::remove_file(clips.join("stern_not_the_work.wav")).unwrap();
         seed_starter_profiles(&root, None);
-        assert!(!clips.join("stern_close_it_now.wav").exists());
+        assert!(!clips.join("stern_not_the_work.wav").exists());
 
         // A line bundled by a later version still arrives.
         let marker = dir.join(STARTER_CLIPS_MARKER);
         let without: Vec<String> = fs::read_to_string(&marker).unwrap().lines()
-            .filter(|line| *line != "phone_eyes_up").map(str::to_string).collect();
+            .filter(|line| *line != "gentle_phone_face_down").map(str::to_string).collect();
         fs::write(&marker, without.join("
 ")).unwrap();
-        fs::remove_file(clips.join("phone_eyes_up.wav")).unwrap();
+        fs::remove_file(clips.join("gentle_phone_face_down.wav")).unwrap();
         seed_starter_profiles(&root, None);
-        assert!(clips.join("phone_eyes_up.wav").exists());
+        assert!(clips.join("gentle_phone_face_down.wav").exists());
         let _ = fs::remove_dir_all(root);
     }
 

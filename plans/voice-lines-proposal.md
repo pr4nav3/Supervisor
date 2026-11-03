@@ -1,4 +1,4 @@
-# Voice lines: proposed set (2026-10-31, final pass 2026-11-02)
+# Voice lines: the starter set (proposed 2026-10-31, applied 2026-11-02)
 
 Rules the set follows. One spoken sentence, or two that flow; no staccato fragments
 ("Phone. Down."), which text-to-speech reads as separate utterances with dead air between.

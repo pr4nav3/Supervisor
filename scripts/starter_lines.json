@@ -1,0 +1,264 @@
+{
+ "phrases": [
+  {
+   "id": "gentle_not_what_working_on",
+   "tone": "gentle",
+   "text": "Hey, that's not what we're working on."
+  },
+  {
+   "id": "gentle_come_on_back",
+   "tone": "gentle",
+   "text": "Come on back, you were doing well."
+  },
+  {
+   "id": "gentle_itll_keep",
+   "tone": "gentle",
+   "text": "Leave that for later, it'll keep."
+  },
+  {
+   "id": "gentle_back_we_go",
+   "tone": "gentle",
+   "text": "Okay, that's enough of that, back we go."
+  },
+  {
+   "id": "gentle_finish_this_first",
+   "tone": "gentle",
+   "text": "Finish this first, then you can have that."
+  },
+  {
+   "id": "gentle_phone_check_after",
+   "tone": "gentle",
+   "text": "Put the phone down for a bit, you can check it after."
+  },
+  {
+   "id": "gentle_phone_middle_of_something",
+   "tone": "gentle",
+   "text": "Phone away, you're in the middle of something."
+  },
+  {
+   "id": "gentle_phone_twenty_minutes",
+   "tone": "gentle",
+   "text": "Leave the phone, it'll still be there in twenty minutes."
+  },
+  {
+   "id": "gentle_phone_face_down",
+   "tone": "gentle",
+   "text": "I see the phone. Pop it face down and carry on."
+  },
+  {
+   "id": "gentle_round_stretch",
+   "tone": "gentle",
+   "text": "That's a round done. Stand up, stretch, get some water."
+  },
+  {
+   "id": "gentle_round_take_five",
+   "tone": "gentle",
+   "text": "Nice one. Take five, you've earned it."
+  },
+  {
+   "id": "gentle_session_good_work",
+   "tone": "gentle",
+   "text": "And that's the session. Good work today."
+  },
+  {
+   "id": "gentle_session_something_nice",
+   "tone": "gentle",
+   "text": "All done. Go do something nice with the rest of your day."
+  },
+  {
+   "id": "mom_see_from_here",
+   "tone": "mom",
+   "text": "I can see that from here, you know."
+  },
+  {
+   "id": "mom_why_is_it_open",
+   "tone": "mom",
+   "text": "Is that your work? No? Then why is it open?"
+  },
+  {
+   "id": "mom_finish_first",
+   "tone": "mom",
+   "text": "Finish first, then you can look at whatever that is."
+  },
+  {
+   "id": "mom_come_over_there",
+   "tone": "mom",
+   "text": "Don't make me come over there."
+  },
+  {
+   "id": "mom_five_minutes_hour",
+   "tone": "mom",
+   "text": "Five more minutes of that becomes an hour. I know you."
+  },
+  {
+   "id": "mom_phone_not_asking_twice",
+   "tone": "mom",
+   "text": "Phone down. I'm not asking twice."
+  },
+  {
+   "id": "mom_phone_texting",
+   "tone": "mom",
+   "text": "Who could you possibly be texting right now?"
+  },
+  {
+   "id": "mom_phone_not_going_anywhere",
+   "tone": "mom",
+   "text": "Put that phone away, it's not going anywhere."
+  },
+  {
+   "id": "mom_phone_again",
+   "tone": "mom",
+   "text": "That phone again? Put it away."
+  },
+  {
+   "id": "mom_round_water",
+   "tone": "mom",
+   "text": "Good job. Now go and drink some water."
+  },
+  {
+   "id": "mom_round_sitting_too_long",
+   "tone": "mom",
+   "text": "Well done. Take a little break, you've been sitting too long."
+  },
+  {
+   "id": "mom_session_proud",
+   "tone": "mom",
+   "text": "All done? Good. I'm proud of you."
+  },
+  {
+   "id": "mom_session_go_eat",
+   "tone": "mom",
+   "text": "That's finished? Lovely. Go eat something."
+  },
+  {
+   "id": "genz_bro_lock_in",
+   "tone": "genz",
+   "text": "Bro, lock in."
+  },
+  {
+   "id": "genz_not_doing_that",
+   "tone": "genz",
+   "text": "Nah, we're not doing that right now."
+  },
+  {
+   "id": "genz_lowkey_not_assignment",
+   "tone": "genz",
+   "text": "Lowkey not the assignment."
+  },
+  {
+   "id": "genz_whole_detour",
+   "tone": "genz",
+   "text": "Okay, back to work, that was a whole detour."
+  },
+  {
+   "id": "genz_respectfully",
+   "tone": "genz",
+   "text": "Respectfully, get back to it."
+  },
+  {
+   "id": "genz_phone_bestie",
+   "tone": "genz",
+   "text": "Phone down, bestie."
+  },
+  {
+   "id": "genz_phone_bro",
+   "tone": "genz",
+   "text": "Bro, the phone. Put it down."
+  },
+  {
+   "id": "genz_phone_trust",
+   "tone": "genz",
+   "text": "Whatever's on there can wait, trust."
+  },
+  {
+   "id": "genz_phone_come_on",
+   "tone": "genz",
+   "text": "Not the phone again, come on."
+  },
+  {
+   "id": "genz_round_snack",
+   "tone": "genz",
+   "text": "Round done, go get a snack or something."
+  },
+  {
+   "id": "genz_round_cooking",
+   "tone": "genz",
+   "text": "Okay that's a round, take five, you're cooking."
+  },
+  {
+   "id": "genz_session_ate_that",
+   "tone": "genz",
+   "text": "Session done, you ate that."
+  },
+  {
+   "id": "genz_session_lowkey_proud",
+   "tone": "genz",
+   "text": "That's a wrap. Lowkey proud of you."
+  },
+  {
+   "id": "stern_not_the_work",
+   "tone": "stern",
+   "text": "That isn't the work. Close it."
+  },
+  {
+   "id": "stern_back_to_task",
+   "tone": "stern",
+   "text": "Back to the task, please."
+  },
+  {
+   "id": "stern_you_know_what",
+   "tone": "stern",
+   "text": "You know what you should be doing, so do it."
+  },
+  {
+   "id": "stern_set_time_aside",
+   "tone": "stern",
+   "text": "You set this time aside. Use it."
+  },
+  {
+   "id": "stern_finish_what_started",
+   "tone": "stern",
+   "text": "Not now. Finish what you started."
+  },
+  {
+   "id": "stern_phone_down",
+   "tone": "stern",
+   "text": "Put the phone down."
+  },
+  {
+   "id": "stern_phone_until_done",
+   "tone": "stern",
+   "text": "The phone goes away until you're done."
+  },
+  {
+   "id": "stern_phone_eyes_on_work",
+   "tone": "stern",
+   "text": "Phone down, eyes on the work."
+  },
+  {
+   "id": "stern_phone_put_away",
+   "tone": "stern",
+   "text": "I can see the phone. Put it away."
+  },
+  {
+   "id": "stern_round_straight_back",
+   "tone": "stern",
+   "text": "Round's over. Five minutes, then straight back."
+  },
+  {
+   "id": "stern_round_on_time",
+   "tone": "stern",
+   "text": "Good. Break now, and be back on time."
+  },
+  {
+   "id": "stern_session_complete",
+   "tone": "stern",
+   "text": "Session complete. Well done."
+  },
+  {
+   "id": "stern_session_thats_time",
+   "tone": "stern",
+   "text": "That's time. Good work."
+  }
+ ]
+}

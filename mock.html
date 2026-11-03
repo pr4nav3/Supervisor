@@ -142,7 +142,7 @@
       };
       // ?voice=1 on the overlay: the main window's nudge reaches the card, speaks 3 s, then ends.
       if (q.get("voice") === "1") {
-        const said = {voice: "Mum", line: q.get("phone") === "1" ? "Phone down. Back to it." : "Beta, I can see the screen."};
+        const said = {voice: "Mum", line: q.get("phone") === "1" ? "Phone down. I'm not asking twice." : "I can see that from here, you know."};
         setTimeout(() => fire("nudge-voice", {speaking: true, ...said}), 1200);
         setTimeout(() => fire("nudge-voice", {speaking: false, ...said}), Number(q.get("speak_ms") || 4200));
       }

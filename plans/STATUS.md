@@ -32,6 +32,16 @@ pass from Windows, and what is left for a release, is
       tao's focus fallback presses a fake Alt key, a likely cause of the broken Alt-Tab /
       Task View seen on 2026-11-02 (`known-issues.md`). Not reproduced; watch for it
 
+## Voice lines (2026-11-02, Windows, `main`)
+
+- [x] New starter line set applied: 5 Back to work, 4 Phone down, 2 Take a break, 2 Session
+      done per personality, 52 lines (`plans/voice-lines-proposal.md` has the rules). New
+      ids throughout; `scripts/starter_lines.json` is the list, `scripts/make_starter_clips.py`
+      makes the bundled Derek and Elise clips (three seeded takes, the one nearest the length
+      its word count predicts is kept). A recorded voice shows the new lines as not generated
+      until Regenerate
+- [ ] Listen to the 104 bundled clips; regenerate any that drop or double a word
+
 ## Second Mac pass (2026-10-31, Tejal's MacBook, `main`)
 
 - [x] Fresh Mac from zero: toolchain, venvs, YOLO export, dev certificate, signed
@@ -407,7 +417,7 @@ The last live run on Windows was 2026-10-18.
 
 Needs a person (details in `plans/review-2026-10-25.md`):
 
-1. **Listen to the 40 starter clips** and regenerate any that sound wrong.
+1. **Listen to the bundled starter clips** and regenerate any that sound wrong.
 2. **Publish the two GitHub Releases** (app `v0.1.0`, `voice-runtime`
    pre-release); `plans/distribution.md` has the steps.
 3. **Decide Windows distribution** (direct download with SmartScreen, or the
