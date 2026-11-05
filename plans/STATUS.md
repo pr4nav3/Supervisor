@@ -53,7 +53,9 @@ pass from Windows, and what is left for a release, is
       makes the bundled Derek and Elise clips (three seeded takes, the one nearest the length
       its word count predicts is kept). A recorded voice shows the new lines as not generated
       until Regenerate
-- [ ] Listen to the 104 bundled clips; regenerate any that drop or double a word
+- [x] 2026-11-05: 16 lines sharpened and 2 added (54 per voice): one "that" per line, Stern
+      cold, Mom threatens, Gen Z spiced. 36 new clips, transcription-checked
+- [ ] Listen to the 108 bundled clips; regenerate any that drop or double a word
 
 ## Second Mac pass (2026-10-31, Tejal's MacBook, `main`)
 

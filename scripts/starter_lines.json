@@ -16,14 +16,14 @@
    "text": "Leave that for later, it'll keep."
   },
   {
-   "id": "gentle_back_we_go",
+   "id": "gentle_thats_enough",
    "tone": "gentle",
-   "text": "Okay, that's enough of that, back we go."
+   "text": "Okay, that's enough, back we go."
   },
   {
-   "id": "gentle_finish_this_first",
+   "id": "gentle_finish_the_work",
    "tone": "gentle",
-   "text": "Finish this first, then you can have that."
+   "text": "Finish the work first, then you can have that."
   },
   {
    "id": "gentle_phone_check_after",
@@ -76,11 +76,6 @@
    "text": "Is that your work? No? Then why is it open?"
   },
   {
-   "id": "mom_finish_first",
-   "tone": "mom",
-   "text": "Finish first, then you can look at whatever that is."
-  },
-  {
    "id": "mom_come_over_there",
    "tone": "mom",
    "text": "Don't make me come over there."
@@ -89,6 +84,16 @@
    "id": "mom_five_minutes_hour",
    "tone": "mom",
    "text": "Five more minutes of that becomes an hour. I know you."
+  },
+  {
+   "id": "mom_grounded",
+   "tone": "mom",
+   "text": "Close it, or you're grounded. Don't test me."
+  },
+  {
+   "id": "mom_counting_to_three",
+   "tone": "mom",
+   "text": "I'm counting to three. One."
   },
   {
    "id": "mom_phone_not_asking_twice",
@@ -101,14 +106,14 @@
    "text": "Who could you possibly be texting right now?"
   },
   {
-   "id": "mom_phone_not_going_anywhere",
+   "id": "mom_phone_mine_till_dinner",
    "tone": "mom",
-   "text": "Put that phone away, it's not going anywhere."
+   "text": "Phone away, or it's mine till dinner."
   },
   {
-   "id": "mom_phone_again",
+   "id": "mom_phone_disappointed",
    "tone": "mom",
-   "text": "That phone again? Put it away."
+   "text": "That phone again? I'm not angry, I'm disappointed."
   },
   {
    "id": "mom_round_water",
@@ -126,9 +131,9 @@
    "text": "All done? Good. I'm proud of you."
   },
   {
-   "id": "mom_session_go_eat",
+   "id": "mom_session_not_so_hard",
    "tone": "mom",
-   "text": "That's finished? Lovely. Go eat something."
+   "text": "That's finished? See, that wasn't so hard."
   },
   {
    "id": "genz_bro_lock_in",
@@ -146,14 +151,19 @@
    "text": "Lowkey not the assignment."
   },
   {
-   "id": "genz_whole_detour",
+   "id": "genz_be_so_for_real",
    "tone": "genz",
-   "text": "Okay, back to work, that was a whole detour."
+   "text": "Be so for real right now. Close it."
   },
   {
-   "id": "genz_respectfully",
+   "id": "genz_not_bros",
    "tone": "genz",
-   "text": "Respectfully, get back to it."
+   "text": "We're not gonna be bros if you keep this up. Close it."
+  },
+  {
+   "id": "genz_caught_in_4k",
+   "tone": "genz",
+   "text": "Caught in 4K. Close it."
   },
   {
    "id": "genz_phone_bestie",
@@ -166,14 +176,14 @@
    "text": "Bro, the phone. Put it down."
   },
   {
-   "id": "genz_phone_trust",
+   "id": "genz_phone_group_chat",
    "tone": "genz",
-   "text": "Whatever's on there can wait, trust."
+   "text": "The group chat can wait, trust."
   },
   {
-   "id": "genz_phone_come_on",
+   "id": "genz_phone_talked_about_this",
    "tone": "genz",
-   "text": "Not the phone again, come on."
+   "text": "Phone again? Bro, we talked about this."
   },
   {
    "id": "genz_round_snack",
@@ -201,14 +211,14 @@
    "text": "That isn't the work. Close it."
   },
   {
-   "id": "stern_back_to_task",
+   "id": "stern_wont_ask_again",
    "tone": "stern",
-   "text": "Back to the task, please."
+   "text": "Close it. I won't ask again."
   },
   {
-   "id": "stern_you_know_what",
+   "id": "stern_wasting_own_time",
    "tone": "stern",
-   "text": "You know what you should be doing, so do it."
+   "text": "You're wasting your own time. Back to it."
   },
   {
    "id": "stern_set_time_aside",
@@ -216,9 +226,9 @@
    "text": "You set this time aside. Use it."
   },
   {
-   "id": "stern_finish_what_started",
+   "id": "stern_enough",
    "tone": "stern",
-   "text": "Not now. Finish what you started."
+   "text": "Enough. Back to work."
   },
   {
    "id": "stern_phone_down",
@@ -236,9 +246,9 @@
    "text": "Phone down, eyes on the work."
   },
   {
-   "id": "stern_phone_put_away",
+   "id": "stern_phone_put_away_now",
    "tone": "stern",
-   "text": "I can see the phone. Put it away."
+   "text": "I can see the phone. Put it away. Now."
   },
   {
    "id": "stern_round_straight_back",
@@ -246,14 +256,14 @@
    "text": "Round's over. Five minutes, then straight back."
   },
   {
-   "id": "stern_round_on_time",
+   "id": "stern_round_not_six",
    "tone": "stern",
-   "text": "Good. Break now, and be back on time."
+   "text": "Break. Five minutes, not six."
   },
   {
-   "id": "stern_session_complete",
+   "id": "stern_session_same_time",
    "tone": "stern",
-   "text": "Session complete. Well done."
+   "text": "Done. Same time tomorrow."
   },
   {
    "id": "stern_session_thats_time",
