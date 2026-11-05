@@ -630,7 +630,7 @@ button.orb:active .orb-core {
   /* After the demo the page ends in three stacked cards: each one is sticky near the top, so
      the next slides up over it and stops in the same place, like a deck being dealt. */
   /* room to breathe: a long run after the demo before the first row, and a long run between rows */
-  .stack { position: relative; display: grid; row-gap: 48vh; width: min(100%, 880px); padding: 30vh 24px var(--tail, 24px); }
+  .stack { position: relative; display: grid; row-gap: 85vh; width: min(100%, 880px); padding: 45vh 24px var(--tail, 24px); }
   /* a deal is one sticky row: one card, or two cards side by side, all the same height */
   .deal { position: sticky; top: var(--top, calc(104px + var(--i) * 18px)); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 18px; }
   .pane { display: grid; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); overflow: hidden; transform-origin: 50% 0; transition: box-shadow 200ms ease, opacity 240ms ease, transform 320ms var(--ease-out); }
