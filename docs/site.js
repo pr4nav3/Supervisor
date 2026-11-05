@@ -41,12 +41,13 @@
 
   /* the eye on the promise card looks where the pointer is, within its socket */
   var eyes = Array.prototype.slice.call(document.querySelectorAll(".eye"));
-  function wink(eye) { eye.classList.remove("wink"); void eye.offsetWidth; eye.classList.add("wink"); }
+  /* the lid comes back by itself, whether or not the browser reports the animation's end */
+  function wink(eye) { eye.classList.remove("wink"); void eye.offsetWidth; eye.classList.add("wink"); clearTimeout(eye._wink); eye._wink = setTimeout(function () { eye.classList.remove("wink"); }, 400); }
   eyes.forEach(function (eye) {
     eye.addEventListener("click", function () { wink(eye); });
-    eye.addEventListener("animationend", function (e) { if (e.animationName === "wink") eye.classList.remove("wink"); });
   });
-  if (!reduce) addEventListener("pointermove", function (e) { lookAt(e.clientX, e.clientY); }, { passive: true });
+  /* looking where the pointer is isn't motion for its own sake, so it stays on under "reduce motion" too */
+  addEventListener("pointermove", function (e) { lookAt(e.clientX, e.clientY); }, { passive: true });
   function lookAt(x, y) {
     eyes.forEach(function (eye) {
       var r = eye.getBoundingClientRect(); if (!r.width) return;
@@ -250,12 +251,16 @@
     var last = sheets[sheets.length - 1], foot = document.querySelector("footer").offsetHeight;
     /* each row parks centred in the window (with the footer's height counted in, so the last
        row and the credit line read as one centred group); the page ends there */
-    var top = function (el) { return Math.max(96, Math.round((innerHeight - el.offsetHeight - foot) / 2)); };
+    /* never under the bar: 72px of bar, 18px of soft edge, 14px of air */
+    var top = function (el) { return Math.max(104, Math.round((innerHeight - el.offsetHeight - foot) / 2)); };
     sheets.forEach(function (el) { el.style.setProperty("--top", top(el) + "px"); });
     /* the footer sits right under the last row, and the page keeps as much room under it as
        there is above the row */
     $("stack").style.setProperty("--tail", "0px");
-    document.querySelector("footer").style.marginBottom = Math.max(24, top(last)) + "px";
+    /* whatever is left under the group once the last row parks at its top; when the row is
+       clamped to the bar that is less than the room above it, and the page must end there, not
+       push the row up under the bar */
+    document.querySelector("footer").style.marginBottom = Math.max(24, innerHeight - top(last) - last.offsetHeight - foot) + "px";
   }
   tail(); addEventListener("resize", tail); document.querySelectorAll(".os .vcard").forEach(function (b) { b.addEventListener("click", function () { setTimeout(tail, 0); }); });
   /* a card is "in" while any of it is on screen, so its arrival replays on the way back up */
