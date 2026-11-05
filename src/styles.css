@@ -614,7 +614,7 @@ h1 {
 
 .active-session-controls {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.4fr 1fr 1fr;
   gap: 12px;
 }
 
@@ -1861,11 +1861,11 @@ dt {
 
 .settings-page {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .defaults-card {
-  padding: 18px;
+  padding: 14px 18px;
 }
 
 /* Two inner cards, no shadow: the same surface as the voice popups' key-value cards. */
@@ -1928,7 +1928,7 @@ dt {
 
 .settings-feature-card {
   display: flex;
-  min-height: 190px;
+  min-height: 172px;
   flex-direction: column;
   padding: 18px;
 }
@@ -1956,7 +1956,6 @@ dt {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-top: 8px;
 }
 
 .setting-row {
@@ -7081,4 +7080,29 @@ dt,
 .status-chip.streak-chip.is-kept {
   background: var(--sv-green);
   color: var(--sv-colored-ink);
+}
+
+/* The live card's distraction chips read left to right, like a list. */
+.session-rule-chips {
+  justify-content: flex-start;
+}
+
+/* History storage trouble: the sentence and its Dismiss on one row. */
+.notice-storage {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.recording-prompt {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--white-soft);
+  color: var(--ink);
+  font-size: var(--sv-type-3);
+  line-height: 1.45;
+  text-align: left;
 }

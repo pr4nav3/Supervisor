@@ -49,12 +49,19 @@ pub struct RawForegroundIdentity {
     /// (Start, Search, notification center, touch keyboard, system dialogs).
     pub is_system_app: bool,
     pub is_system_shell: bool,
+    /// The console display is off (power timeout, Win+L without a lock, the screen's own
+    /// button). Nobody can see the window in front, so it earns nothing, like the lock screen.
+    pub display_off: bool,
 }
 
 pub fn classify_foreground_surface(identity: &RawForegroundIdentity) -> ForegroundDisposition {
     let exe = exe_stem_lower(&identity.exe_name);
     let class = identity.window_class.as_str();
     let title = normalize_title_text(&identity.window_title);
+
+    if identity.display_off {
+        return ForegroundDisposition::NoSample;
+    }
 
     if identity.exe_name.is_empty() && title.is_none() && class.is_empty() {
         return ForegroundDisposition::NoSample;
@@ -327,7 +334,16 @@ mod tests {
             window_title: title.to_string(),
             is_system_app,
             is_system_shell: exe.eq_ignore_ascii_case("ShellHost.exe"),
+            display_off: false,
         }
+    }
+
+    #[test]
+    fn a_dark_display_records_nothing_whatever_is_in_front() {
+        let mut code = identity("Code.exe", "Chrome_WidgetWin_1", "main.rs", false);
+        assert_eq!(classify_foreground_surface(&code), ForegroundDisposition::Sample);
+        code.display_off = true;
+        assert_eq!(classify_foreground_surface(&code), ForegroundDisposition::NoSample);
     }
 
     #[test]

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 const MODEL_ID: &str = "chatterbox-nano-minimal";
-const MODEL_DISPLAY_NAME: &str = "Chatterbox-Nano voice cloning model";
+const MODEL_DISPLAY_NAME: &str = "Chatterbox-Nano";
 const MODEL_REPO: &str = "ResembleAI/chatterbox-nano";
 const MODEL_REVISION: &str = "71ccd1d0081b430592cea481f4307e764e07bc64";
 const GIBIBYTE: u64 = 1024 * 1024 * 1024;
@@ -31,13 +31,14 @@ const LOADED_WORKER_HEADROOM_BYTES: u64 = GIBIBYTE;
 const WORKER_IDLE_TIMEOUT: Duration = Duration::from_secs(120);
 const EXTRA_DOWNLOAD_HEADROOM_BYTES: u64 = 512 * 1024 * 1024;
 const MAX_REFERENCE_AUDIO_BYTES: usize = 60 * 1024 * 1024;
-// A cloning sample needs 10 to 30 s. Past this the mic stops and the recording is refused.
+// The voice needs 20 to 30 s of reading. Past the cap the mic stops and the recording is refused;
+// under the floor there is too little voice to copy.
 const MAX_RECORDING_SECONDS: u32 = 60;
+const MIN_RECORDING_SECONDS: u32 = 5;
 const DOWNLOAD_CANCELLED: &str = "download cancelled";
+/// A check for updates with the engine installed that never reached the server.
+pub const UPDATE_CHECK_FAILED: &str = "Couldn't check for updates. Check your connection.";
 const MAX_VOICE_GENERATION: Duration = Duration::from_secs(30 * 60);
-const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(10);
-const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
 const STARTER_PROFILES: &[(&str, &str, &str)] = &[
     ("derek", "Derek", "derek.wav"),
     ("elise", "Elise", "elise.wav"),
@@ -69,6 +70,9 @@ pub struct VoiceDownloadSnapshot {
     pub message: String,
     /// Complete, and nothing needed fetching.
     pub up_to_date: bool,
+    /// Error, and it was a check for updates that could not reach the server: the installed
+    /// engine is fine, nothing was checked.
+    pub check_failed: bool,
     pub model: VoiceModelStatus,
     pub runtime: voice_runtime::VoiceRuntimeStatus,
 }
@@ -260,8 +264,21 @@ impl VoiceWorker {
         }
     }
 
+    /// Whether the model sits in a live worker. A worker that died on its own (out of memory,
+    /// a crash) has nothing loaded, and the next job pays the full load again.
     pub fn is_loaded(&self) -> bool {
-        self.inner.loaded.load(Ordering::SeqCst)
+        if !self.inner.loaded.load(Ordering::SeqCst) {
+            return false;
+        }
+        // A running job holds `live`; then the flag is as good as it gets.
+        if let Ok(mut live) = self.inner.live.try_lock() {
+            if worker_is_dead(live.as_mut()) {
+                *live = None;
+                self.inner.loaded.store(false, Ordering::SeqCst);
+                return false;
+            }
+        }
+        true
     }
 
     /// Frees the model's RAM. A running job finishes first; only `cancel` interrupts one.
@@ -331,7 +348,7 @@ impl VoiceWorker {
         phrases: &[VoicePhraseInput],
     ) -> Result<JobOutcome, String> {
         if self.inner.busy.swap(true, Ordering::SeqCst) {
-            return Err("a voice clip is already generating".to_string());
+            return Err("A line is already generating.".to_string());
         }
         self.inner.stop_after.store(false, Ordering::SeqCst);
         let generation = self.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
@@ -363,14 +380,11 @@ impl VoiceWorker {
             .inner
             .live
             .lock()
-            .map_err(|_| "voice worker lock".to_string())?;
+            .map_err(|_| "The voice engine is busy. Try again.".to_string())?;
         let mut spawn_ms = 0;
-        let dead = match live.as_mut() {
-            Some(worker) => !matches!(worker.child.try_wait(), Ok(None)),
-            None => true,
-        };
-        if dead {
+        if worker_is_dead(live.as_mut()) {
             *live = None;
+            self.inner.loaded.store(false, Ordering::SeqCst);
             // Its pid may be reused by an unrelated process group; never kill by it again.
             if let Ok(mut slot) = self.inner.killer.lock() {
                 *slot = None;
@@ -383,7 +397,7 @@ impl VoiceWorker {
             *live = Some(worker);
             spawn_ms = spawn_started.elapsed().as_millis() as u64;
         }
-        let worker = live.as_mut().ok_or_else(|| "voice worker missing".to_string())?;
+        let worker = live.as_mut().ok_or_else(|| "The voice engine could not start.".to_string())?;
         let request = ServeRequest {
             id: generation.to_string(),
             op: "generate",
@@ -403,7 +417,7 @@ impl VoiceWorker {
         let mut stdout = worker
             .stdout
             .take()
-            .ok_or_else(|| "voice worker stdout missing".to_string())?;
+            .ok_or_else(|| "The voice engine could not start.".to_string())?;
         let pid = worker.child.id();
         let stderr_tail = Arc::clone(&worker.stderr_tail);
         let (tx, rx) = mpsc::channel();
@@ -472,7 +486,7 @@ impl VoiceWorker {
             Err(error) => {
                 drop(live);
                 self.kill();
-                return Err(format!("voice worker sent an unreadable reply: {error}"));
+                return Err(format!("The voice engine sent an unreadable reply: {error}"));
             }
         };
         self.inner
@@ -496,6 +510,13 @@ impl VoiceWorker {
             peak_ram: peak.working_set,
             peak_private: peak.private,
         })
+    }
+}
+
+fn worker_is_dead(live: Option<&mut LiveWorker>) -> bool {
+    match live {
+        Some(worker) => !matches!(worker.child.try_wait(), Ok(None)),
+        None => true,
     }
 }
 
@@ -582,11 +603,11 @@ fn spawn_serve_worker(root: &Path) -> Result<(LiveWorker, WorkerKiller), String>
     let stdin = child
         .stdin
         .take()
-        .ok_or_else(|| "voice worker stdin missing".to_string())?;
+        .ok_or_else(|| "The voice engine could not start.".to_string())?;
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| "voice worker stdout missing".to_string())?;
+        .ok_or_else(|| "The voice engine could not start.".to_string())?;
     Ok((
         LiveWorker {
             child,
@@ -707,7 +728,7 @@ pub struct GenerateVoiceClipsInput {
     pub profile_id: String,
     pub display_name: Option<String>,
     pub reference_audio_path: String,
-    pub phrases: Option<Vec<VoicePhraseInput>>,
+    pub phrases: Vec<VoicePhraseInput>,
     pub delete_reference_after_generation: Option<bool>,
     pub merge_clips: Option<bool>,
 }
@@ -857,7 +878,6 @@ pub fn start_model_download(
         }
     }
 
-    ensure_download_space(&root)?;
     // Hashing the installed model takes seconds, so it happens on the worker thread: this
     // returns at once in the Checking phase, and Downloading starts with the first fetch.
     let runtime = voice_runtime::status(&root);
@@ -1056,17 +1076,17 @@ pub fn save_reference_from_path(
     input: SaveVoiceReferenceFromPathInput,
 ) -> Result<VoiceProfileSummary, String> {
     let root = voice_root(app)?;
-    let root = ensure_voice_root(&root)?;
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     let profile_id = clean_id(&input.profile_id)?;
     let reference = supervisor_storage_file(&root, &input.reference_audio_path, "recording")?;
     let bytes = fs::metadata(&reference)
         .map_err(|error| error.to_string())?
         .len();
     if bytes == 0 {
-        return Err("recorded voice clip is empty".to_string());
+        return Err("The recording is empty.".to_string());
     }
     if bytes > MAX_REFERENCE_AUDIO_BYTES as u64 {
-        return Err("recorded voice clip is too large".to_string());
+        return Err("The recording is too large.".to_string());
     }
 
     let display_name = clean_display_name(input.display_name.as_deref(), &profile_id);
@@ -1218,11 +1238,11 @@ pub fn set_profile_tone(
     let profile_id = clean_id(&profile_id)?;
     let dir = profile_dir(&root, &profile_id);
     if !dir.exists() {
-        return Err(format!("voice profile not found: {profile_id}"));
+        return Err("That voice was not found.".to_string());
     }
     let tone = tone.trim();
     if tone.is_empty() || tone.chars().count() > 80 {
-        return Err("tone name must be 1 to 80 characters".to_string());
+        return Err("A personality name must be 1 to 80 characters.".to_string());
     }
     let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
         profile_id: profile_id.clone(),
@@ -1245,11 +1265,11 @@ pub fn rename_profile(
     let profile_id = clean_id(&profile_id)?;
     let dir = profile_dir(&root, &profile_id);
     if !dir.exists() {
-        return Err(format!("voice profile not found: {profile_id}"));
+        return Err("That voice was not found.".to_string());
     }
     let name = display_name.trim();
     if name.is_empty() || name.chars().count() > 80 {
-        return Err("voice name must be 1 to 80 characters".to_string());
+        return Err("A voice name must be 1 to 80 characters.".to_string());
     }
     let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
         profile_id: profile_id.clone(),
@@ -1270,7 +1290,7 @@ pub fn delete_profile_clips(
     let profile_id = clean_id(&profile_id)?;
     let dir = profile_dir(&root, &profile_id);
     if !dir.exists() {
-        return Err(format!("voice profile not found: {profile_id}"));
+        return Err("That voice was not found.".to_string());
     }
 
     let clips_dir = dir.join("clips");
@@ -1302,7 +1322,7 @@ pub fn delete_clip(
     }
 
     if !deleted {
-        return Err(format!("voice clip not found: {clip_id}"));
+        return Err("That line's audio was not found.".to_string());
     }
 
     profile_summary(&profile_dir(&root, &profile_id), &profile_id)
@@ -1315,7 +1335,7 @@ pub fn generate_clips(
 ) -> Result<VoiceProfileSummary, String> {
     let started = Instant::now();
     let root = voice_root(&app)?;
-    let root = ensure_voice_root(&root)?;
+    fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     seed_starter_profiles(&root, Some(&app));
     let loaded = worker.is_loaded();
     let mut row = GenerationLogRow {
@@ -1324,7 +1344,7 @@ pub fn generate_clips(
         ok: false,
         error: None,
         profile: input.profile_id.clone(),
-        phrases: input.phrases.as_ref().map(Vec::len).unwrap_or(0),
+        phrases: input.phrases.len(),
         merge: input.merge_clips.unwrap_or(false),
         need: required_ram_for_gate(loaded),
         available_before: available_ram_bytes(),
@@ -1368,15 +1388,14 @@ fn generate_clips_inner(
         .filter(|value| !value.is_empty())
         .unwrap_or(&profile_id)
         .to_string();
-    let reference = supervisor_storage_file(&root, &input.reference_audio_path, "reference audio")?;
+    let reference = supervisor_storage_file(root, &input.reference_audio_path, "recording")?;
     // Size check only: hashing 1.9 GB here added ten seconds to every clip. Install verifies.
     if !model_status_for(&root, false).installed || !voice_runtime::status(&root).installed {
         return Err("Download the voice engine before generating lines.".to_string());
     }
     ensure_generation_ram(worker.is_loaded())?;
 
-    let phrases = input.phrases.unwrap_or_else(default_phrases);
-    row.phrases = phrases.len();
+    let phrases = input.phrases;
     validate_phrases(&phrases)?;
 
     let dir = profile_dir(root, &profile_id);
@@ -1534,7 +1553,7 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         elapsed_seconds,
         eta_seconds,
         message: match state.phase {
-            VoiceDownloadPhase::Idle => "No model download is running.".to_string(),
+            VoiceDownloadPhase::Idle => "No download is running.".to_string(),
             VoiceDownloadPhase::Checking => "Checking the installed voice engine.".to_string(),
             VoiceDownloadPhase::Downloading => state
                 .current_file
@@ -1545,13 +1564,15 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
                 "Cancelling download. Deleting partially installed files.".to_string()
             }
             VoiceDownloadPhase::Complete if state.up_to_date => "Everything is already up to date.".to_string(),
-            VoiceDownloadPhase::Complete => "Model pack ready.".to_string(),
+            VoiceDownloadPhase::Complete => "Voice engine ready.".to_string(),
             VoiceDownloadPhase::Error => state
                 .error
                 .clone()
-                .unwrap_or_else(|| "Model download failed.".to_string()),
+                .unwrap_or_else(|| "The voice engine download failed.".to_string()),
         },
         up_to_date: state.phase == VoiceDownloadPhase::Complete && state.up_to_date,
+        check_failed: state.phase == VoiceDownloadPhase::Error
+            && state.error.as_deref() == Some(UPDATE_CHECK_FAILED),
         model: model_status_for(root, false),
         runtime: voice_runtime::status(root),
     }
@@ -1579,6 +1600,7 @@ fn download_pack_to_with_progress(
     mut progress: impl FnMut(VoiceDownloadProgress),
 ) -> Result<bool, String> {
     let model_start_bytes = present_model_bytes(root);
+    let was_installed = model_status_for(root, false).installed && voice_runtime::status(root).installed;
     let mut fetched = false;
     let runtime = voice_runtime::install_runtime(root, Arc::clone(&cancel), |runtime_progress| {
         fetched |= runtime_progress.current_file.is_some();
@@ -1587,6 +1609,14 @@ fn download_pack_to_with_progress(
             total_bytes: Some(required_model_bytes() + runtime_progress.total_bytes),
             current_file: runtime_progress.current_file,
         });
+    })
+    .map_err(|error| {
+        // With everything installed this was a check, and the engine list never arrived.
+        if was_installed && !fetched && error != DOWNLOAD_CANCELLED {
+            UPDATE_CHECK_FAILED.to_string()
+        } else {
+            error
+        }
     })?;
     let runtime_bytes = runtime.required_bytes.unwrap_or(0);
 
@@ -1598,10 +1628,6 @@ fn download_pack_to_with_progress(
         })
     })?;
     Ok(fetched || fetched_model)
-}
-
-fn discard_partial_download(path: &Path) {
-    let _ = fs::remove_file(path);
 }
 
 fn download_model_to_with_progress(
@@ -1621,12 +1647,17 @@ fn download_model_files(
     mut progress: impl FnMut(VoiceDownloadProgress),
 ) -> Result<bool, String> {
     let total: u64 = files.iter().map(|file| file.bytes).sum();
-    let client = reqwest::Client::builder()
-        .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
-        .read_timeout(DOWNLOAD_READ_TIMEOUT)
-        .timeout(DOWNLOAD_TOTAL_TIMEOUT)
-        .build()
-        .map_err(|error| error.to_string())?;
+    // Only what is missing by size needs room; a resumed partial already has its share.
+    let missing: u64 = files
+        .iter()
+        .filter(|file| !model_file_status(dir, file, false).valid)
+        .map(|file| file.bytes)
+        .sum();
+    if missing > 0 {
+        fs::create_dir_all(dir).map_err(|error| error.to_string())?;
+        ensure_free_space(dir, missing)?;
+    }
+    let client = voice_runtime::download_client()?;
     let mut completed_bytes = 0u64;
     let mut fetched = false;
 
@@ -1651,68 +1682,18 @@ fn download_model_files(
             fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
 
+        // A failed attempt leaves `<file>.download` for the next one to resume from.
         let tmp = target.with_extension("download");
-        let mut response = tauri::async_runtime::block_on(async {
-            client
-                .get(model_file_url(file.path))
-                .send()
-                .await?
-                .error_for_status()
-        })
-        .map_err(|error| error.to_string())?;
-        let mut writer = File::create(&tmp).map_err(|error| error.to_string())?;
-        let mut bytes = 0u64;
-        progress(VoiceDownloadProgress {
-            downloaded_bytes: completed_bytes,
-            total_bytes: Some(total),
-            current_file: Some(file.path.to_string()),
-        });
-        loop {
-            if cancel.load(Ordering::SeqCst) {
-                discard_partial_download(&tmp);
-                return Err(DOWNLOAD_CANCELLED.to_string());
-            }
-            let Some(chunk) =
-                tauri::async_runtime::block_on(response.chunk()).map_err(|error| {
-                    if cancel.load(Ordering::SeqCst) {
-                        discard_partial_download(&tmp);
-                        DOWNLOAD_CANCELLED.to_string()
-                    } else {
-                        error.to_string()
-                    }
-                })?
-            else {
-                break;
-            };
-            writer
-                .write_all(&chunk)
-                .map_err(|error| error.to_string())?;
-            bytes += chunk.len() as u64;
+        voice_runtime::fetch_file(&client, &model_file_url(file.path), &tmp, file.bytes, &cancel, |bytes| {
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes + bytes,
                 total_bytes: Some(total),
                 current_file: Some(file.path.to_string()),
             });
-        }
-        writer.flush().map_err(|error| error.to_string())?;
-        drop(writer);
-
-        if cancel.load(Ordering::SeqCst) {
-            let _ = fs::remove_file(&tmp);
-            discard_partial_download(&tmp);
-            return Err(DOWNLOAD_CANCELLED.to_string());
-        }
-        if bytes != file.bytes {
-            let _ = fs::remove_file(&tmp);
-            return Err(format!(
-                "downloaded wrong byte count for {}: expected {}, got {}",
-                file.path, file.bytes, bytes
-            ));
-        }
+        })?;
         let hash = sha256_file_until(&tmp, Some(&cancel))?;
         if cancel.load(Ordering::SeqCst) {
             let _ = fs::remove_file(&tmp);
-            discard_partial_download(&tmp);
             return Err(DOWNLOAD_CANCELLED.to_string());
         }
         if hash != file.sha256 {
@@ -1808,15 +1789,17 @@ fn replace_generated_clips(profile_dir: &Path, staging_dir: &Path) -> Result<(),
     }
 }
 
-fn ensure_download_space(root: &Path) -> Result<(), String> {
-    let recommended = required_model_bytes() + EXTRA_DOWNLOAD_HEADROOM_BYTES;
-    let Some(available) = available_disk_bytes(root) else {
+/// Refuses a download that would not fit: `needed` bytes plus a margin, on the disk under `path`.
+pub(crate) fn ensure_free_space(path: &Path, needed: u64) -> Result<(), String> {
+    let recommended = needed + EXTRA_DOWNLOAD_HEADROOM_BYTES;
+    let Some(available) = available_disk_bytes(path) else {
         return Ok(());
     };
     if available < recommended {
         return Err(format!(
-            "not enough free disk space for voice cloning model: need about {} bytes free, found {} bytes",
-            recommended, available
+            "Not enough free disk space for the voice engine: it needs about {} free and this disk has {}.",
+            format_bytes(recommended),
+            format_bytes(available)
         ));
     }
     Ok(())
@@ -1973,7 +1956,7 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
             duration_seconds: elapsed_seconds as f64,
             elapsed_seconds,
             sample_rate: (sample_rate > 0).then_some(sample_rate),
-            message: "Recording voice sample.".to_string(),
+            message: "Recording.".to_string(),
         };
     }
 
@@ -1985,7 +1968,7 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
             duration_seconds: last.duration_seconds,
             elapsed_seconds: last.duration_seconds.round() as u64,
             sample_rate: Some(last.sample_rate),
-            message: "Voice sample ready.".to_string(),
+            message: "Recording ready.".to_string(),
         };
     }
 
@@ -2099,7 +2082,7 @@ fn run_recording_thread(
                     .unwrap_or_default();
                 let _ = result.send(if full {
                     Err(format!(
-                        "Recording stopped at the {MAX_RECORDING_SECONDS} second limit. Record a shorter sample; 10 to 30 seconds is plenty."
+                        "Recording stopped at the {MAX_RECORDING_SECONDS} second limit. Make a shorter recording; 20 to 30 seconds is plenty."
                     ))
                 } else {
                     recording_clip_from_samples(path, captured, sample_rate)
@@ -2118,8 +2101,19 @@ fn run_recording_thread(
 }
 
 /// A blocked microphone records digital silence on macOS (and on Windows with the privacy
-/// switch off) instead of failing; cloning that would make a voice of nothing.
-const SILENT_RECORDING: &str = "The recording is silent. Check that Supervisor can use the microphone (System Settings > Privacy & Security > Microphone on a Mac) and that the right input is selected, then record again.";
+/// switch off) instead of failing; a voice made from that would be a voice of nothing.
+fn silent_recording_message() -> String {
+    let settings = if cfg!(target_os = "macos") {
+        " (System Settings > Privacy & Security > Microphone)"
+    } else if cfg!(target_os = "windows") {
+        " (Settings > Privacy & security > Microphone)"
+    } else {
+        ""
+    };
+    format!("The recording is silent. Check that Supervisor can use the microphone{settings} and that the right input is selected, then record again.")
+}
+
+const RECORDING_TOO_SHORT: &str = "That recording is too short. Read for 20 to 30 seconds.";
 
 /// No sample louder than the quietest room noise a working microphone picks up.
 fn is_silent(samples: &[i16]) -> bool {
@@ -2134,8 +2128,11 @@ fn recording_clip_from_samples(
     if samples.is_empty() {
         return Err("No audio was captured.".to_string());
     }
+    if samples.len() < sample_rate as usize * MIN_RECORDING_SECONDS as usize {
+        return Err(RECORDING_TOO_SHORT.to_string());
+    }
     if is_silent(&samples) {
-        return Err(SILENT_RECORDING.to_string());
+        return Err(silent_recording_message());
     }
     write_wav(&path, &samples, sample_rate)?;
     let bytes = fs::metadata(&path)
@@ -2195,115 +2192,15 @@ fn clean_display_name(value: Option<&str>, fallback: &str) -> String {
 
 fn validate_phrases(phrases: &[VoicePhraseInput]) -> Result<(), String> {
     if phrases.is_empty() {
-        return Err("at least one voice phrase is required".to_string());
+        return Err("Pick at least one line to generate.".to_string());
     }
     for phrase in phrases {
         clean_id(&phrase.id)?;
         if phrase.text.trim().is_empty() {
-            return Err(format!("voice phrase {} has no text", phrase.id));
+            return Err(format!("Line {} has no text.", phrase.id));
         }
     }
     Ok(())
-}
-
-fn default_phrases() -> Vec<VoicePhraseInput> {
-    [
-        (
-            "gentle_deep_breath",
-            "gentle",
-            "Deep breath. Back to the thing.",
-        ),
-        (
-            "gentle_drifted_a_little",
-            "gentle",
-            "You drifted a little. Come back.",
-        ),
-        (
-            "gentle_one_next_action",
-            "gentle",
-            "One next action. That is all.",
-        ),
-        (
-            "gentle_soft_reset",
-            "gentle",
-            "Soft reset. Look at the task again.",
-        ),
-        (
-            "gentle_back_to_plan",
-            "gentle",
-            "No hurry. Just back to the plan.",
-        ),
-        (
-            "mom_beta_focus",
-            "mom",
-            "Beta, focus. You opened this for what?",
-        ),
-        (
-            "mom_enough_scrolling",
-            "mom",
-            "Enough scrolling. Finish the thing first.",
-        ),
-        ("mom_wander_later", "mom", "You can wander later. Work now."),
-        (
-            "mom_arre_come_back",
-            "mom",
-            "Arre, come back. One tab, one task.",
-        ),
-        (
-            "mom_what_was_the_goal",
-            "mom",
-            "What was the goal? Say it, then do it.",
-        ),
-        ("stern_not_the_task", "stern", "This is not the task."),
-        ("stern_close_it", "stern", "Close it and return."),
-        (
-            "stern_you_said_it_mattered",
-            "stern",
-            "You said this mattered. Act like it.",
-        ),
-        (
-            "stern_decide_now",
-            "stern",
-            "Decide now. Work or stop pretending.",
-        ),
-        (
-            "stern_back_to_work",
-            "stern",
-            "Back to work. No more bargaining.",
-        ),
-        (
-            "kind_reset_pause_inhale",
-            "kind-reset",
-            "Pause. Inhale. Now back to the file.",
-        ),
-        (
-            "kind_reset_no_drama",
-            "kind-reset",
-            "No drama. Just return.",
-        ),
-        (
-            "kind_reset_not_failing",
-            "kind-reset",
-            "You are not failing. You are drifting. Come back.",
-        ),
-        (
-            "kind_reset_small_next_step",
-            "kind-reset",
-            "Small next step. That is enough.",
-        ),
-        (
-            "kind_reset_begin_again",
-            "kind-reset",
-            "Begin again. The work is still here.",
-        ),
-    ]
-    .into_iter()
-    .map(|(id, tone, text)| VoicePhraseInput {
-        id: id.to_string(),
-        tone: tone.to_string(),
-        text: text.to_string(),
-    })
-    .collect()
 }
 
 fn clean_id(value: &str) -> Result<String, String> {
@@ -2405,14 +2302,14 @@ fn ensure_generation_ram(worker_loaded: bool) -> Result<(), String> {
     match ram_allows_job(available, total, worker_loaded) {
         Some(true) => Ok(()),
         Some(false) => Err(format!(
-            "Not enough available RAM to clone a voice. Need about {}, this computer has {} available. Close other apps and try again.",
+            "Not enough free memory to generate lines. Supervisor needs about {} and this computer has {} available. Close other apps and try again.",
             format_bytes(need),
             available
                 .map(format_bytes)
                 .unwrap_or_else(|| "unknown".to_string())
         )),
         None if cfg!(target_os = "windows") => Err(
-            "Could not measure available RAM. Refusing to start voice generation on Windows.".to_string(),
+            "Couldn't measure free memory, so no lines were generated. Try again.".to_string(),
         ),
         None => Ok(()),
     }
@@ -2758,7 +2655,7 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn available_disk_bytes(path: &Path) -> Option<u64> {
-    let output = Command::new("df").arg("-k").arg(path).output().ok()?;
+    let output = std::process::Command::new("df").arg("-k").arg(path).output().ok()?;
     let text = String::from_utf8(output.stdout).ok()?;
     let line = text.lines().nth(1)?;
     let kb = line.split_whitespace().nth(3)?.parse::<u64>().ok()?;
@@ -2869,20 +2766,19 @@ fn voice_root(app: &AppHandle) -> Result<PathBuf, String> {
         .join("voice"))
 }
 
-fn ensure_voice_root(root: &Path) -> Result<PathBuf, String> {
-    fs::create_dir_all(root).map_err(|error| error.to_string())?;
-    root.canonicalize().map_err(|error| error.to_string())
-}
-
+/// The file at `value` if it sits under the voice folder. Both sides are resolved for the
+/// comparison only; the root stays as given, so every path the app hands out is plain (on
+/// Windows a resolved path carries a `\\?\` prefix, and the frontend keys caches by path).
 fn supervisor_storage_file(root: &Path, value: &str, purpose: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(value)
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    if !path.starts_with(root) {
-        return Err(format!("{purpose} must come from Supervisor voice storage"));
+    let resolved_root = root.canonicalize().map_err(|error| error.to_string())?;
+    if !path.starts_with(&resolved_root) {
+        return Err(format!("The {purpose} must come from Supervisor's voice folder."));
     }
     if !path.is_file() {
-        return Err(format!("{} not found: {}", purpose, path.display()));
+        return Err(format!("The {purpose} was not found."));
     }
     Ok(path)
 }
@@ -3059,12 +2955,26 @@ mod tests {
     }
 
     #[test]
-    fn a_silent_recording_is_refused() {
+    fn a_silent_or_too_short_recording_is_refused() {
         assert!(is_silent(&[0; 48_000]));
         assert!(is_silent(&[3, -5, 12, -20]));
         assert!(!is_silent(&[0, 900, -1200, 40]));
         let path = std::env::temp_dir().join("supervisor-silent-test.wav");
-        assert_eq!(recording_clip_from_samples(path, vec![0; 48_000], 48_000).unwrap_err(), SILENT_RECORDING);
+        let five_seconds = 48_000 * MIN_RECORDING_SECONDS as usize;
+        assert_eq!(
+            recording_clip_from_samples(path.clone(), vec![0; five_seconds], 48_000).unwrap_err(),
+            silent_recording_message()
+        );
+        let mut short = vec![0i16; five_seconds - 1];
+        short[10] = 900;
+        assert_eq!(recording_clip_from_samples(path, short, 48_000).unwrap_err(), RECORDING_TOO_SHORT);
+        assert!(silent_recording_message().contains(if cfg!(target_os = "windows") {
+            "Settings > Privacy & security > Microphone"
+        } else if cfg!(target_os = "macos") {
+            "System Settings > Privacy & Security > Microphone"
+        } else {
+            "microphone"
+        }));
     }
 
     #[cfg(target_os = "macos")]
@@ -3274,17 +3184,12 @@ mod tests {
     }
 
     #[test]
-    fn cancelled_download_keeps_verified_model_files() {
-        let dir = test_dir("cancel-download");
-        fs::create_dir_all(&dir).unwrap();
-        let verified = dir.join("verified.bin");
-        let partial = dir.join("weights.download");
-        fs::write(&verified, b"keep").unwrap();
-        fs::write(&partial, b"partial").unwrap();
-        discard_partial_download(&partial);
-        assert_eq!(fs::read(&verified).unwrap(), b"keep");
-        assert!(!partial.exists());
-        let _ = fs::remove_dir_all(dir);
+    fn disk_space_refusal_reads_in_gigabytes() {
+        let error = ensure_free_space(&std::env::temp_dir(), u64::MAX / 4).unwrap_err();
+        assert!(error.starts_with("Not enough free disk space for the voice engine: it needs about "), "{error}");
+        assert!(error.contains(" GB free and this disk has "), "{error}");
+        assert!(!error.contains("bytes"), "{error}");
+        assert!(ensure_free_space(&std::env::temp_dir(), 1).is_ok());
     }
 
     #[test]
@@ -3312,8 +3217,9 @@ mod tests {
         let outside_file = outside.join("recording.wav");
         fs::write(&inside_file, b"wav").unwrap();
         fs::write(&outside_file, b"wav").unwrap();
-        let root = ensure_voice_root(&root).unwrap();
 
+        // The root is used as given, never resolved: on Windows a resolved root would put the
+        // `\\?\` prefix on every profile path and break the frontend's cache keys.
         assert_eq!(
             supervisor_storage_file(&root, inside_file.to_str().unwrap(), "recording").unwrap(),
             inside_file.canonicalize().unwrap()
@@ -3321,6 +3227,15 @@ mod tests {
         assert!(
             supervisor_storage_file(&root, outside_file.to_str().unwrap(), "recording").is_err()
         );
+        let dir = profile_dir(&root, "plain");
+        fs::create_dir_all(dir.join("clips")).unwrap();
+        fs::write(dir.join("reference.wav"), b"wav").unwrap();
+        fs::write(dir.join("clips").join("01_hi.wav"), vec![0u8; 80]).unwrap();
+        let summary = profile_summary(&dir, "plain").unwrap();
+        assert!(!summary.profile_dir.contains("\\\\?\\"), "{}", summary.profile_dir);
+        assert!(!summary.reference_path.as_deref().unwrap_or("").contains("\\\\?\\"));
+        assert!(!summary.clips[0].path.contains("\\\\?\\"));
+        assert_eq!(summary.clips[0].path, dir.join("clips").join("01_hi.wav").to_string_lossy());
 
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(outside);

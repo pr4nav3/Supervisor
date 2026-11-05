@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Supervisor records a short local voice sample to generate local voice clips.</string>
+  <string>Supervisor records a short sample of a voice to make its lines. The recording stays on this computer.</string>
   <key>NSCameraUsageDescription</key>
-  <string>Supervisor uses the camera locally to show face and phone tracking during a focus check. Frames stay on this computer.</string>
+  <string>During a session, Supervisor uses the camera to check whether you are at your desk and whether a phone or watch is out. Nothing is saved or sent anywhere.</string>
 </dict>
 </plist>

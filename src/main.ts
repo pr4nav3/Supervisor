@@ -12,7 +12,6 @@ type FocusState = "focused" | "suspicious" | "distracted" | "idle";
 type Tab = "session" | "settings" | "history";
 type AppView = "main" | "overlay";
 type SettingsView = "home" | "voice" | "webcam";
-type WebcamReaction = "alarm" | "voice";
 type VoiceTone = string;
 type VoiceSource = "none" | "starter" | "custom";
 type VoiceBusy = "download-model" | "delete-model" | "generate-clips" | "delete-voice" | null;
@@ -271,6 +270,8 @@ interface TrendsData {
   daily_focus: DailyFocus[];
   /** The last eight weeks, oldest first, ending with the current week. */
   weeks: TrendPeriod[];
+  /** Sessions exist before the first of those weeks. */
+  has_earlier: boolean;
   week_recap: FocusRecap;
 }
 
@@ -320,11 +321,18 @@ interface HistoryConfirm {
 const PHOTO_BURST_BYTES = 30 * 1024 ** 2;
 
 
+/** What the user must be told about history storage this run, until dismissed. */
+type StorageNotice =
+  | { kind: "reset"; reason: string; moved_to: string }
+  | { kind: "off"; reason: string }
+  | { kind: "failed"; reason: string };
+
 interface SessionSnapshot {
   status: SessionStatus;
   settings: SessionSettings;
   current: CurrentSession | null;
   history: SessionSummary[];
+  storage_notice: StorageNotice | null;
 }
 
 interface RulesSaved {
@@ -428,6 +436,8 @@ interface VoiceDownloadSnapshot {
   eta_seconds: number | null;
   message: string;
   up_to_date: boolean;
+  /** Check for updates could not reach the server; `message` says so. */
+  check_failed: boolean;
   model: VoiceModelStatus;
   runtime: VoiceRuntimeStatus;
 }
@@ -443,7 +453,7 @@ interface VoiceOption {
   profile: VoiceProfileSummary | null;
 }
 
-/** When a line plays. `nudge` is Back to work: drifting, and a break ending. */
+/** When a line plays. `nudge` is Back to work; a break ending plays nothing. */
 type PhraseMoment = "nudge" | "phone" | "roundover" | "sessionover";
 
 /** One line. `tone` is the personality it belongs to. */
@@ -540,7 +550,6 @@ const starterRules: AppRule[] = ["youtube.com", "netflix.com", "tiktok.com", "in
   (value) => ({
     target: "website",
     value,
-    classification: "distracting",
   }),
 );
 
@@ -639,7 +648,7 @@ function starterVoiceCard(id: string, profileId: string, name: string, detail: s
     detail,
     coverage: `${ready}/${phrases.length} lines ready`,
     source: "starter",
-    selectable: true,
+    selectable: profile ? profileToneReady(profile) : true,
     profile,
   };
 }
@@ -680,6 +689,7 @@ let trendPage = 0;
 let trends: TrendsData = {
   daily_focus: [],
   weeks: [],
+  has_earlier: false,
   week_recap: EMPTY_RECAP,
 };
 let historyWeekStart = "";
@@ -832,11 +842,11 @@ let momentShownAt = 0;
 let momentDismissed = "";
 const webcamSettings = {
   phoneUse: false,
-  strict: false,
-  reaction: "alarm" as WebcamReaction,
 };
 let webcamFrame: WebcamFrame | null = null;
 let webcamError = "";
+/** The last camera error said as a toast, so a repeating one is said once. */
+let lastWebcamToast = "";
 /** The worker said the GPU could not run the models this run; the app runs them on the processor instead. */
 let webcamGpuFailed = false;
 const GPU_FALLBACK_COPY = "The GPU couldn't run the webcam models, so they're running on the processor instead.";
@@ -968,6 +978,13 @@ async function init(): Promise<void> {
     });
   }
   if (appView === "overlay") {
+    // A card due while this window is hidden: its own 1 s timer is throttled, the push is not.
+    for (const name of ["session-nudge", "session-moment"]) {
+      await listen(name, async () => {
+        await refreshSnapshotNow();
+        render();
+      });
+    }
     await listen<NudgeVoice>("nudge-voice", (event) => {
       overlayVoice = { ...event.payload, at: Date.now() };
       const moment = momentCardActive(snapshot?.current ?? null);
@@ -1073,6 +1090,9 @@ async function refreshSnapshot(): Promise<void> {
  *  report is opening (the caller draws nothing). */
 function applySnapshot(next: SessionSnapshot): boolean {
   snapshot = next;
+  if (next.current) {
+    lastSessionId = next.current.id;
+  }
   settings = next.settings;
   history = next.history;
   if (!next.current && sessionRulesOpen) {
@@ -1498,6 +1518,7 @@ function render(): void {
       </nav>
 
       ${lastError ? `<section class="notice">${escapeHtml(lastError)}</section>` : ""}
+      ${renderStorageNotice(snapshot?.storage_notice ?? null)}
       ${voiceError && activeTab === "settings" ? `<section class="notice">${escapeHtml(voiceError)}</section>` : ""}
       ${permissionNotice(current)}
 
@@ -1757,27 +1778,45 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   const chips = rules
     .slice(0, 6)
     .map((rule, index) => {
-      const allowed = exceptions.some((exception) => exception.target === rule.target && exception.value === rule.value);
-      return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Tap to count it as a distraction again." : "Tap to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
+      const allowed = exceptions.some((exception) => sameRule(exception, rule));
+      return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
     })
     .concat(rules.length > 6 ? [`<span class="session-rule-more" aria-label="${rules.length - 6} more">…</span>`] : [])
     .join("");
-  const allowed = rules.filter((rule) => exceptions.some((exception) => exception.target === rule.target && exception.value === rule.value)).map(ruleName);
+  const allowed = rules.filter((rule) => exceptions.some((exception) => sameRule(exception, rule))).map(ruleName);
   return `
     <div class="chips session-rule-chips">${chips}</div>
     ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.join(", "))}</p>` : ""}
   `;
 }
 
+/** The same rule, however it was typed: matching ignores case, so the chips must too. */
 function sameRule(a: AppRule, b: AppRule): boolean {
   return a.target === b.target && a.value.toLowerCase() === b.value.toLowerCase();
 }
 
+/** History storage trouble, in a sentence, with what it means for this session. */
+function renderStorageNotice(notice: StorageNotice | null): string {
+  if (!notice) {
+    return "";
+  }
+  const text =
+    notice.kind === "reset"
+      ? `Supervisor couldn't open its history, so it started a fresh one. The old file is kept at ${notice.moved_to}.`
+      : notice.kind === "off"
+        ? `History isn't being saved right now (${notice.reason}). Sessions still run; they just won't be kept.`
+        : `Saving to history failed (${notice.reason}). The timer keeps running, but this session may be missing from History.`;
+  return `<section class="notice notice-storage"><span>${escapeHtml(text)}</span><button class="small-button" type="button" data-action="dismiss-storage-notice">Dismiss</button></section>`;
+}
+
+/** Pause, mute and end, so a session can be driven from here when the session timer is off. */
 function renderActiveSessionControls(current: CurrentSession): string {
   const held = current.status === "paused";
+  const muted = current.status === "snoozed";
   return `
     <div class="active-session-controls">
       <button class="${held ? "primary" : "overlay-pause"}" type="button" data-action="${held ? "resume" : "pause"}">${escapeHtml(resumeLabel(current))}</button>
+      <button type="button" data-action="toggle-mute" ${held ? "disabled" : ""} aria-pressed="${muted}">${muted ? "Unmute" : "Mute 5 min"}</button>
       <button class="danger" type="button" data-action="stop">End session</button>
     </div>
   `;
@@ -1801,7 +1840,7 @@ function renderSessionReview(review: { items: ReviewItem[]; saving: boolean }): 
       <section class="modal-panel review-panel" role="dialog" aria-modal="true" aria-labelledby="review-title">
         <p class="eyebrow">Session done</p>
         <h2 id="review-title">Any distractions here?</h2>
-        <p class="review-intro">These counted as work. Tap any that weren't.</p>
+        <p class="review-intro">These counted as work. Click any that weren't.</p>
         <div class="review-chips">${chips}</div>
         <div class="review-foot">
           <button class="review-later" type="button" data-action="review-later">Skip</button>
@@ -2026,7 +2065,7 @@ function renderMomentOverlay(current: CurrentSession): string {
       <main class="overlay-shell overlay-interrupt">
         <section class="state-slab interrupt-alert moment-break-over">
           <h2 class="moment-title">Break over.</h2>
-          <p class="moment-goal">Round ${pomodoro.round + 1} starts by itself in a few minutes, or now.</p>
+          <p class="moment-goal">Round ${pomodoro.round + 1} starts by itself in ${Math.max(1, Math.round(pomodoro.break_seconds / 60))} minutes, or now.</p>
           <div class="moment-gap"></div>
         </section>
         <div class="interrupt-actions moment-actions">
@@ -2694,7 +2733,7 @@ function renderHomeTip(): string {
 
 function renderStartAction(): string {
   return `
-    <button class="primary start-watch-button" type="button" data-action="open-preflight">Start Focus Session</button>
+    <button class="primary start-watch-button" type="button" data-action="open-preflight">Start focus session</button>
   `;
 }
 
@@ -2854,7 +2893,6 @@ function renderSettings(): string {
       </section>
 
       <section class="panel settings-data-panel">
-        <p class="eyebrow">Your data</p>
         <div class="settings-data-row">
           <span class="explain">Sessions and history stay on this computer. Nothing is uploaded.</span>
           <button class="danger" type="button" data-action="ask-delete-all">Delete all history</button>
@@ -3008,7 +3046,7 @@ function renderPreflightDistractions(): string {
     .map(({ rule, index }) => {
       const allowed = preflightExceptions.some((exception) => sameRule(exception, rule));
       return `
-        <button class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" type="button" aria-pressed="${allowed}" data-action="toggle-exception" data-rule-index="${index}" title="${attr(allowed ? "Allowed once. Tap to count it as a distraction again." : "Tap to allow it once, for this session.")}">
+        <button class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" type="button" aria-pressed="${allowed}" data-action="toggle-exception" data-rule-index="${index}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">
           ${escapeHtml(ruleName(rule))}
         </button>
       `;
@@ -3016,7 +3054,7 @@ function renderPreflightDistractions(): string {
     .join("");
   return `
     <div class="rule-manager preflight-rule-manager">
-      <p class="explain">Tap one to allow it once, for this session. Everything else counts as work.</p>
+      <p class="explain">Click one to allow it once, for this session. Everything else counts as work.</p>
       ${ruleEditor ? renderRuleEditor(ruleEditor) : ""}
       <div class="rule-group">
         <div class="rule-chip-list">
@@ -3359,7 +3397,7 @@ function paintVoiceLayer(): void {
 function renderVoiceTiles(): string {
   const busyDownload = ["checking", "downloading", "cancelling"].includes(voiceDownload?.phase ?? "");
   const modelOk = modelInstalled() || busyDownload;
-  const modelValue = busyDownload ? "Updating…" : modelInstalled() ? "Installed" : "Not installed";
+  const modelValue = busyDownload ? "Updating…" : modelInstalled() ? "Installed" : voiceError && !voiceBackend ? "Couldn't check" : "Not installed";
   return `
     <div class="voice-tiles">
       <div class="voice-tile ${modelOk ? "" : "is-bad"}">
@@ -3506,7 +3544,7 @@ function renderMomentCard(voice: VoiceOption, tone: VoiceTone, moment: (typeof M
   const more = 3 - count;
   const nudge =
     moment.often && more > 0
-      ? `<div class="moment-nudge" role="note"><strong>${count ? `Only ${count}? That gets old fast.` : "This one plays a lot."}</strong><span>We recommend 3 or more lines here. Trust us, you'll be hearing them all session. Write ${more} more and have some fun with it.</span></div>`
+      ? `<div class="moment-nudge" role="note"><strong>${count ? `Only ${count}? That gets old fast.` : "This one plays a lot."}</strong><span>Three or more keeps it from repeating. Write ${more} more.</span></div>`
       : "";
   return `
     <div class="clips-card moment-card">
@@ -3587,7 +3625,8 @@ function renderClipsFooter(voice: VoiceOption, phrases: PhraseDefinition[]): str
     const left = clipQueueSeconds(Math.max(1, total - job.index), job.index);
     return `
       <div class="clips-foot">
-        <button class="small-button danger" type="button" data-action="stop-clip-queue" ${job.stopAfter ? "disabled" : ""}>${job.stopAfter ? "Stopping after this line" : "Stop after this line"}</button>
+        <button class="small-button" type="button" data-action="stop-clip-queue" ${job.stopAfter ? "disabled" : ""}>${job.stopAfter ? "Stopping after this line" : "Stop after this line"}</button>
+        <button class="small-button danger" type="button" data-action="cancel-clip-queue">Cancel</button>
         <span class="clips-hint">${job.index} of ${total} done · about ${escapeHtml(formatQueueTime(left))} left</span>
       </div>
     `;
@@ -3737,6 +3776,8 @@ function renderModelInfoModal(): string {
         <p>${
           installed && voiceDownload?.phase === "complete" && voiceDownload.up_to_date
             ? "Up to date: nothing to download. It only runs while lines are being generated."
+            : installed && voiceDownload?.check_failed
+            ? `${voiceDownload.message} It only runs while lines are being generated.`
             : installed
             ? "It only runs while lines are being generated. Supervisor looks for updates once a day on its own; this button looks now."
             : `A one-time download of about ${escapeHtml(formatBytes(model?.required_bytes ?? 0))}. Generated lines play without it; generating new ones needs it.`
@@ -3835,7 +3876,7 @@ function deleteAllCopy(bytes: number | null | undefined): string[] {
   const cost =
     "It's also how Supervisor shows you where your time actually goes. Delete it and your attention span, trends and recaps start over from nothing. This can't be undone.";
   if (!bytes) {
-    return [cost];
+    return [cost.replace("It's also how", "History is how")];
   }
   const ratio = PHOTO_BURST_BYTES / bytes;
   const comparison =
@@ -3941,6 +3982,10 @@ function renderSessionOver(): string {
   `;
 }
 
+/** About twenty-five seconds at a normal pace, in the plain register the lines use. */
+const RECORDING_PROMPT =
+  "Most days start the same way: coffee, a look at the list, and the one thing I keep putting off. Today that thing goes first, before anything else gets a say. If I drift, say so. I'd rather hear it now than find out at six o'clock that the whole afternoon went somewhere else.";
+
 function renderRecordingModal(): string {
   const isRecording = recordingState === "recording";
   const canSave = Boolean(recordedVoice?.bytes && recordedVoice.name.trim() && voiceBusy === null);
@@ -3964,6 +4009,7 @@ function renderRecordingModal(): string {
             <strong>${isRecording ? "Recording" : recordedVoice ? "Recorded" : "Ready"}</strong>
             <p id="recording-elapsed">${isRecording ? formatDuration(recordingDurationSeconds()) : recordedVoice ? `${formatDuration(recordedVoice.seconds)} captured` : "Read aloud for 20 to 30 seconds somewhere quiet."}</p>
             ${recordingError ? `<p class="recording-error">${escapeHtml(recordingError)}</p>` : ""}
+            ${recordedVoice ? "" : `<p class="recording-prompt">${escapeHtml(RECORDING_PROMPT)}</p>`}
           </section>
 
           <section class="recording-review">
@@ -3996,7 +4042,7 @@ function renderDeleteModelModal(): string {
       <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-model-title">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">VOICE MODEL</p>
+            <p class="eyebrow">Voice engine</p>
             <h2 id="delete-model-title">Delete the voice engine?</h2>
           </div>
         </div>
@@ -4074,14 +4120,14 @@ function renderDeleteVoiceModal(): string {
       <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-voice-title">
         <div class="modal-head">
           <div>
-            <p class="eyebrow">VOICE DELETE</p>
+            <p class="eyebrow">Delete voice</p>
             <h2 id="delete-voice-title">${escapeHtml(profile.display_name)}</h2>
           </div>
           <button class="small-button" type="button" data-action="cancel-delete-voice">Close</button>
         </div>
         <p class="quiet">Its lines can be regenerated from the recording. Deleting the voice removes the recording too.</p>
         <div class="delete-choice-grid">
-          <button type="button" data-action="delete-voice-files" ${profile.clip_count === 0 ? "disabled" : ""}>Delete clips, keep the recording</button>
+          <button type="button" data-action="delete-voice-files" ${profile.clip_count === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
           <button class="danger" type="button" data-action="delete-voice-profile">Delete the voice</button>
         </div>
       </section>
@@ -4097,7 +4143,7 @@ function renderVoiceBusyModal(): string {
   return `
     <div class="modal-backdrop busy-backdrop" role="presentation">
       <section class="modal-panel busy-panel" role="dialog" aria-modal="true" aria-live="polite">
-        <p class="eyebrow">VOICE WORKER</p>
+        <p class="eyebrow">Voice engine</p>
         <h2>${escapeHtml(voiceBusyTitle())}</h2>
         <p>${escapeHtml(voiceBusyCopy())}</p>
         <div class="loading-bar"><span></span></div>
@@ -4154,7 +4200,7 @@ function renderDownloadBusyModal(): string {
             ? ""
             : checking
               ? `<div class="loading-bar" aria-label="Checking installed files"><span></span></div>`
-              : `<div class="loading-bar determinate" aria-label="Model download progress"><span style="width: ${percent}%"></span></div>`
+              : `<div class="loading-bar determinate" aria-label="Voice engine download progress"><span style="width: ${percent}%"></span></div>`
         }
         ${
           upToDate
@@ -4522,8 +4568,9 @@ function renderTrendsDoor(weekStart: string, recap: WeekRecap | null, animate: b
     value = "No weeks yet";
     caption = "Finish a session and this week starts the chart.";
   } else if (!previous) {
-    value = weeks[0].start === weekStart ? "First week" : "Off the chart";
-    caption = weeks[0].start === weekStart ? "nothing before it" : "older weeks are in Trends";
+    const first = weeks[0].start === weekStart && !trends.has_earlier;
+    value = first ? "First week" : "Off the chart";
+    caption = first ? "nothing before it" : "older weeks are in Trends";
   } else if (previous.session_count === 0 && recap.session_count === 0) {
     value = "Quiet";
     caption = current ? "no sessions this week or last" : "no sessions either week";
@@ -5308,7 +5355,7 @@ function renderSessionReport(report: SessionReport): string {
         ${reportStat("Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
         ${reportStat("Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
         ${pomodoroStat(report)}
-        ${report.phone_seconds > 0 ? reportStat("Phone", formatSpan(report.phone_seconds), "How long the webcam saw a phone in your hand.") : ""}
+        ${report.phone_seconds > 0 ? reportStat("Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
       </section>
       <section class="panel recap-apps">
         <h2 class="eyebrow recap-apps-title">Apps &amp; sites</h2>
@@ -5340,7 +5387,7 @@ function pomodoroStat(report: SessionReport): string {
   if (!plan) {
     return "";
   }
-  const rounds = report.events.filter((event) => event.kind === "round_over").length + 1;
+  const rounds = Math.max(1, report.events.filter((event) => event.kind === "round_start").length);
   return reportStat("Rounds", `${Math.min(rounds, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
 }
 
@@ -5396,7 +5443,7 @@ function timelineRuns(spans: ReportSpan[]): TimelineRun[] {
   return runs;
 }
 
-const TIMELINE_NAMES: Record<string, string> = { phone: "Phone", idle: "Away" };
+const TIMELINE_NAMES: Record<string, string> = { phone: "Phone or watch", idle: "Away" };
 
 /** What a run is called on hover: the apps and sites, and how long. Whether it was work or a
  *  distraction is left to the colour and the legend; Away and Phone have no names of their own. */
@@ -5988,6 +6035,7 @@ function releaseVoiceWorker(): void {
 function leaveVoiceScreen(): void {
   if (clipQueue?.phase === "working") {
     clipQueue.stopAfter = true;
+    showFeedback("Generating stops after this line. Come back to the Voice page to continue.", 5000);
   } else {
     clipQueue = null;
   }
@@ -6051,7 +6099,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     if (!rule || !current) {
       return;
     }
-    const allowed = !current.exceptions.some((exception) => exception.target === rule.target && exception.value === rule.value);
+    const allowed = !current.exceptions.some((exception) => sameRule(exception, rule));
     if (await invokeSnapshot("set_session_exception", { rule, allowed })) {
       showFeedback(allowed ? `${ruleName(rule)} allowed for this session` : `${ruleName(rule)} counts again`);
     }
@@ -6453,6 +6501,19 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
 
+  if (action === "dismiss-storage-notice") {
+    await invokeSnapshot("dismiss_storage_notice");
+    return;
+  }
+
+  if (action === "toggle-mute") {
+    const mute = snapshot?.current?.status !== "snoozed";
+    if (await invokeSnapshot(mute ? "snooze_session" : "resume_session")) {
+      showFeedback(mute ? "Reminders muted for 5 minutes" : "Reminders back on");
+    }
+    return;
+  }
+
   if (action === "back-settings") {
     const leavingWebcam = settingsView === "webcam";
     const leavingVoice = settingsView === "voice";
@@ -6547,6 +6608,15 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     if (clipQueue?.phase === "working") {
       clipQueue.stopAfter = true;
       paintClipsPanel();
+    }
+    return;
+  }
+
+  // The line in flight is abandoned too: for one that hangs, Stop after this line never comes.
+  if (action === "cancel-clip-queue") {
+    if (clipQueue?.phase === "working") {
+      clipQueueCancelled = true;
+      await invoke("cancel_voice_generation").catch(() => null);
     }
     return;
   }
@@ -6681,7 +6751,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
         voiceBackend = { ...voiceBackend, model };
       }
       await refreshVoiceStatus(false);
-      showFeedback("Model files deleted");
+      showFeedback("Voice engine deleted");
     });
     return;
   }
@@ -7215,7 +7285,7 @@ async function updateDefaultStrictness(default_strictness: Strictness): Promise<
 
 async function updateStatusWindowEnabled(enabled: boolean): Promise<void> {
   if (await invokeSnapshot("set_status_window_enabled", { enabled }, false)) {
-    showFeedback(enabled ? "Show session timer" : "Session timer hidden");
+    showFeedback(enabled ? "Session timer shown" : "Session timer hidden");
   }
 }
 
@@ -7521,6 +7591,9 @@ async function saveRecordedVoice(): Promise<void> {
   }
 }
 
+/** Cancel was pressed: the line in flight was abandoned, so its error is not one to show. */
+let clipQueueCancelled = false;
+
 /** A failed line stays on screen until the user moves on; the next action clears it. */
 function clearFailedQueue(): void {
   if (clipQueue?.phase === "error") {
@@ -7540,11 +7613,12 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
   const reference = profile?.reference_path;
   const lock = clipGenerateLockTitle(voice);
   if (lock || !profile || !reference) {
-    showFeedback(lock || "Pick one of your voices under Lines for.");
+    showFeedback(lock || "Pick one of your recorded voices first.");
     return false;
   }
   dismissVoiceInfo();
   clipQueue = { voiceId: voice.id, phraseIds, index: 0, phase: "working", error: "", startedAt: performance.now(), stopAfter: false };
+  clipQueueCancelled = false;
   clipQueueTicker = window.setInterval(paintClipQueue, 1000);
   await runVoiceBusy("generate-clips", async () => {
     while (clipQueue && clipQueue.phase === "working" && clipQueue.index < clipQueue.phraseIds.length) {
@@ -7573,6 +7647,11 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
           bumpClipAsset(ready.path);
         }
       } catch (error) {
+        if (clipQueueCancelled) {
+          clipQueue = null;
+          showFeedback("Stopped");
+          break;
+        }
         if (clipQueue) {
           clipQueue = { ...clipQueue, phase: "error", error: errorText(error) };
         }
@@ -7839,15 +7918,6 @@ function tabButton(tab: Tab, text: string): string {
   return `<button data-tab="${tab}" class="${activeTab === tab ? "active" : ""}" type="button">${text}</button>`;
 }
 
-function metric(labelText: string, value: string): string {
-  return `
-    <div class="metric">
-      <span>${escapeHtml(labelText)}</span>
-      <strong>${escapeHtml(value)}</strong>
-    </div>
-  `;
-}
-
 function paintFeedback(): void {
   let toast = document.getElementById("feedback-toast");
   if (!feedbackMessage) {
@@ -7898,8 +7968,9 @@ async function setWebcamEnabled(enabled: boolean): Promise<void> {
     settings = await invoke<SessionSettings>("update_settings", {
       update: { webcam_enabled: enabled },
     });
+    webcamError = "";
   } catch (error) {
-    webcamError = errorText(error);
+    webcamError = `Couldn't save that: ${errorText(error)}`;
     const box = document.getElementById("webcam-phone-use") as HTMLInputElement | null;
     if (box) {
       box.checked = settings.webcam_enabled;
@@ -7983,8 +8054,16 @@ function applyWebcamFrame(frame: WebcamFrame): void {
     webcamError = frame.error.includes("GPU mode") ? GPU_FALLBACK_COPY : frame.error;
     if (!frame.jpeg) {
       webcamHitStreak = 0;
-      if (settingsView === "webcam" && activeTab === "settings") {
+      // The last picture is stale now; the stage says what happened instead.
+      webcamFrame = null;
+      const onWebcamPage = settingsView === "webcam" && activeTab === "settings";
+      if (onWebcamPage) {
         paintWebcamDom();
+      } else if (snapshot?.current && webcamError !== lastWebcamToast && !frame.error.includes("stopped") && !frame.error.includes("GPU mode")) {
+        // A session wanted the camera and it isn't working: say so once, wherever the user is.
+        // A stopped worker restarts by itself and a GPU failure has its own toast.
+        lastWebcamToast = webcamError;
+        showFeedback(`Webcam: ${webcamError}`, 6000);
       }
       return;
     }
@@ -8040,7 +8119,7 @@ function paintWebcamDom(): void {
   const liveError = document.getElementById("webcam-live-error");
   if (liveError) {
     liveError.textContent = webcamError;
-    liveError.hidden = !webcamSettings.phoneUse || !webcamError;
+    liveError.hidden = !webcamError;
   }
   const gpuNote = document.getElementById("webcam-gpu-note");
   if (gpuNote) {
@@ -8053,13 +8132,7 @@ function paintWebcamDom(): void {
 }
 
 function webcamWouldAlert(frame: WebcamFrame | null): boolean {
-  if (!frame || !webcamSettings.phoneUse) {
-    return false;
-  }
-  if (webcamSettings.strict) {
-    return frame.phone_in_frame;
-  }
-  return frame.looking_at_phone;
+  return frame !== null && webcamSettings.phoneUse && frame.looking_at_phone;
 }
 
 /** Red with a phone out, green with someone in frame, plain otherwise. */
@@ -8112,21 +8185,6 @@ async function fireWebcamAlert(): Promise<void> {
     return;
   }
   webcamAlarmAtMs = now;
-  if (webcamSettings.reaction === "voice") {
-    const clip = selectedNudgeClip(1);
-    if (clip) {
-      try {
-        nudgeAudio?.pause();
-        const url = clipAssetUrl(clip.path);
-        nudgeAudio = new Audio(url);
-        nudgeAudio.volume = await playVolume(url);
-        await nudgeAudio.play();
-        return;
-      } catch {
-        // Fall through to the alarm.
-      }
-    }
-  }
   playWebcamAlarm();
 }
 
@@ -8177,7 +8235,7 @@ function renderStreakChip(): string {
 
 function statusChip(current: CurrentSession | null): string {
   if (!current) {
-    return "STANDBY";
+    return "";
   }
 
   if (isOnBreak(current)) {
@@ -8209,7 +8267,7 @@ function stateTitle(current: CurrentSession | null): string {
   }
 
   if (current.camera.phone) {
-    return current.camera.phone_distracted ? "On the phone" : "Phone in view";
+    return current.camera.phone_distracted ? "Phone or watch out" : "Phone or watch in view";
   }
 
   switch (current.focus?.state) {
@@ -8228,7 +8286,7 @@ function stateTitle(current: CurrentSession | null): string {
 
 function stateCopy(current: CurrentSession | null): string {
   if (!current) {
-    return "One clear start. Your distractions and voice are set when you start.";
+    return "No session running.";
   }
 
   if (current.status === "paused") {
@@ -8284,13 +8342,19 @@ async function playMoment(phase: string): Promise<void> {
   await playMomentLine("roundover", moments - 1);
 }
 
-/** A session ended: a closing line, taking turns by the session's id (newest in history). */
+/** The id of the session most recently seen running, so its end can find its own summary. */
+let lastSessionId = 0;
+
+/** A session ended: a closing line, taking turns by the session's id. The card shows the
+ *  session's numbers only when History's newest entry is that session (a failed save leaves
+ *  the previous one on top, and its numbers would be the wrong ones). */
 async function playSessionOver(): Promise<void> {
   if (Date.now() < practiceQuietUntil) {
     return;
   }
-  if ((await playMomentLine("sessionover", history[0]?.id ?? 0)) && lastNudgeVoice?.line) {
-    sessionOver = { voice: { ...lastNudgeVoice, speaking: !nudgeAudio?.paused }, session: history[0] ?? null };
+  if ((await playMomentLine("sessionover", lastSessionId)) && lastNudgeVoice?.line) {
+    const ended = history[0]?.id === lastSessionId ? history[0] : null;
+    sessionOver = { voice: { ...lastNudgeVoice, speaking: !nudgeAudio?.paused }, session: ended };
     paintModalLayer();
   }
 }
@@ -8461,10 +8525,6 @@ function clipBelongsToPhrase(clip: VoiceClipSummary, phraseId: string): boolean 
     return true;
   }
   return clip.clip_id === phraseId || clip.clip_id.endsWith(`_${phraseId}`);
-}
-
-function readyClipCount(voice: VoiceOption, phrases: PhraseDefinition[]): number {
-  return phrases.filter((phrase) => clipForPhrase(voice, phrase)).length;
 }
 
 /** The clip a play button started, so that button shows the speaking orb; a second click stops it. */
@@ -8951,10 +9011,6 @@ function ramLockMessage(): string {
   return `Free up some memory first. Lines need about ${need} free; this computer has ${free}.`;
 }
 
-function canGenerateClip(voice: VoiceOption): boolean {
-  return modelInstalled() && voiceBusy === null && Boolean(voice.profile?.reference_path) && !ramGenerationLocked();
-}
-
 /** What stops a line being generated right now, from the live engine and memory checks. */
 function clipGenerateLockTitle(voice: VoiceOption): string {
   const engine = modelInstalled();
@@ -8976,10 +9032,6 @@ function clipGenerateLockTitle(voice: VoiceOption): string {
 
 function canEditPhrases(): boolean {
   return voiceBusy === null;
-}
-
-function phraseCountLabel(count: number): string {
-  return `${count} ${count === 1 ? "phrase" : "phrases"}`;
 }
 
 function profileById(profileId: string): VoiceProfileSummary | null {
@@ -9064,25 +9116,6 @@ function effectivePhrases(): PhraseDefinition[] {
     ...phraseBank.filter((phrase) => !hiddenPhrases.has(phrase.id)).map((phrase) => phraseOverrides[phrase.id] ?? phrase),
     ...customPhrases,
   ];
-}
-
-function voicePhraseInputs(): PhraseDefinition[] {
-  return effectivePhrases().map((phrase) => ({
-    id: phrase.id,
-    tone: phrase.tone,
-    moment: phrase.moment,
-    text: phrase.text,
-  }));
-}
-
-function phraseKind(phrase: PhraseDefinition): string {
-  if (phrase.id.startsWith("custom_")) {
-    return "Custom";
-  }
-  if (phraseOverrides[phrase.id]) {
-    return "Edited";
-  }
-  return "Bundled";
 }
 
 function uniqueCustomPhraseId(text: string): string {
@@ -9818,7 +9851,7 @@ function renderDayCard(todayStreakDays: number): string {
     `;
   }
   const summary = summarizeDay(dayCard);
-  const streakText = streakLabel(streakDays(summary.day));
+  const streakText = streakLabel(streakDays());
   const strip = stripRuns(summary.segments)
     .map((run) => `<i class="${run.on ? "strip-on" : "strip-off"}" style="left: ${(run.left * 100).toFixed(2)}%; width: ${(run.width * 100).toFixed(2)}%"></i>`)
     .join("");

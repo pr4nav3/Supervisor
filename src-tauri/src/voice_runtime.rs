@@ -20,9 +20,13 @@ const PREVIOUS_DIR: &str = "previous";
 const INSTALL_FILE: &str = "install.json";
 const DOWNLOAD_FILE: &str = "runtime.download.zip";
 const DOWNLOAD_CANCELLED: &str = "download cancelled";
+/// No whole-request timeout: a gigabyte on a slow line takes as long as it takes. A stall is
+/// what ends an attempt, and the next one resumes from the partial file.
 const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
-const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(10);
-const DOWNLOAD_TOTAL_TIMEOUT: Duration = Duration::from_secs(15 * 60);
+const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(60);
+const SERVER_UNREACHABLE: &str = "Couldn't reach the download server. Check your connection.";
+const DOWNLOAD_UNAVAILABLE: &str =
+    "The voice engine couldn't be downloaded right now. Check your connection and try again.";
 /// The manifest is a few KB: offline, the user should see "could not reach" in seconds.
 const MANIFEST_CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
 const MANIFEST_TIMEOUT: Duration = Duration::from_secs(20);
@@ -174,11 +178,7 @@ pub fn install_runtime(
     if cancel.load(Ordering::SeqCst) {
         return Err(DOWNLOAD_CANCELLED.to_string());
     }
-    let manifest = match manifest {
-        Ok(manifest) => manifest,
-        Err(_) if current.installed => return Ok(report_installed(current, &mut progress)),
-        Err(error) => return Err(error),
-    };
+    let manifest = manifest?;
     let target = runtime_target();
     let asset = select_runtime_asset(&manifest, &target)?;
     // A corrupt install record is not an error here: the download below replaces it.
@@ -190,22 +190,18 @@ pub fn install_runtime(
 
     fs::create_dir_all(runtime_root(root)).map_err(|error| error.to_string())?;
     let archive_path = runtime_root(root).join(DOWNLOAD_FILE);
-    let download = download_asset(&asset, &archive_path, Arc::clone(&cancel), |downloaded| {
+    // The zip, then its unpacked copy (about twice the zip) beside it until the zip is removed.
+    crate::voice::ensure_free_space(root, asset.bytes.saturating_mul(3))?;
+    let client = download_client()?;
+    let file_label = format!("the voice engine for {}", target_os_name(&target));
+    // A failed attempt leaves the partial zip for the next one to resume; a cancel removes it.
+    fetch_file(&client, &asset.url, &archive_path, asset.bytes, &cancel, |downloaded| {
         progress(VoiceRuntimeDownloadProgress {
             downloaded_bytes: downloaded,
             total_bytes: asset.bytes,
-            current_file: Some(format!("voice runtime {}", asset.target)),
+            current_file: Some(file_label.clone()),
         });
-    });
-    if let Err(error) = download {
-        let _ = fs::remove_file(&archive_path);
-        return Err(error);
-    }
-
-    if cancel.load(Ordering::SeqCst) {
-        let _ = fs::remove_file(&archive_path);
-        return Err(DOWNLOAD_CANCELLED.to_string());
-    }
+    })?;
 
     install_archive(
         root,
@@ -273,12 +269,121 @@ fn fetch_manifest() -> Result<VoicePackManifest, String> {
     let body = client
         .get(url)
         .send()
-        .map_err(|error| error.to_string())?
+        .map_err(|error| plain_fetch_error(&error))?
         .error_for_status()
-        .map_err(|error| error.to_string())?
+        .map_err(|error| plain_fetch_error(&error))?
         .text()
-        .map_err(|error| error.to_string())?;
-    serde_json::from_str::<VoicePackManifest>(&body).map_err(|error| error.to_string())
+        .map_err(|error| plain_fetch_error(&error))?;
+    serde_json::from_str::<VoicePackManifest>(&body).map_err(|_| DOWNLOAD_UNAVAILABLE.to_string())
+}
+
+/// What the user reads when a fetch fails: a server answer (404, 5xx) means the files are not
+/// there right now; anything else means the server was not reached. Never reqwest's own text.
+fn plain_fetch_error(error: &reqwest::Error) -> String {
+    if error.is_status() {
+        DOWNLOAD_UNAVAILABLE.to_string()
+    } else {
+        SERVER_UNREACHABLE.to_string()
+    }
+}
+
+pub(crate) fn download_client() -> Result<reqwest::Client, String> {
+    reqwest::Client::builder()
+        .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
+        .read_timeout(DOWNLOAD_READ_TIMEOUT)
+        .build()
+        .map_err(|error| error.to_string())
+}
+
+/// The bytes of a partial file worth asking the server to skip: none when there is no partial
+/// or it is already as long as the whole (a stale or wrong file, fetched again from zero).
+fn range_start(partial_bytes: u64, total_bytes: u64) -> Option<u64> {
+    (partial_bytes > 0 && partial_bytes < total_bytes).then_some(partial_bytes)
+}
+
+/// How much of the partial file to keep once the server answered: all of it on a 206 to the
+/// range asked for, nothing when it sent the whole file (200) or no range was asked for.
+fn kept_bytes(range_start: Option<u64>, status: reqwest::StatusCode) -> u64 {
+    match range_start {
+        Some(start) if status == reqwest::StatusCode::PARTIAL_CONTENT => start,
+        _ => 0,
+    }
+}
+
+/// Fetches `url` into `path`, continuing a partial file an earlier attempt left there. On a
+/// network failure the partial stays for the next attempt; on cancel it is removed. The
+/// caller checks the hash.
+pub(crate) fn fetch_file(
+    client: &reqwest::Client,
+    url: &str,
+    path: &Path,
+    expected_bytes: u64,
+    cancel: &AtomicBool,
+    mut progress: impl FnMut(u64),
+) -> Result<(), String> {
+    if cancel.load(Ordering::SeqCst) {
+        return Err(DOWNLOAD_CANCELLED.to_string());
+    }
+    let partial = fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+    let start = range_start(partial, expected_bytes);
+    let mut request = client.get(url);
+    if let Some(start) = start {
+        request = request.header(reqwest::header::RANGE, format!("bytes={start}-"));
+    }
+    let mut response = tauri::async_runtime::block_on(async { request.send().await?.error_for_status() })
+        .map_err(|error| plain_fetch_error(&error))?;
+    let mut downloaded = kept_bytes(start, response.status());
+    let mut writer = if downloaded > 0 {
+        fs::OpenOptions::new().append(true).open(path)
+    } else {
+        File::create(path)
+    }
+    .map_err(|error| error.to_string())?;
+    progress(downloaded);
+
+    loop {
+        if cancel.load(Ordering::SeqCst) {
+            let _ = fs::remove_file(path);
+            return Err(DOWNLOAD_CANCELLED.to_string());
+        }
+        let chunk = match tauri::async_runtime::block_on(response.chunk()) {
+            Ok(Some(chunk)) => chunk,
+            Ok(None) => break,
+            Err(_) if cancel.load(Ordering::SeqCst) => {
+                let _ = fs::remove_file(path);
+                return Err(DOWNLOAD_CANCELLED.to_string());
+            }
+            Err(error) => return Err(plain_fetch_error(&error)),
+        };
+        writer.write_all(&chunk).map_err(|error| error.to_string())?;
+        downloaded += chunk.len() as u64;
+        progress(downloaded);
+    }
+    writer.flush().map_err(|error| error.to_string())?;
+
+    if cancel.load(Ordering::SeqCst) {
+        let _ = fs::remove_file(path);
+        return Err(DOWNLOAD_CANCELLED.to_string());
+    }
+    if downloaded > expected_bytes {
+        let _ = fs::remove_file(path);
+        return Err(DOWNLOAD_UNAVAILABLE.to_string());
+    }
+    if downloaded < expected_bytes {
+        // The server closed early: the partial stays, the next attempt picks it up.
+        return Err(SERVER_UNREACHABLE.to_string());
+    }
+    Ok(())
+}
+
+fn target_os_name(target: &str) -> &'static str {
+    if target.starts_with("windows-") {
+        "Windows"
+    } else if target.starts_with("macos-") {
+        "Mac"
+    } else {
+        "Linux"
+    }
 }
 
 fn select_runtime_asset(
@@ -287,7 +392,7 @@ fn select_runtime_asset(
 ) -> Result<RuntimeAsset, String> {
     if manifest.worker_api != WORKER_API_VERSION {
         return Err(format!(
-            "voice runtime manifest API {} is not supported by this app",
+            "The voice engine online (version {}) needs a newer Supervisor.",
             manifest.worker_api
         ));
     }
@@ -301,17 +406,17 @@ fn select_runtime_asset(
         .ok_or_else(|| format!("The voice engine is not available for this computer yet ({target})."))?;
     if matches.next().is_some() {
         return Err(format!(
-            "voice runtime manifest contains duplicate target {target}"
+            "The voice engine list is damaged: duplicate target {target}."
         ));
     }
     if asset.bytes == 0 {
-        return Err(format!("voice runtime {target} has an invalid byte count"));
+        return Err(format!("The voice engine list is damaged: {target} has an invalid byte count."));
     }
     if asset.sha256.len() != 64 || !asset.sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(format!("voice runtime {target} has an invalid checksum"));
+        return Err(format!("The voice engine list is damaged: {target} has an invalid checksum."));
     }
     if !asset.url.starts_with("https://") {
-        return Err(format!("voice runtime {target} must use HTTPS"));
+        return Err(format!("The voice engine list is damaged: {target} must use HTTPS."));
     }
     let executable = asset.executable.as_deref().unwrap_or_else(|| {
         if target.starts_with("windows-") {
@@ -322,7 +427,7 @@ fn select_runtime_asset(
     });
     if safe_relative_path(executable).is_none() {
         return Err(format!(
-            "voice runtime {target} has an unsafe executable path"
+            "The voice engine list is damaged: {target} has an unsafe executable path."
         ));
     }
 
@@ -362,10 +467,7 @@ fn install_archive(
             .map_err(|error| error.to_string())?
             .len();
         if bytes != asset.bytes {
-            return Err(format!(
-                "downloaded wrong voice runtime byte count: expected {}, got {}",
-                asset.bytes, bytes
-            ));
+            return Err("The voice engine download was incomplete. Try again.".to_string());
         }
         if sha256_file(archive_path, cancel)? != asset.sha256 {
             return Err("The voice engine download was damaged. Try again.".to_string());
@@ -391,7 +493,7 @@ fn install_archive(
         let executable_path = staging.join(&executable);
         if !executable_path.is_file() {
             let _ = fs::remove_dir_all(&staging);
-            return Err(format!("voice runtime is missing executable: {executable}"));
+            return Err(format!("The voice engine download is missing its program ({executable})."));
         }
         make_executable(&executable_path)?;
         let installed_bytes = dir_size(&staging).map_err(|error| error.to_string())?;
@@ -459,62 +561,6 @@ fn remove_previous_runtime(root: &Path) {
     }
 }
 
-fn download_asset(
-    asset: &RuntimeAsset,
-    path: &Path,
-    cancel: Arc<AtomicBool>,
-    mut progress: impl FnMut(u64),
-) -> Result<(), String> {
-    let client = reqwest::Client::builder()
-        .connect_timeout(DOWNLOAD_CONNECT_TIMEOUT)
-        .read_timeout(DOWNLOAD_READ_TIMEOUT)
-        .timeout(DOWNLOAD_TOTAL_TIMEOUT)
-        .build()
-        .map_err(|error| error.to_string())?;
-    if cancel.load(Ordering::SeqCst) {
-        return Err(DOWNLOAD_CANCELLED.to_string());
-    }
-    let mut response = tauri::async_runtime::block_on(async {
-        client.get(&asset.url).send().await?.error_for_status()
-    })
-    .map_err(|error| error.to_string())?;
-    let mut writer = File::create(path).map_err(|error| error.to_string())?;
-    let mut downloaded = 0u64;
-    progress(downloaded);
-
-    loop {
-        if cancel.load(Ordering::SeqCst) {
-            let _ = fs::remove_file(path);
-            return Err(DOWNLOAD_CANCELLED.to_string());
-        }
-        let Some(chunk) = tauri::async_runtime::block_on(response.chunk()).map_err(|error| {
-            if cancel.load(Ordering::SeqCst) {
-                DOWNLOAD_CANCELLED.to_string()
-            } else {
-                error.to_string()
-            }
-        })?
-        else {
-            break;
-        };
-        writer
-            .write_all(&chunk)
-            .map_err(|error| error.to_string())?;
-        downloaded += chunk.len() as u64;
-        progress(downloaded);
-    }
-    writer.flush().map_err(|error| error.to_string())?;
-
-    if downloaded != asset.bytes {
-        let _ = fs::remove_file(path);
-        return Err(format!(
-            "downloaded wrong voice runtime byte count: expected {}, got {}",
-            asset.bytes, downloaded
-        ));
-    }
-    Ok(())
-}
-
 fn installed_runtime(root: &Path) -> Result<Option<(RuntimeInstall, PathBuf)>, String> {
     let install_path = runtime_root(root).join(INSTALL_FILE);
     let Ok(bytes) = fs::read(&install_path) else {
@@ -526,7 +572,7 @@ fn installed_runtime(root: &Path) -> Result<Option<(RuntimeInstall, PathBuf)>, S
         return Ok(None);
     }
     let executable = safe_relative_path(&install.executable)
-        .ok_or_else(|| "voice runtime install record has an unsafe executable path".to_string())?;
+        .ok_or_else(|| "The installed voice engine's record has an unsafe program path.".to_string())?;
     let executable = current_runtime_dir(root).join(executable);
     if !executable.is_file() {
         return Ok(None);
@@ -544,14 +590,14 @@ fn extract_zip(archive_path: &Path, out_dir: &Path, cancel: &AtomicBool) -> Resu
         let mut entry = archive.by_index(index).map_err(|error| error.to_string())?;
         let Some(relative) = safe_relative_path(entry.name()) else {
             return Err(format!(
-                "voice runtime archive contains unsafe path: {}",
+                "The voice engine download contains an unsafe path: {}",
                 entry.name()
             ));
         };
         // A link extracted earlier must not become a way out: nothing is written through one.
         if passes_through_link(out_dir, &relative) {
             return Err(format!(
-                "voice runtime archive writes through a link: {}",
+                "The voice engine download writes through a link: {}",
                 entry.name()
             ));
         }
@@ -571,14 +617,14 @@ fn extract_zip(archive_path: &Path, out_dir: &Path, cancel: &AtomicBool) -> Resu
             io::Read::read_to_string(&mut entry, &mut target).map_err(|error| error.to_string())?;
             if !symlink_stays_inside(&relative, &target) {
                 return Err(format!(
-                    "voice runtime archive contains an unsafe link: {} -> {target}",
+                    "The voice engine download contains an unsafe link: {} -> {target}",
                     entry.name()
                 ));
             }
             #[cfg(unix)]
             std::os::unix::fs::symlink(&target, &out_path).map_err(|error| error.to_string())?;
             #[cfg(not(unix))]
-            return Err(format!("voice runtime archive contains a link: {}", entry.name()));
+            return Err(format!("The voice engine download contains a link: {}", entry.name()));
             #[cfg(unix)]
             continue;
         }
@@ -844,6 +890,31 @@ mod tests {
     }
 
     #[test]
+    fn a_partial_download_resumes_only_when_the_server_honours_the_range() {
+        use reqwest::StatusCode;
+        assert_eq!(range_start(0, 100), None);
+        assert_eq!(range_start(40, 100), Some(40));
+        assert_eq!(range_start(100, 100), None);
+        assert_eq!(range_start(120, 100), None);
+        assert_eq!(kept_bytes(Some(40), StatusCode::PARTIAL_CONTENT), 40);
+        assert_eq!(kept_bytes(Some(40), StatusCode::OK), 0);
+        assert_eq!(kept_bytes(None, StatusCode::OK), 0);
+        assert_eq!(kept_bytes(None, StatusCode::PARTIAL_CONTENT), 0);
+    }
+
+    #[test]
+    fn fetch_errors_read_as_plain_sentences() {
+        let root = test_dir("fetch-error");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("x.download");
+        // Nothing listens on this port: a connection failure, never reqwest's own text.
+        let error = fetch_file(&download_client().unwrap(), "http://127.0.0.1:9/x", &path, 10, &AtomicBool::new(false), |_| {})
+            .unwrap_err();
+        assert_eq!(error, SERVER_UNREACHABLE);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn safe_relative_path_rejects_zip_slip() {
         assert_eq!(
             safe_relative_path("supervisor-voice-worker").unwrap(),
@@ -955,7 +1026,7 @@ mod tests {
         )
         .unwrap_err();
 
-        assert!(error.contains("missing executable"));
+        assert!(error.contains("missing its program"));
         assert_eq!(fs::read(current.join("keep.txt")).unwrap(), b"keep");
 
         let _ = fs::remove_dir_all(root);

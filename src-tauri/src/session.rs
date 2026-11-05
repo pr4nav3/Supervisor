@@ -1062,7 +1062,7 @@ impl Session {
         self.engine.replace_rules(self.rules.clone());
         self.engine.set_exceptions(self.exceptions.clone());
         self.last_accounted_at = now;
-        self.latest_focus = Some(marked_focus(focus, matched_rule, self.strictness));
+        self.latest_focus = Some(marked_focus(focus, matched_rule));
         if self.is_recording() && self.supervisor_state.is_none() && !on_phone {
             if let (Some(activity), Some(marked)) = (recorded_activity, self.latest_focus.as_ref()) {
                 self.sync_span(now, &focus.sample.window_id,
@@ -1588,17 +1588,20 @@ pub struct PomodoroInput {
 }
 
 /// Where a Pomodoro session is. A break is a pause the session takes by itself: nothing is
-/// judged or counted during it, and the timer holds. When the break runs out the session waits
-/// for the user to start the next round, so a round never starts with nobody at the desk.
+/// judged or counted during it, and the timer holds. When the break runs out the session says
+/// so and waits one more break's length for the user to start the next round; then it starts
+/// the round itself, so the session still ends around the time the start screen promised.
 #[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct PomodoroStatus {
     pub round: u32,
     pub rounds: u32,
     pub work_seconds: u64,
     pub break_seconds: u64,
-    /// "work", "break", or "break_over" (the break ran out; waiting for the next round).
+    /// "work", "break", or "break_over" (the break ran out; the next round starts by itself
+    /// unless the user starts it first).
     pub phase: &'static str,
-    /// Until the break (in a round) or until the break ends (in a break).
+    /// Until the break (in a round), until the break ends (in a break), or until the next round
+    /// starts by itself (break over).
     pub phase_remaining_seconds: u64,
     /// Focused seconds in each finished round, in order.
     pub rounds_focused_seconds: Vec<u64>,
@@ -1871,12 +1874,13 @@ pub fn utc_now() -> String {
         .expect("RFC 3339 formatting only fails for years outside 0000-9999")
 }
 
-fn marked_focus(focus: &FocusSnapshot, matched_rule: Option<AppRule>, strictness: Strictness) -> FocusSnapshot {
-    let config = strictness.focus_config();
+/// The cached focus right after the window in front was marked or allowed. A place just marked
+/// is arrived at anew (the engine starts its clock over too), so it begins in the grace: no
+/// card, no reminder, until the strictness's own waits have passed.
+fn marked_focus(focus: &FocusSnapshot, matched_rule: Option<AppRule>) -> FocusSnapshot {
     let state = match matched_rule {
         None => FocusState::Focused,
-        Some(_) if focus.seconds_on_current_window < config.distracted_after_seconds => FocusState::Suspicious,
-        Some(_) => FocusState::Distracted,
+        Some(_) => FocusState::Suspicious,
     };
     FocusSnapshot {
         distracting: matched_rule.is_some(),
@@ -1885,9 +1889,8 @@ fn marked_focus(focus: &FocusSnapshot, matched_rule: Option<AppRule>, strictness
         activity: focus.activity.clone(),
         markable: focus.markable,
         state,
-        seconds_on_current_window: focus.seconds_on_current_window,
-        interrupt: state == FocusState::Distracted
-            && focus.seconds_on_current_window >= config.nudge_after_seconds,
+        seconds_on_current_window: 0,
+        interrupt: false,
         should_nudge: false,
         next_nudge_in_seconds: None,
     }
@@ -2919,9 +2922,41 @@ mod tests {
         let snapshot = manager.flag_current(seconds(11));
         let focus = snapshot.current.unwrap().focus.unwrap();
 
-        assert_eq!(focus.state, FocusState::Distracted);
+        // Marked, but only just arrived as a distraction: the grace runs from here.
+        assert_eq!(focus.state, FocusState::Suspicious);
         assert!(focus.distracting);
+        assert!(!focus.interrupt);
         assert_eq!(focus.matched_rule.unwrap().value, "notes");
+
+        // Strict: distracted after 5 s, the first reminder after 30 s, counted from the mark.
+        let soon = record(&mut manager, sample("Notes", "Plan", 0.0), seconds(12));
+        let soon = soon.current.unwrap().focus.unwrap();
+        assert_eq!(soon.state, FocusState::Suspicious);
+        assert!(!soon.should_nudge);
+        let later = record(&mut manager, sample("Notes", "Plan", 0.0), seconds(20));
+        let later = later.current.unwrap().focus.unwrap();
+        assert_eq!(later.state, FocusState::Distracted);
+        assert!(!later.should_nudge && !later.interrupt);
+        assert!(!record(&mut manager, sample("Notes", "Plan", 0.0), seconds(41)).current.unwrap().focus.unwrap().should_nudge);
+        let reminded = record(&mut manager, sample("Notes", "Plan", 0.0), seconds(42));
+        assert!(reminded.current.unwrap().focus.unwrap().should_nudge);
+    }
+
+    #[test]
+    fn a_rule_saved_mid_session_gives_the_window_in_front_its_grace() {
+        let mut manager = test_manager();
+        manager.start(input("Focus", Strictness::Strict), seconds(0));
+        record(&mut manager, sample("Slack", "General", 0.0), seconds(0));
+        record(&mut manager, sample("Slack", "General", 0.0), seconds(100));
+
+        let mut rules = manager.rules();
+        rules.push(AppRule::app("slack"));
+        manager.update_rules(rules, seconds(101));
+        let focus = record(&mut manager, sample("Slack", "General", 0.0), seconds(102)).current.unwrap().focus.unwrap();
+        assert_eq!(focus.state, FocusState::Suspicious);
+        assert!(!focus.should_nudge);
+        assert!(!record(&mut manager, sample("Slack", "General", 0.0), seconds(131)).current.unwrap().focus.unwrap().should_nudge);
+        assert!(record(&mut manager, sample("Slack", "General", 0.0), seconds(132)).current.unwrap().focus.unwrap().should_nudge);
     }
 
     #[test]

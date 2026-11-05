@@ -23,12 +23,6 @@ const KNOWN_WORK_KEY: &str = "review.known_work";
 const RUN_SECONDS_SQL: &str = "COALESCE(session.elapsed_seconds,
     (SELECT COALESCE(SUM(span.seconds), 0) FROM span WHERE span.session_id = session.id))";
 
-const WEBCAM_SETTING_KEYS: &[&str] = &[
-    "webcam.enabled",
-    "webcam.phone_nudge",
-    "webcam.away_after_seconds",
-];
-
 pub struct SessionStorage {
     conn: Connection,
     failure: RefCell<Option<String>>,
@@ -248,6 +242,8 @@ pub struct TrendsData {
     /// The last eight weeks, oldest first, ending with the current week; starts at the first of
     /// them with data.
     pub weeks: Vec<TrendPeriod>,
+    /// Sessions exist before the first of those weeks; Trends has them.
+    pub has_earlier: bool,
     pub week_recap: FocusRecap,
 }
 
@@ -366,7 +362,6 @@ impl SessionStorage {
         };
         storage.apply_pragmas()?;
         storage.migrate()?;
-        storage.seed_webcam_setting_keys()?;
         storage.load_site_names()?;
         storage.load_app_names()?;
         storage.load_app_identities()?;
@@ -611,7 +606,7 @@ impl SessionStorage {
                 "
                 PRAGMA foreign_keys = ON;
                 PRAGMA journal_mode = WAL;
-                PRAGMA synchronous = NORMAL;
+                PRAGMA synchronous = FULL;
                 ",
             )
             .map_err(|error| error.to_string())?;
@@ -1041,18 +1036,6 @@ impl SessionStorage {
         Ok(())
     }
 
-    fn seed_webcam_setting_keys(&self) -> Result<(), String> {
-        for key in WEBCAM_SETTING_KEYS {
-            self.conn
-                .execute(
-                    "INSERT OR IGNORE INTO setting (key, value) VALUES (?1, ?2)",
-                    params![key, ""],
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        Ok(())
-    }
-
     pub fn load_settings(&self) -> Result<SessionSettings, String> {
         let mut settings = SessionSettings::default();
         let mut stmt = self
@@ -1205,14 +1188,14 @@ impl SessionStorage {
             Err(rusqlite::Error::QueryReturnedNoRows) => StoredPhraseLibrary::default(),
             Err(error) => return Err(error.to_string()),
         };
-        Ok(clean_phrase_library(library))
+        clean_phrase_library(library)
     }
 
     pub fn save_phrase_library(
         &self,
         library: StoredPhraseLibrary,
     ) -> Result<StoredPhraseLibrary, String> {
-        let library = clean_phrase_library(library);
+        let library = clean_phrase_library(library)?;
         let value = serde_json::to_string(&library).map_err(|error| error.to_string())?;
         self.set_setting(PHRASE_LIBRARY_KEY, &value)?;
         Ok(library)
@@ -1744,18 +1727,21 @@ impl SessionStorage {
             let (started_at, focus_seconds, run_seconds) = row.map_err(|error| error.to_string())?;
             rows.push((local_day(&started_at), focus_seconds, run_seconds));
         }
-        let mut daily_focus = fold_days(rows);
-        // The home calendar and streak read back a few months.
-        if daily_focus.len() > 120 {
-            daily_focus = daily_focus.split_off(daily_focus.len() - 120);
-        }
-
         let monday = this_monday();
         let oldest = monday.saturating_sub(time::Duration::days(((TREND_WEEK_COUNT - 1) * 7) as i64));
+        let oldest_day = format_day(oldest);
+        let has_earlier = rows.iter().any(|(day, _, _)| day.as_str() < oldest_day.as_str());
+        let mut daily_focus = fold_days(rows);
+        // The streak walks back 400 days.
+        if daily_focus.len() > 400 {
+            daily_focus = daily_focus.split_off(daily_focus.len() - 400);
+        }
+
         let weeks = self.trend_periods(TrendUnit::Week, local_today(), Some(oldest))?;
         Ok(TrendsData {
             daily_focus,
             weeks,
+            has_earlier,
             week_recap: self.focus_recap(
                 monday,
                 monday.saturating_add(time::Duration::days(7)),
@@ -2131,6 +2117,10 @@ impl SessionStorage {
         // What the review learned belongs to that history.
         self.conn
             .execute("DELETE FROM setting WHERE key = ?1", [KNOWN_WORK_KEY])
+            .map_err(|error| error.to_string())?;
+        // The settings page says deleting frees space, so the file has to shrink.
+        self.conn
+            .execute_batch("VACUUM")
             .map_err(|error| error.to_string())?;
         Ok(())
     }
@@ -2646,13 +2636,15 @@ fn clean_block_suggestions(suggestions: &[String]) -> Vec<String> {
     cleaned
 }
 
-fn clean_phrase_library(library: StoredPhraseLibrary) -> StoredPhraseLibrary {
-    StoredPhraseLibrary {
+const MAX_STORED_PHRASES: usize = 1000;
+
+fn clean_phrase_library(library: StoredPhraseLibrary) -> Result<StoredPhraseLibrary, String> {
+    Ok(StoredPhraseLibrary {
         custom_tones: clean_block_suggestions(&library.custom_tones),
-        custom_phrases: clean_stored_phrases(library.custom_phrases),
-        phrase_overrides: clean_stored_phrases(library.phrase_overrides),
+        custom_phrases: clean_stored_phrases(library.custom_phrases)?,
+        phrase_overrides: clean_stored_phrases(library.phrase_overrides)?,
         hidden_phrases: clean_block_suggestions(&library.hidden_phrases),
-    }
+    })
 }
 
 /// A line's personality and moment. Lines saved before personalities kept the app's moments as
@@ -2676,7 +2668,7 @@ fn phrase_moment(tone: String, moment: &str) -> (String, String) {
     }
 }
 
-fn clean_stored_phrases(phrases: Vec<StoredPhrase>) -> Vec<StoredPhrase> {
+fn clean_stored_phrases(phrases: Vec<StoredPhrase>) -> Result<Vec<StoredPhrase>, String> {
     let mut cleaned = Vec::new();
     for phrase in phrases {
         let id: String = phrase
@@ -2698,11 +2690,11 @@ fn clean_stored_phrases(phrases: Vec<StoredPhrase>) -> Vec<StoredPhrase> {
         {
             cleaned.push(StoredPhrase { id, tone, text, moment });
         }
-        if cleaned.len() == 100 {
-            break;
-        }
     }
-    cleaned
+    if cleaned.len() > MAX_STORED_PHRASES {
+        return Err("That's the most lines Supervisor can keep.".to_string());
+    }
+    Ok(cleaned)
 }
 
 #[cfg(test)]
@@ -3934,6 +3926,47 @@ mod tests {
             .expect("save");
         assert_eq!(saved.hidden_phrases, vec!["mom_again"]);
         assert_eq!(storage.load_phrase_library().expect("load").hidden_phrases, vec!["mom_again"]);
+    }
+
+    #[test]
+    fn the_thousand_and_first_line_is_refused_not_dropped() {
+        let storage = SessionStorage::open_in_memory().expect("open db");
+        let line = |i: usize| StoredPhrase {
+            id: format!("line_{i}"),
+            tone: "gentle".into(),
+            text: "Back to it.".into(),
+            moment: "nudge".into(),
+        };
+        let full = StoredPhraseLibrary {
+            custom_phrases: (0..MAX_STORED_PHRASES).map(line).collect(),
+            ..StoredPhraseLibrary::default()
+        };
+        assert_eq!(storage.save_phrase_library(full).expect("save").custom_phrases.len(), MAX_STORED_PHRASES);
+        let over = StoredPhraseLibrary {
+            custom_phrases: (0..=MAX_STORED_PHRASES).map(line).collect(),
+            ..StoredPhraseLibrary::default()
+        };
+        assert_eq!(
+            storage.save_phrase_library(over).unwrap_err(),
+            "That's the most lines Supervisor can keep."
+        );
+        assert_eq!(storage.load_phrase_library().expect("load").custom_phrases.len(), MAX_STORED_PHRASES);
+    }
+
+    #[test]
+    fn trends_say_whether_older_weeks_exist() {
+        let storage = SessionStorage::open_in_memory().expect("open db");
+        assert!(!storage.get_trends().expect("trends").has_earlier);
+        let id = storage
+            .insert_session("Now", Strictness::Normal, &utc_now(), 600)
+            .expect("insert");
+        storage.close_session(id, &utc_now(), "stopped", 600).expect("close");
+        assert!(!storage.get_trends().expect("trends").has_earlier);
+        let id = storage
+            .insert_session("Old", Strictness::Normal, "2020-01-06T12:00:00Z", 600)
+            .expect("insert");
+        storage.close_session(id, "2020-01-06T12:10:00Z", "stopped", 600).expect("close");
+        assert!(storage.get_trends().expect("trends").has_earlier);
     }
 
     #[test]

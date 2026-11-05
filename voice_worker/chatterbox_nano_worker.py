@@ -140,6 +140,7 @@ def configure_runtime_environment(cache_dir: Path) -> None:
     os.environ.setdefault("HF_HUB_CACHE", str(hf_home / "hub"))
     os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(hf_home / "hub"))
     os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
     os.environ.setdefault("NUMBA_CACHE_DIR", str(cache_dir / ".numba_cache"))
 
 

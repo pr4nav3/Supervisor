@@ -8,13 +8,15 @@ use super::activity_normalize::{
 };
 use std::collections::HashMap;
 use std::ffi::c_void;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 use windows::core::{w, BOOL, HSTRING, PCWSTR, PWSTR};
 use windows::ApplicationModel::AppInfo;
 use windows::Wdk::System::Threading::{NtQueryInformationProcess, ProcessCommandLineInformation};
 use windows::Win32::Foundation::{
-    CloseHandle, ERROR_INSUFFICIENT_BUFFER, HANDLE, HWND, LPARAM, MAX_PATH, RECT, UNICODE_STRING,
+    CloseHandle, ERROR_INSUFFICIENT_BUFFER, HANDLE, HINSTANCE, HWND, LPARAM, LRESULT, MAX_PATH,
+    RECT, UNICODE_STRING, WPARAM,
 };
 use windows::Win32::Graphics::Dwm::{
     DwmGetWindowAttribute, DWMWA_CLOAKED, DWMWA_EXTENDED_FRAME_BOUNDS,
@@ -27,14 +29,19 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
     CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
     TH32CS_SNAPPROCESS,
 };
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows::Win32::System::Power::{RegisterPowerSettingNotification, POWERBROADCAST_SETTING};
 use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
+use windows::Win32::System::SystemServices::GUID_CONSOLE_DISPLAY_STATE;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    EnumChildWindows, GetAncestor, GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetWindow,
-    GetWindowRect, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible,
-    GA_PARENT, GW_OWNER, GUITHREADINFO,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, EnumChildWindows, GetAncestor,
+    GetClassNameW, GetForegroundWindow, GetGUIThreadInfo, GetMessageW, GetWindow, GetWindowRect,
+    GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindowVisible, RegisterClassW,
+    DEVICE_NOTIFY_WINDOW_HANDLE, GA_PARENT, GW_OWNER, GUITHREADINFO, HWND_MESSAGE, MSG,
+    PBT_POWERSETTINGCHANGE, WINDOW_EX_STYLE, WINDOW_STYLE, WM_POWERBROADCAST, WNDCLASSW,
 };
 
 /// Longest path Windows can return (the extended-length path limit).
@@ -85,6 +92,8 @@ pub fn capture_current(
     let captured_at = OffsetDateTime::now_utc()
         .format(&Rfc3339)
         .map_err(|error| error.to_string())?;
+    // Asked first so the listener is running from the first sample, whatever is in front.
+    let display_off = display_off();
 
     let hwnd = unsafe { GetForegroundWindow() };
     if hwnd.0.is_null() {
@@ -127,6 +136,7 @@ pub fn capture_current(
         is_system_shell: system_apps_dir()
             .and_then(|dir| dir.strip_suffix("\\SystemApps"))
             .is_some_and(|windows| is_inside_dir(&process_path, &format!("{windows}\\System32"))),
+        display_off,
     });
 
     let shell_surface = match disposition {
@@ -149,6 +159,83 @@ pub fn capture_current(
         raw_title,
         shell_surface,
     ))
+}
+
+/// Whether the console display is off. Windows only tells a window that asked, by message, so
+/// the first sample starts a hidden message-only window on its own thread; Windows sends it the
+/// current state at once and every change after. Until the first word arrives the display
+/// counts as on. The lock screen needs none of this: it is LogonUI/LockApp in front (NoSample)
+/// or a null foreground window from the secure desktop, and both record nothing.
+fn display_off() -> bool {
+    static LISTENER: OnceLock<()> = OnceLock::new();
+    LISTENER.get_or_init(|| {
+        let _ = std::thread::Builder::new()
+            .name("display-state".to_string())
+            .spawn(listen_for_display_state);
+    });
+    DISPLAY_OFF.load(Ordering::Relaxed)
+}
+
+static DISPLAY_OFF: AtomicBool = AtomicBool::new(false);
+
+fn listen_for_display_state() {
+    // SAFETY: plain Win32 window creation and a message loop on this thread; the window class
+    // and the window live as long as the process.
+    unsafe {
+        let instance = GetModuleHandleW(None).map(|module| HINSTANCE(module.0)).unwrap_or_default();
+        let class = w!("SupervisorDisplayState");
+        let window_class = WNDCLASSW {
+            lpfnWndProc: Some(display_state_proc),
+            hInstance: instance,
+            lpszClassName: class,
+            ..Default::default()
+        };
+        if RegisterClassW(&window_class) == 0 {
+            return;
+        }
+        let Ok(hwnd) = CreateWindowExW(
+            WINDOW_EX_STYLE(0),
+            class,
+            class,
+            WINDOW_STYLE(0),
+            0,
+            0,
+            0,
+            0,
+            Some(HWND_MESSAGE),
+            None,
+            Some(instance),
+            None,
+        ) else {
+            return;
+        };
+        if RegisterPowerSettingNotification(
+            HANDLE(hwnd.0),
+            &GUID_CONSOLE_DISPLAY_STATE,
+            DEVICE_NOTIFY_WINDOW_HANDLE,
+        )
+        .is_err()
+        {
+            return;
+        }
+        let mut message = MSG::default();
+        while GetMessageW(&mut message, None, 0, 0).0 > 0 {
+            DispatchMessageW(&message);
+        }
+    }
+}
+
+unsafe extern "system" fn display_state_proc(hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+    if message == WM_POWERBROADCAST && wparam.0 == PBT_POWERSETTINGCHANGE as usize {
+        // SAFETY: for this event Windows passes a POWERBROADCAST_SETTING it owns for the call.
+        let setting = unsafe { &*(lparam.0 as *const POWERBROADCAST_SETTING) };
+        if setting.PowerSetting == GUID_CONSOLE_DISPLAY_STATE && setting.DataLength >= 1 {
+            // 0 off, 1 on, 2 dimmed (still readable, so still on).
+            DISPLAY_OFF.store(setting.Data[0] == 0, Ordering::Relaxed);
+        }
+        return LRESULT(1);
+    }
+    unsafe { DefWindowProcW(hwnd, message, wparam, lparam) }
 }
 
 /// `<Windows>\SystemApps`, asked from Windows once (the Windows folder is not always `C:\Windows`).
@@ -618,6 +705,35 @@ mod tests {
         let script = host_script(&name, &line);
         let identity = windows_identity(&path, program.aumid.as_deref(), program.version.as_ref(), script.as_deref());
         println!("{line}\n{identity}");
+    }
+
+    /// Turns the display off for about two seconds, then back on:
+    /// `cargo test manual_display_off_is_noticed -- --ignored`
+    #[test]
+    #[ignore = "manual: turns the display off for two seconds to see the flag flip"]
+    fn manual_display_off_is_noticed() {
+        use std::time::Duration;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{
+            SendInput, INPUT, INPUT_MOUSE, MOUSEEVENTF_MOVE, MOUSEINPUT,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{SendMessageW, HWND_BROADCAST, SC_MONITORPOWER, WM_SYSCOMMAND};
+
+        let monitor = |state: isize| unsafe {
+            SendMessageW(HWND_BROADCAST, WM_SYSCOMMAND, Some(WPARAM(SC_MONITORPOWER as usize)), Some(LPARAM(state)))
+        };
+        assert!(!display_off(), "the display should start on");
+        std::thread::sleep(Duration::from_secs(1));
+        monitor(2);
+        std::thread::sleep(Duration::from_secs(2));
+        let noticed_off = DISPLAY_OFF.load(Ordering::Relaxed);
+        monitor(-1);
+        // A mouse move wakes the display where the message alone does not.
+        let mut input = INPUT { r#type: INPUT_MOUSE, ..Default::default() };
+        input.Anonymous.mi = MOUSEINPUT { dx: 1, dy: 0, dwFlags: MOUSEEVENTF_MOVE, ..Default::default() };
+        unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32) };
+        std::thread::sleep(Duration::from_secs(2));
+        assert!(noticed_off, "the listener never heard the display go off");
+        assert!(!display_off(), "the listener never heard the display come back");
     }
 
     #[test]

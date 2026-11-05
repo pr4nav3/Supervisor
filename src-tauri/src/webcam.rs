@@ -66,6 +66,12 @@ fn yes() -> bool {
     true
 }
 
+/// Something the user should hear about from outside the worker (it could not start at all).
+/// Reaches the page the same way a worker's own error frame does.
+pub fn report_error(app: &AppHandle, message: impl Into<String>) {
+    let _ = app.emit(WORKER_EVENT, WebcamFrame::error_frame(message));
+}
+
 impl WebcamFrame {
     fn error_frame(message: impl Into<String>) -> Self {
         Self {
@@ -156,6 +162,11 @@ impl WebcamPreview {
 
     pub fn gpu_failed(&self) -> bool {
         self.gpu_failed.load(Ordering::SeqCst)
+    }
+
+    /// The user turned GPU mode on again: it gets a fresh try.
+    pub fn forget_gpu_failure(&self) {
+        self.gpu_failed.store(false, Ordering::SeqCst);
     }
 
     /// Whether a session should leave the camera alone for now after a failure.
@@ -419,6 +430,9 @@ fn read_worker<R: std::io::Read>(
     gpu_failed: Arc<AtomicBool>,
 ) {
     let reader = BufReader::new(stdout);
+    // GPU mode gave up this run. Not a camera failure: the CPU worker starts on the next tick
+    // instead of waiting out RETRY_AFTER.
+    let mut gpu_broke = false;
     for line in reader.lines() {
         if stop.load(Ordering::SeqCst) {
             return;
@@ -437,21 +451,21 @@ fn read_worker<R: std::io::Read>(
             Ok(frame) => {
                 if frame.error.as_deref().is_some_and(|error| error.contains("GPU mode")) {
                     gpu_failed.store(true, Ordering::SeqCst);
+                    gpu_broke = true;
                 }
                 on_frame(&app, &frame);
                 let _ = app.emit(WORKER_EVENT, &frame);
             }
-            Err(_) => {
-                let _ = app.emit(
-                    WORKER_EVENT,
-                    WebcamFrame::error_frame(line.chars().take(180).collect::<String>()),
-                );
-            }
+            // Anything else on stdout (ONNX Runtime's provider fallback banner) is a log line,
+            // not a reading; the worker reports its own errors as frames.
+            Err(_) => eprintln!("webcam worker: {line}"),
         }
     }
     if !stop.load(Ordering::SeqCst) {
-        if let Ok(mut at) = failed_at.lock() {
-            *at = Some(Instant::now());
+        if !gpu_broke {
+            if let Ok(mut at) = failed_at.lock() {
+                *at = Some(Instant::now());
+            }
         }
         let _ = app.emit(
             WORKER_EVENT,

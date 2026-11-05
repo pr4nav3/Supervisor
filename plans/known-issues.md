@@ -72,11 +72,11 @@ ended. See `plans/window-history-audit.md`.
 
 **Decided on 2026-10-28.** A session start re-pins the status window on purpose ("Unpin" lasts one session). "Break over" plays nothing: the green card and its button say it. A break that runs out starts the next round by itself after one more break's length. The tray's pause item says what it will do ("Start round 3" during a break). A mute keeps its wall-clock end through a pause. **Focused % is work divided by time at the desk**: away and asleep time count for neither side, in the report, the day card and the streak days.
 
-**Starter clips are machine-checked, not listened to.** Since 2026-10-25 the starter voices (named Derek
-and Elise on screen) ship all 24 bundled lines, the 20 tone lines plus 4 Phone lines (`src-tauri/voices/<id>/`), copied into the starter profiles once. Each was
-picked from four seeded takes by length against its words; nobody has heard them. A user who
-edited a bundled line's words before this version keeps the original words in that clip until
-they regenerate it.
+**Starter clips are machine-checked, not listened to.** Since 2026-11-02 the starter voices (Derek
+and Elise on screen) ship all 52 bundled lines (`src-tauri/voices/<id>/`), copied into the starter
+profiles once. Each was picked from three seeded takes by length against its words, then every clip
+was transcribed and compared with its text (three Elise takes were swapped for clearer ones); nobody
+has listened to them. Clips for the 45 pre-2026-11-02 line ids stay in existing profiles unused.
 
 **"Beta" and the Gen Z lines depend on the read.** The TTS may say "beta" as the Greek letter,
 and the deadpan Gen Z set needs a flat delivery. Listen before keeping those clips.

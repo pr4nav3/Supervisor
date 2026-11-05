@@ -3,7 +3,7 @@
 Living log of what is done and what is left. Update this file when an item
 moves, rather than appending a second tracker.
 
-Last updated: 2026-10-31 (`main` at `a0759de`, the second Mac pass, pushed; both CI jobs green)
+Last updated: 2026-11-04 (pre-production review on Windows, `main`)
 
 Product OS targets: **macOS and Windows**. Linux is a workshop only, not a V1
 ship target. Everything through 2026-10-24 was written and run on Windows. On
@@ -31,6 +31,19 @@ pass from Windows, and what is left for a release, is
 - [x] Session end raises the main window on Windows with a topmost flip, not `set_focus`:
       tao's focus fallback presses a fake Alt key, a likely cause of the broken Alt-Tab /
       Task View seen on 2026-11-02 (`known-issues.md`). Not reproduced; watch for it
+
+## Pre-production review (2026-11-04, Windows, `main`)
+
+- [x] Five area audits and a build pass, about ninety findings; what was fixed and what was
+      left is in `plans/review-2026-11-04.md`. Headlines fixed: Windows display-off counted as
+      focused; storage failures never shown; the session timer minimizable and focus-stealing;
+      camera failures silent in a session; downloads with no resume and a 15-minute cap;
+      `\?\` paths on Windows; Settings below the fold. 218 Rust tests, `npm run check`
+- [x] Windows webcam worker frozen into `build/webcam` (233 MB, CPU and GPU self-tests pass)
+- [ ] Upload the GitHub Releases: `voice-runtime` pre-release (both zips + manifest) and
+      `v0.1.0`. Until then the engine download and the Mac install line fail for everyone
+- [ ] Decide Windows distribution (`plans/distribution.md`)
+- [ ] Desk test the detector with a watch, a remote and a mug before leaning on "or watch"
 
 ## Voice lines (2026-11-02, Windows, `main`)
 

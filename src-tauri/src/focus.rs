@@ -10,7 +10,8 @@ pub struct FocusEngine {
     rules: Vec<AppRule>,
     /// Distractions allowed for this session: a rule they name does not match.
     exceptions: Vec<AppRule>,
-    place: Option<(ActivityKind, String)>,
+    /// The app or website in front; one place for all its windows and pages.
+    place: Option<Activity>,
     window_started_at: Duration,
     /// Set while the place's clock is paused (idle, or Supervisor in front).
     held_since: Option<Duration>,
@@ -50,9 +51,9 @@ impl FocusEngine {
         if self
             .place
             .as_ref()
-            .is_none_or(|(kind, key)| *kind != activity.kind || *key != activity.key)
+            .is_none_or(|place| place.kind != activity.kind || place.key != activity.key)
         {
-            self.place = Some((activity.kind, activity.key.clone()));
+            self.place = Some(activity.clone());
             self.window_started_at = now;
             self.held_since = None;
             self.nudged_here = false;
@@ -87,11 +88,26 @@ impl FocusEngine {
     }
 
     pub fn replace_rules(&mut self, rules: Vec<AppRule>) {
-        self.rules = rules;
+        self.forget_place_if_newly_distracting(|engine| engine.rules = rules);
     }
 
     pub fn set_exceptions(&mut self, exceptions: Vec<AppRule>) {
-        self.exceptions = exceptions;
+        self.forget_place_if_newly_distracting(|engine| engine.exceptions = exceptions);
+    }
+
+    /// A place that a rule change (marked in front, saved in Settings, an allowance taken back)
+    /// has just made a distraction is arrived at anew: its grace and first reminder count from
+    /// the next sample, not from when the user got there as work.
+    fn forget_place_if_newly_distracting(&mut self, change: impl FnOnce(&mut Self)) {
+        let was_distracting = self.place_is_distracting();
+        change(self);
+        if !was_distracting && self.place_is_distracting() {
+            self.place = None;
+        }
+    }
+
+    fn place_is_distracting(&self) -> bool {
+        self.place.as_ref().is_some_and(|place| self.matching_rule(place).is_some())
     }
 
     /// The distraction rule for this activity, unless an exception for this session names it.
@@ -548,6 +564,29 @@ mod tests {
         assert!(!idle.should_nudge);
         assert_eq!(returned.state, FocusState::Suspicious);
         assert!(!returned.should_nudge);
+    }
+
+    #[test]
+    fn a_place_just_made_a_distraction_gets_its_grace_from_now() {
+        let mut engine = test_engine(Vec::new());
+        let notes = Activity::app("Notes");
+        observe(&mut engine, &notes, 0.0, 0);
+        assert_eq!(observe(&mut engine, &notes, 0.0, 100).state, FocusState::Focused);
+
+        engine.replace_rules(vec![AppRule::app("Notes")]);
+        let marked = observe(&mut engine, &notes, 0.0, 101);
+        assert_eq!(marked.state, FocusState::Suspicious);
+        assert_eq!(marked.seconds_on_current_window, 0);
+        assert!(!observe(&mut engine, &notes, 0.0, 110).should_nudge);
+        assert!(observe(&mut engine, &notes, 0.0, 111).should_nudge);
+
+        // An allowance taken back is the same arrival; one kept changes nothing.
+        engine.set_exceptions(vec![AppRule::app("Notes")]);
+        assert_eq!(observe(&mut engine, &notes, 0.0, 120).state, FocusState::Focused);
+        engine.set_exceptions(Vec::new());
+        assert_eq!(observe(&mut engine, &notes, 0.0, 121).seconds_on_current_window, 0);
+        engine.replace_rules(vec![AppRule::app("Notes"), AppRule::website("reddit.com")]);
+        assert_eq!(observe(&mut engine, &notes, 0.0, 125).seconds_on_current_window, 4);
     }
 
     #[test]

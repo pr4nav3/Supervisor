@@ -404,9 +404,26 @@ fn update_phrase_library(
 #[tauri::command]
 fn update_settings(
     update: SettingsUpdate,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SessionSettings, String> {
-    Ok(lock_sessions(&state)?.update_settings(update))
+    let mut sessions = lock_sessions(&state)?;
+    let before = sessions.settings();
+    let settings = sessions.update_settings(update);
+    drop(sessions);
+    // A new camera or device reaches a running session's worker by restarting it: the next
+    // tick's sync starts one with the new settings. The Settings preview is the page's own.
+    let webcam = &state.webcam;
+    if settings.webcam_gpu != before.webcam_gpu || settings.webcam_camera != before.webcam_camera {
+        if settings.webcam_gpu && !before.webcam_gpu {
+            webcam.forget_gpu_failure();
+        }
+        if webcam.is_running() && !webcam.is_preview() {
+            webcam::stop_preview(webcam);
+            sync_session_webcam(&app);
+        }
+    }
+    Ok(settings)
 }
 
 #[tauri::command]
@@ -478,7 +495,7 @@ async fn start_voice_model_download(
     // A check can install a new runtime; a worker still running the old one would load half
     // its files from the new version (a running program's folder can be swapped on a Mac).
     if state.voice_worker.is_busy() {
-        return Err("A clip is generating. Wait for it or cancel it first.".to_string());
+        return Err("A line is generating. Wait for it or cancel it first.".to_string());
     }
     voice::release_worker(&state.voice_worker);
     voice::start_model_download(app, Arc::clone(&state.voice_download))
@@ -507,7 +524,7 @@ async fn delete_voice_cloning_model(
 ) -> Result<voice::VoiceModelStatus, String> {
     // The worker holds the model and runtime files open; deleting under it fails on Windows.
     if state.voice_worker.is_busy() {
-        return Err("A clip is generating. Wait for it or cancel it first.".to_string());
+        return Err("A line is generating. Wait for it or cancel it first.".to_string());
     }
     if voice::download_active(&state.voice_download) {
         return Err("A download is running. Cancel it first.".to_string());
@@ -621,7 +638,8 @@ fn delete_voice_clip(
 #[tauri::command(async)]
 fn start_webcam_preview(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
     let settings = lock_sessions(&state)?.settings();
-    webcam::start_worker(app, &state.webcam, settings.webcam_gpu, settings.webcam_camera, true, on_webcam_frame)
+    let gpu = settings.webcam_gpu && !state.webcam.gpu_failed();
+    webcam::start_worker(app, &state.webcam, gpu, settings.webcam_camera, true, on_webcam_frame)
 }
 
 /// Enumeration can take a moment on a slow driver, so it runs off the main thread.
@@ -672,6 +690,7 @@ fn sync_session_webcam(app: &AppHandle) {
                 let state = app.state::<AppState>();
                 if let Err(error) = webcam::start_worker(app.clone(), &state.webcam, gpu, camera, false, on_webcam_frame) {
                     eprintln!("webcam: {error}");
+                    webcam::report_error(&app, error);
                 }
             });
         }
@@ -860,26 +879,33 @@ pub fn run() {
 }
 
 fn setup_status_window(app: &mut tauri::App) -> tauri::Result<()> {
-    WebviewWindowBuilder::new(
+    let builder = WebviewWindowBuilder::new(
         app,
         OVERLAY_WINDOW_LABEL,
         WebviewUrl::App("index.html?view=overlay".into()),
     )
-    .title("Supervisor Status")
+    .title("Session timer")
     .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
     .resizable(false)
     .maximizable(false)
-    .minimizable(true)
+    // Minimized from its own title bar it would never show a card again.
+    .minimizable(false)
     .closable(false)
     .decorations(true)
     .always_on_top(true)
-    .skip_taskbar(false)
+    // No taskbar button (a no-op on macOS, which has no such thing for a window).
+    .skip_taskbar(true)
     .accept_first_mouse(true)
     .focused(false)
     .visible(false)
     // A distraction in a full-screen app or on another desktop must show its card there.
-    .visible_on_all_workspaces(true)
-    .build()?;
+    .visible_on_all_workspaces(true);
+    // Never the active window (WS_EX_NOACTIVATE), so showing it for a card leaves the keyboard
+    // in the browser; its buttons still take clicks. tao keeps this through its own style
+    // rewrites, which a style set by hand would not survive.
+    #[cfg(windows)]
+    let builder = builder.focusable(false);
+    builder.build()?;
 
     #[cfg(target_os = "macos")]
     if let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) {
@@ -931,11 +957,11 @@ fn take_over_quit_menu(app: &mut tauri::App) -> tauri::Result<()> {
 fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
     let show = MenuItem::with_id(app, "show", "Show Supervisor", true, None::<&str>)?;
     let show_status =
-        MenuItem::with_id(app, "show_status", "Show Status Window", true, None::<&str>)?;
-    let pin_status = MenuItem::with_id(app, "pin_status", "Pin Status Window", true, None::<&str>)?;
+        MenuItem::with_id(app, "show_status", "Show session timer", true, None::<&str>)?;
+    let pin_status = MenuItem::with_id(app, "pin_status", "Pin session timer", true, None::<&str>)?;
     let pause = MenuItem::with_id(app, "pause_resume", "Pause", true, None::<&str>)?;
     let snooze = MenuItem::with_id(app, "snooze", "Mute for 5 min", true, None::<&str>)?;
-    let stop = MenuItem::with_id(app, "stop", "End Session", true, None::<&str>)?;
+    let stop = MenuItem::with_id(app, "stop", "End session", true, None::<&str>)?;
     if let Ok(mut slot) = app.state::<AppState>().tray_pause.lock() {
         *slot = Some(pause.clone());
     }
@@ -1252,6 +1278,8 @@ fn set_status_window_size(
         .map(|state| state.sessions.lock().map(|sessions| sessions.status_window_enabled()).unwrap_or(true))
         .unwrap_or(true);
     if center {
+        // Show desktop (Win+D) can still minimize it; a card must come back from that.
+        let _ = window.unminimize();
         let _ = window.set_always_on_top(true);
         if !timer_shown {
             let _ = window.show();
@@ -1569,14 +1597,17 @@ fn start_session_ticker(app: AppHandle) {
             let state = app.state::<AppState>();
             current_activity_sample(&state)
         }) else {
-            let state = app.state::<AppState>();
-            let now = state.started_at.elapsed();
-            let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
-            last_loop = now;
-            sessions.record_capture_gap(now);
-            let had_current = sessions.has_current();
-            let snapshot = sessions.tick(now);
-            if had_current && matches!(snapshot.status, session::SessionStatus::Idle) {
+            let ended = {
+                let state = app.state::<AppState>();
+                let now = state.started_at.elapsed();
+                let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                last_loop = now;
+                sessions.record_capture_gap(now);
+                let had_current = sessions.has_current();
+                let snapshot = sessions.tick(now);
+                had_current && matches!(snapshot.status, session::SessionStatus::Idle)
+            };
+            if ended {
                 session_ended(&app);
             }
             continue;
