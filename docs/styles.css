@@ -716,7 +716,9 @@ button.orb:active .orb-core {
   .fcard.cream.is-speaking .orb-core, .vrow.is-speaking .orb-core { background: var(--sv-green); color: #141410; }
   /* ---- 2 · the demo ---- */
   .scene { position: relative; height: 420vh; }
-  .pin { position: sticky; top: 0; height: 100vh; display: grid; align-content: center; }
+  /* the bar is fixed over the top 72px (plus its 18px soft edge), so the screen's content is
+     centred in the space below it, never under it */
+  .pin { position: sticky; top: 0; height: 100vh; box-sizing: border-box; padding-top: 90px; display: grid; align-content: center; }
   .scene-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 40px; align-items: center; }
   .scene-grid.shell { width: min(100%, 1280px); }
   .slides { position: relative; display: grid; }
@@ -727,7 +729,8 @@ button.orb:active .orb-core {
   .slide p { margin: 0; font-size: 1rem; }
 
   /* the tabs are cards of their own; the screen is a card below them, with a gap between */
-  .desk { position: relative; display: grid; grid-template-rows: auto 1fr; gap: 14px; height: min(660px, calc(100vh - 130px)); min-height: 400px; }
+  /* tabs (36px) and gap (14px) above it, the bar's 90px, and 40px of air: it must fit on a short laptop screen */
+  .desk { position: relative; display: grid; grid-template-rows: auto 1fr; gap: 14px; height: min(660px, calc(100vh - 180px)); min-height: 320px; }
   .tabs { display: flex; gap: 10px; }
   .tab { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; border: var(--border); border-radius: 7px; padding: 0 14px; background: var(--sv-soft-white); color: var(--sv-muted); box-shadow: 2px 2px 0 var(--sv-shadow-color); font: 500 0.7rem/1 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; transition: background 160ms ease, color 160ms ease, transform 120ms ease-out, box-shadow 120ms ease-out; }
   .tab .fav { width: 10px; height: 10px; border-radius: 3px; }
@@ -914,7 +917,7 @@ button.orb:active .orb-core {
     .scene { height: 400vh; }
     .scene-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px; align-items: start; }
     .desk-wrap { order: 1; } .slides { order: 2; }
-    .desk { height: 46vh; min-height: 340px; }
+    .desk { height: 42vh; min-height: 300px; }
     .corner { width: 180px; right: 12px; top: 60px; }
     .corner.centered { width: min(320px, calc(100% - 24px)); }
     .yt .body { grid-template-columns: 1fr; }
