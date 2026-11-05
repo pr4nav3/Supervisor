@@ -177,6 +177,8 @@
   .fcard.is-speaking .foot .wave i { opacity: 1; }
   .fcard.cream .wave i { color: var(--sv-ink); }
   .fcard.cream .orb-core { background: var(--sv-soft-white); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
+  /* while speaking, every orb is green with dark ink, the plain-card ones included */
+  .fcard.cream.is-speaking .orb-core, .vrow.is-speaking .orb-core { background: var(--sv-green); color: #141410; }
   .hero-switch { position: fixed; left: 16px; bottom: 16px; z-index: 50; display: flex; gap: 6px; align-items: center; padding: 6px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 2px 2px 0 var(--sv-shadow-color); }
   .hero-switch span { padding: 0 6px; }
   .hero-switch .chip { cursor: pointer; }
