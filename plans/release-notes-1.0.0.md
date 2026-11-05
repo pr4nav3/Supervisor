@@ -14,4 +14,4 @@ Everything runs on this computer. No account, no server, no analytics. It reads 
 
 - macOS 14 or later, Apple Silicon: one line in Terminal installs it and the same line updates it.
   `curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh`
-- Windows 10 or later, 64-bit: run `Supervisor_0.1.0_x64-setup.exe`. The installer is not code-signed yet, so Windows shows "Windows protected your PC" the first time. Choose More info, then Run anyway.
+- Windows 10 or later, 64-bit: run `Supervisor_1.0.0_x64-setup.exe`. The installer is not code-signed yet, so Windows shows "Windows protected your PC" the first time. Choose More info, then Run anyway.
