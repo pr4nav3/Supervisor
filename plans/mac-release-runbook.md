@@ -66,7 +66,7 @@ Do not use `/opt/anaconda3` or any x86_64 Python: the venv would pull Intel whee
 ## 4. The signing certificate: read before building
 
 `scripts/release-mac.sh` and `scripts/install-mac.sh` both pin the certificate "Supervisor Dev"
-by its SHA-1 (`f6705448be2a29c5de7579461d408f1e05ef3df1`). macOS keys a user's Accessibility,
+by its SHA-1 (`71098375bde8e53f630830c240148afff64e7500`). macOS keys a user's Accessibility,
 Camera and Microphone grants to it, so every future release must carry the same one.
 
 **Case A: the user has the backup** (`supervisor-signing.p12` + `p12-password.txt`, made on

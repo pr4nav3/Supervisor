@@ -36,7 +36,7 @@ same code path as the real one-liner:
 - The same app with a browser's quarantine flag added is **rejected** by Gatekeeper
   (`spctl`), which is what a DMG or zip download from a website would hit.
 - Designated requirement: `identifier "app.supervisor.desktop" and certificate leaf =
-  H"f6705448…"`, identical to the debug builds that already hold this Mac's Accessibility and
+  H"71098375…"`, identical to the debug builds that already hold this Mac's Accessibility and
   Camera grants, so the permissions carried over without new prompts.
 - Re-running the line while the app was open quit it, replaced it and reopened it (one
   process after). A wrong `.sha256` was refused before anything was installed.
@@ -107,11 +107,11 @@ Upload both files to a new GitHub Release (mark it latest). The installer's URL 
 ### The signing certificate (the one thing that must not be lost)
 
 All releases are signed with the self-signed "Supervisor Dev" certificate
-(SHA-1 `F6705448BE2A29C5DE7579461D408F1E05EF3DF1`). macOS keys a user's permission grants to
+(SHA-1 `71098375bde8e53f630830c240148afff64e7500`). macOS keys a user's permission grants to
 it. A release signed with any other certificate looks like a different app: every user silently
 loses Accessibility (websites stop being recognized) and must re-grant.
 
-Backup, made 2026-10-25, outside the repo: `~/supervisor-signing/` on the Mac it was made on:
+Re-minted 2026-11-05 (the 2026-10-25 one had no backup on hand; no Mac release had shipped). Backup, made 2026-11-05, outside the repo: `~/supervisor-signing/` on the Mac it was made on:
 `supervisor-signing.p12`, `p12-password.txt`, and `supervisor-signing.p12.base64` (for a
 GitHub Actions secret). Copy these into a password manager. Never commit them.
 

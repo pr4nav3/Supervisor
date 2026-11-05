@@ -20,7 +20,7 @@ case "$(uname -m)" in
   *) echo "unsupported processor $(uname -m)" >&2; exit 1 ;;
 esac
 # The certificate every release must carry; anything else silently drops users' permissions.
-REQUIREMENT='identifier "app.supervisor.desktop" and certificate leaf = H"f6705448be2a29c5de7579461d408f1e05ef3df1"'
+REQUIREMENT='identifier "app.supervisor.desktop" and certificate leaf = H"71098375bde8e53f630830c240148afff64e7500"'
 out="build/release"
 zip="$out/Supervisor-macos-$arch.zip"
 

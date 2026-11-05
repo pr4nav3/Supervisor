@@ -32,6 +32,8 @@ REQUIRED = {
             "00db196e9bdaa36036abd5ff6621331aee013420e411133fe674f0494bef55f9",
             # Mac, 2026-10-31: the same ultralytics and onnx pins, current onnxslim.
             "2d70a7fb62dd66df0961ae7f481a50d571d9b2d6fb3df10db676e46ee6a4c0e3",
+            # Mac, 2026-11-05: ultralytics 8.4.188 / onnx 1.23.2 / onnxslim 0.1.99.
+            "a1cdf3f7d5b24d5e4fb6932d4808aa37297517c1d0c3dde2fb2d5553bb4cd47c",
         ],
     },
 }
