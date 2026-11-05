@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Direction C · The poster</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  .shell { width: min(100%, 1120px); margin: 0 auto; padding: 0 24px; }
+  header { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 750; letter-spacing: -0.02em; text-decoration: none; }
+  .brand img { width: 26px; height: 26px; }
+
+  /* The headline is the poster. Under it, the lines the app says roll past; click one to hear it. */
+  .hero { padding: 64px 0 0; }
+  .hero h1 { font-size: clamp(3rem, 9vw, 7.4rem); letter-spacing: -0.045em; max-width: 9ch; }
+  .hero .row { display: flex; align-items: center; gap: 16px; margin-top: 28px; }
+  .hero p { max-width: 34ch; font-size: 1.15rem; }
+
+  .marquee { overflow: hidden; margin: 44px -24px 0; padding: 18px 0; border-top: var(--border); border-bottom: var(--border); mask-image: linear-gradient(90deg, transparent, #000 8%, #000 92%, transparent); }
+  .marquee .track { display: flex; gap: 10px; width: max-content; animation: roll 40s linear infinite; }
+  .marquee:hover .track { animation-play-state: paused; }
+  .marquee .chip { min-height: 36px; padding: 0 14px; font-size: 0.78rem; letter-spacing: 0.02em; text-transform: none; cursor: pointer; box-shadow: 2px 2px 0 var(--sv-shadow-color); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
+  .marquee .chip:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
+  .marquee .chip.genz { background: var(--sv-green); color: var(--sv-colored-ink); }
+  .marquee .chip.stern { background: var(--sv-coral); color: var(--sv-colored-ink); }
+  .marquee .chip.mom { background: var(--sv-yellow); color: var(--sv-colored-ink); }
+  .marquee .chip b { font-family: var(--font-mono); font-weight: 500; font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; margin-right: 10px; }
+  @keyframes roll { to { transform: translateX(-50%); } }
+  @media (prefers-reduced-motion: reduce) { .marquee .track { animation: none; } }
+
+  /* Colour blocks as sections: one card, one line each. */
+  .block { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 48px; margin-top: 40px; border: var(--border); border-radius: 7px; padding: 56px; box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .block.green { background: var(--sv-green); }
+  .block.coral { background: var(--sv-coral); }
+  .block h2 { font-size: clamp(2rem, 4.6vw, 3.4rem); max-width: 12ch; }
+  .block p { margin-top: 14px; max-width: 32ch; font-size: 1.05rem; }
+
+  .close { text-align: center; padding: 96px 0 120px; }
+  .close h2 { font-size: clamp(1.9rem, 4vw, 3rem); }
+  .close p { margin-top: 12px; font-size: 1.05rem; }
+  .cta { display: flex; justify-content: center; gap: 10px; margin-top: 26px; }
+  footer { padding: 24px 0 40px; border-top: var(--border); }
+
+  @media (max-width: 860px) { .block { grid-template-columns: minmax(0, 1fr); padding: 28px; } .block .win { width: 100%; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <header>
+    <a class="brand" href="#"><img src="../../docs/assets/eye.svg" alt="" />Supervisor</a>
+    <a class="btn primary" href="#get">Download</a>
+  </header>
+
+  <section class="hero">
+    <h1 class="display pop" style="--i: 0">A focus timer that talks back.</h1>
+    <div class="row pop" style="--i: 1">
+      <a class="btn lg primary" href="#get">Download for macOS</a>
+      <p class="muted">Leave YouTube open too long and a voice you recorded tells you to get back to work.</p>
+    </div>
+  </section>
+
+  <div class="marquee pop" style="--i: 2" aria-label="Lines the app says">
+    <div class="track" id="track">
+      <button class="chip genz" data-clip="../../docs/assets/voice/elise-genz-respectfully.mp3"><b>Gen Z</b>Respectfully, get back to it.</button>
+      <span class="chip mom"><b>Mom</b>I can see it from here.</span>
+      <button class="chip stern" data-clip="../../docs/assets/voice/derek-stern-not-the-work.mp3"><b>Stern</b>That isn't the work. Close it.</button>
+      <span class="chip"><b>Gentle</b>Come on back, you were doing well.</span>
+      <span class="chip genz"><b>Gen Z</b>Bro, lock in.</span>
+      <span class="chip mom"><b>Mom</b>Why is it open?</span>
+      <span class="chip stern"><b>Stern</b>You set this time aside. Use it.</span>
+      <span class="chip"><b>Gentle</b>Leave that for later, it'll keep.</span>
+      <span class="chip genz"><b>Gen Z</b>Lowkey not the assignment.</span>
+      <span class="chip mom"><b>Mom</b>I'm not asking twice.</span>
+    </div>
+  </div>
+
+  <section class="block green on-color">
+    <div>
+      <h2 class="display">Start a session. It sits in the corner.</h2>
+      <p>A goal, a length, how strict. Five distractions come on the list; everything else counts as work.</p>
+    </div>
+    <div class="win lift">
+      <div class="slab green" style="background: #fff7df">
+        <h3>On task</h3>
+        <p>philos 241 midterm</p>
+        <div class="dots"><i class="done"></i><i class="now"></i><i></i><i></i></div>
+        <div class="left"><span>29:58 left</span><div class="bar"><i style="width: 42%"></i></div></div>
+      </div>
+      <div class="win-actions">
+        <span class="btn icon yellow"><svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="3.6" height="11" rx="1" fill="currentColor"/><rect x="8.4" y="1.5" width="3.6" height="11" rx="1" fill="currentColor"/></svg></span>
+        <span class="btn icon danger"><svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/></svg></span>
+        <span class="btn more">More</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="block coral on-color">
+    <div>
+      <h2 class="display">Drift, and it speaks up.</h2>
+      <p>Record anyone for twenty seconds. Gentle, Mom, Gen Z or Stern. Your phone counts too, if the webcam is on.</p>
+    </div>
+    <div class="win wide lift">
+      <div class="alert" style="background: #fff7df">
+        <p class="kicker">Distraction</p>
+        <h3>You opened YouTube.</h3>
+        <div class="voice">
+          <button class="orb" type="button" data-clip="../../docs/assets/voice/derek-stern-not-the-work.mp3" aria-label="Play the line">
+            <span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span>
+          </button>
+          <div><p class="who">Derek said</p><p class="line">“That isn't the work. Close it.”</p></div>
+        </div>
+        <div class="task"><strong>philos 241 midterm</strong><span>23:41 left</span></div>
+      </div>
+      <div class="pair"><span class="btn primary">Back to my task</span><span class="btn">Allow once</span></div>
+    </div>
+  </section>
+
+  <section class="close" id="get">
+    <h2 class="display">Everything stays on your computer.</h2>
+    <p class="muted">No account, no servers, no analytics.</p>
+    <div class="cta"><a class="btn lg primary" href="#">Download for macOS</a><a class="btn lg" href="#">Windows</a></div>
+    <p class="mono muted" style="margin-top: 14px">Free · Open source</p>
+  </section>
+
+  <footer class="mono muted">Supervisor · Source · Releases · Privacy</footer>
+</div>
+<button class="btn theme" id="theme" type="button">Dark</button>
+<script>
+  // The marquee loops by repeating its chips once, before the play buttons are wired.
+  var track = document.getElementById("track");
+  track.innerHTML += track.innerHTML;
+</script>
+<script src="mock.js"></script>
+</body>
+</html>

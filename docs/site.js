@@ -1,211 +1,284 @@
-/* Supervisor site. No dependencies, no network calls beyond this folder. */
+/* Built from plans/landing-mockups by scripts/build_site.py. Edit the mockup, then rebuild. */
 (function () {
-  "use strict";
-
-  var root = document.documentElement;
-  root.classList.add("site-ready");
-
-  var reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
-  /* ---- theme ---- */
-  var themeButton = document.getElementById("theme-toggle");
-  var systemDark = window.matchMedia("(prefers-color-scheme: dark)");
-
-  function currentTheme() {
-    return root.getAttribute("data-theme") === "dark" ? "dark" : "light";
-  }
-
-  function labelTheme() {
-    var next = currentTheme() === "dark" ? "light" : "dark";
-    themeButton.setAttribute("aria-label", "Switch to the " + next + " theme");
-  }
-
-  function setTheme(theme, remember) {
-    root.setAttribute("data-theme", theme === "dark" ? "dark" : "light");
-    if (remember) {
-      try {
-        localStorage.setItem("supervisor-theme", theme);
-      } catch (error) {
-        /* storage blocked: the choice lasts this visit */
-      }
-    }
-    labelTheme();
-  }
-
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var root = document.documentElement, $ = function (id) { return document.getElementById(id); };
+  /* the theme: the button says what it switches to, and the choice is remembered */
+  function isDark() { return root.getAttribute("data-theme") === "dark"; }
+  function labelTheme() { $("theme").textContent = isDark() ? "Light" : "Dark"; }
   labelTheme();
-  themeButton.addEventListener("click", function () {
-    setTheme(currentTheme() === "dark" ? "light" : "dark", true);
+  $("theme").addEventListener("click", function () {
+    if (isDark()) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", "dark");
+    labelTheme();
+    try { localStorage.setItem("supervisor-theme", isDark() ? "dark" : "light"); } catch (e) {}
   });
-  systemDark.addEventListener("change", function (event) {
-    var chosen = null;
-    try {
-      chosen = localStorage.getItem("supervisor-theme");
-    } catch (error) {
-      /* ignore */
-    }
-    if (chosen !== "dark" && chosen !== "light") setTheme(event.matches ? "dark" : "light", false);
-  });
-
-  /* ---- which computer, which button ----
-     Release links go here the day there is a build; until then the button leads to the
-     download section, which says so. A phone cannot install either, so it gets a mailed link. */
-  var RELEASES = { mac: null, win: null };
-  var ua = navigator.userAgent;
-  var isPhone = /Android|iPhone|iPad|iPod/i.test(ua) || (navigator.maxTouchPoints > 1 && /Macintosh/.test(ua));
-  var isMac = !isPhone && /Mac/.test(navigator.platform || ua);
-  var isWin = !isPhone && /Win/.test(navigator.platform || ua);
-
-  var heroDownload = document.getElementById("hero-download");
-  if (isMac) heroDownload.textContent = "Download for macOS";
-  else if (isWin) heroDownload.textContent = "Download for Windows";
-  var link = isMac ? RELEASES.mac : isWin ? RELEASES.win : null;
-  if (link) heroDownload.href = link;
-
-  if (isPhone) {
-    root.classList.add("is-phone");
-    var mail =
-      "mailto:?subject=" +
-      encodeURIComponent("Supervisor") +
-      "&body=" +
-      encodeURIComponent("Open this on the computer you work on:\n" + location.href.split("#")[0]);
-    document.getElementById("hero-mail").href = mail;
-    document.getElementById("mail-link").href = mail;
+  function setWords(el, text) {
+    el.classList.remove("developing");
+    el.innerHTML = text.split(" ").map(function (w, i) { return '<span class="w" style="--i:' + i + '">' + w + "</span>"; }).join(" ");
+    void el.offsetWidth;
+    if (!reduce) el.classList.add("developing");
   }
-
-  /* ---- the lines ----
-     Two of the app's own starter clips. One plays at a time; the orb shows bars while it does. */
+  function drawWave(el, key) {
+    var n = 40, out = "", s = key.length * 31 + 7;
+    for (var i = 0; i < n; i++) { s = (s * 9301 + 49297) % 233280; var r = s / 233280; var h = 18 + Math.round(70 * Math.abs(Math.sin(i / n * Math.PI)) * (0.45 + 0.55 * r)); out += '<i style="--h:' + h + ';--i:' + i + '"></i>'; }
+    el.innerHTML = out;
+  }
   var CLIPS = {
-    genz: { src: "assets/voice/elise-genz-respectfully.mp3", who: "Elise", line: "Respectfully, get back to it." },
-    stern: { src: "assets/voice/derek-stern-not-the-work.mp3", who: "Derek", line: "That isn't the work. Close it." }
+    genz: "assets/voice/elise-genz-respectfully.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3",
+    gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3",
+    genz2: "assets/voice/elise-genz-bro-lock-in.mp3", stern2: "assets/voice/derek-stern-wasting-time.mp3"
   };
-  var ROWS = { genz: "row-genz", stern: "row-stern", hero: "hero-voice" };
-  var audio = null;
-  var speakingRow = null;
-
-  function stopLine() {
-    if (audio) {
-      audio.pause();
-      audio = null;
-    }
-    if (speakingRow) {
-      speakingRow.classList.remove("is-speaking");
-      speakingRow = null;
-    }
-  }
-
-  function playLine(key, rowId) {
-    var clip = CLIPS[key];
-    var row = document.getElementById(rowId);
-    if (!clip || !row) return;
-    if (speakingRow === row) {
-      stopLine();
-      return;
-    }
-    stopLine();
-    audio = new Audio(clip.src);
-    speakingRow = row;
-    row.classList.add("is-speaking");
-    var done = function () {
-      if (speakingRow === row) stopLine();
-    };
-    audio.addEventListener("ended", done);
-    audio.addEventListener("error", done);
+  var audio = null, speaking = [];
+  function stop() { if (audio) audio.pause(); speaking.forEach(function (r) { r.classList.remove("is-speaking"); }); audio = null; speaking = []; }
+  function play(key, rows) {
+    if (!CLIPS[key]) return;
+    if (speaking.length && speaking[0] === rows[0]) return stop();
+    stop();
+    audio = new Audio(CLIPS[key]); speaking = rows; rows.forEach(function (r) { r.classList.add("is-speaking"); });
+    var done = function () { if (speaking[0] === rows[0]) stop(); };
+    audio.addEventListener("ended", done); audio.addEventListener("error", done);
     audio.play().catch(done);
   }
 
-  /* ---- the page catches you ----
-     "Or open YouTube instead" swaps the timer card for the reminder card and plays a line:
-     Elise first, Derek if you try it again. Back to my task puts the timer back. */
-  var stage = document.getElementById("stage");
-  var reminder = document.getElementById("reminder");
-  var catchMe = document.getElementById("catch-me");
-  var heroKey = "genz";
-
-  function catchVisitor() {
-    var clip = CLIPS[heroKey];
-    document.getElementById("hero-who").textContent = clip.who + " said";
-    document.getElementById("hero-line").textContent = "“" + clip.line + "”";
-    reminder.hidden = false;
-    stage.classList.add("is-caught");
-    playLine(heroKey, "hero-voice");
-    catchMe.textContent = "Try it again";
-    heroKey = heroKey === "genz" ? "stern" : "genz";
-    if (window.innerWidth <= 900) reminder.scrollIntoView({ block: "nearest", behavior: reduceMotion ? "auto" : "smooth" });
+  /* the eye on the promise card looks where the pointer is, within its socket */
+  var eyes = Array.prototype.slice.call(document.querySelectorAll(".eye"));
+  function wink(eye) { eye.classList.remove("wink"); void eye.offsetWidth; eye.classList.add("wink"); }
+  eyes.forEach(function (eye) {
+    eye.addEventListener("click", function () { wink(eye); });
+    eye.addEventListener("animationend", function (e) { if (e.animationName === "wink") eye.classList.remove("wink"); });
+  });
+  if (!reduce) addEventListener("pointermove", function (e) { lookAt(e.clientX, e.clientY); }, { passive: true });
+  function lookAt(x, y) {
+    eyes.forEach(function (eye) {
+      var r = eye.getBoundingClientRect(); if (!r.width) return;
+      var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
+      var d = Math.hypot(dx, dy) || 1, m = Math.min(d / 40, 1) * 18;
+      eye.querySelector(".look").style.transform = "translate(" + (dx / d * m) + "px," + (dy / d * m) + "px)";
+    });
   }
+  /* ---- the fan: the front card says its line, then goes to the back of the hand ---- */
+  var FANL = { Gentle: "Come on back, you were doing well.", Mom: "Close it, or you're grounded. Don't test me.", "Gen Z": "Bro, lock in.", Stern: "You're wasting your own time. Back to it." };
+  var fcards = Array.prototype.slice.call(document.querySelectorAll(".fcard")), fanOrder = [0, 1, 2, 3], fanTimer = null;
+  fcards.forEach(function (c, i) {
+    drawWave(c.querySelector(".wave"), c.dataset.tone); c.classList.add("in");
+    setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d");
+    /* a click is the only thing that makes a card speak: a back card comes to the front and
+       speaks, the front card speaks again */
+    c.addEventListener("click", function () {
+      if (fanOrder[0] !== i) fanTo(i);
+      play(c.dataset.clip, [c]);
+    });
+    c.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.click(); } });
+  });
+  function layoutFan() { fanOrder.forEach(function (idx, pos) { var c = fcards[idx]; c.classList.remove("r0", "r1", "r2", "r3"); c.classList.add("r" + pos); }); }
+  function speakFront() {
+    var c = fcards[fanOrder[0]];
+    setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d");
+    if (audio) return;
+    c.classList.add("is-speaking"); setTimeout(function () { if (!audio) c.classList.remove("is-speaking"); }, 1800);
+  }
+  /* the front card lifts away and lands at the back; everyone else steps forward */
+  function fanNext() {
+    var front = fcards[fanOrder[0]];
+    front.classList.add("away");
+    setTimeout(function () {
+      fanOrder.push(fanOrder.shift());
+      front.classList.add("snap"); front.classList.remove("away"); layoutFan(); void front.offsetWidth; front.classList.remove("snap");
+      speakFront();
+    }, 300);
+  }
+  function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); speakFront(); runFan(); }
+  function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio) fanNext(); }, 3800); }
+  layoutFan(); speakFront(); runFan();
 
-  catchMe.addEventListener("click", catchVisitor);
-  document.getElementById("back-to-task").addEventListener("click", function () {
-    stopLine();
-    stage.classList.remove("is-caught");
-    window.setTimeout(function () {
-      if (!stage.classList.contains("is-caught")) reminder.hidden = true;
-    }, 180);
+  /* ---- 2 · the demo ---- */
+  var secs = 29 * 60 + 58;
+  setInterval(function () {
+    secs = secs > 0 ? secs - 1 : 45 * 60;
+    var t = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0") + " left";
+    $("clock").textContent = t; $("clock2").textContent = t;
+    $("c-bar").style.width = Math.round((1 - secs / (45 * 60)) * 100) + "%";
+  }, 1000);
+  var TABS = { yt: { title: "You opened YouTube.", who: "Elise said", line: "Respectfully, get back to it.", clip: "genz" },
+               rd: { title: "You opened Reddit.", who: "Derek said", line: "That isn't the work. Close it.", clip: "stern" } };
+  var ORDER = ["session", "caught", "phone", "done"];
+  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab")), views = Array.prototype.slice.call(document.querySelectorAll(".view"));
+  var card = $("card"), corner = $("corner"), faces = { caught: $("f-caught"), done: $("f-done") };
+  var state = "session", pending = null, userTab = null;
+  function showTab(key) {
+    tabs.forEach(function (t) { t.classList.toggle("front", t.dataset.tab === key); });
+    views.forEach(function (v) { v.classList.toggle("on", v.dataset.view === key); });
+  }
+  /* the framed card is as tall as the face it shows; measured with every transition off */
+  function face(which) {
+    Object.keys(faces).forEach(function (k) { faces[k].hidden = k !== which; });
+    var keepC = corner.style.transition, keepK = card.style.transition;
+    corner.style.transition = "none"; card.style.transition = "none"; card.style.height = "auto";
+    var h = faces[which].offsetHeight;
+    void corner.offsetWidth; corner.style.transition = keepC; card.style.transition = keepK;
+    card.style.height = h + "px";
+  }
+  function placeCorner() {
+    if (!corner.classList.contains("centered")) { corner.style.transform = ""; return; }
+    var scr = $("screen").getBoundingClientRect();
+    var keep = corner.style.transition;
+    corner.style.transition = "none"; corner.style.transform = "";
+    var r = corner.getBoundingClientRect();
+    void corner.offsetWidth; corner.style.transition = keep;
+    var dx = (scr.left + scr.width / 2) - (r.left + r.width / 2);
+    var dy = (scr.top + scr.height / 2) - (r.top + r.height / 2);
+    corner.style.transform = "translate(" + Math.round(dx) + "px," + Math.round(dy) + "px)";
+  }
+  function currentFace() { return state === "done" ? "done" : "caught"; }
+  addEventListener("resize", function () { placeCorner(); if (state !== "session") face(currentFace()); });
+  corner.addEventListener("transitionend", function (e) { if (e.propertyName === "width" && corner.classList.contains("centered")) placeCorner(); });
+  function setRail(next) {
+    var at = ORDER.indexOf(next);
+    document.querySelectorAll(".rail button").forEach(function (b, i) { b.classList.toggle("full", i <= at); });
+  }
+  function apply(next, opts) {
+    opts = opts || {};
+    clearTimeout(pending); pending = null;
+    state = next;
+    var tab = opts.tab || (next === "caught" ? "yt" : "docs");
+    showTab(tab); setRail(next);
+    $("cam").classList.toggle("on", next === "phone");
+    /* the screen steps back a little whenever the card is speaking to you */
+    $("screen").classList.toggle("dim", next !== "session");
+    corner.classList.toggle("centered", next !== "session");
+    corner.classList.toggle("framed", next !== "session");
+    $("c-actions").hidden = next === "done";
+    $("allow").hidden = next === "phone";
+    if (next === "session") { stop(); }
+    if (next === "caught") {
+      var t = TABS[tab];
+      $("kicker").textContent = "Distraction"; $("c-title").textContent = t.title; $("c-who").textContent = t.who;
+      $("c-voice").classList.remove("muted");
+      setWords($("c-line"), "“" + t.line + "”");
+      card.className = "card on-color caught"; face("caught");
+      if (opts.speak) play(t.clip, [$("c-voice")]); else stop();
+    }
+    if (next === "phone") {
+      $("kicker").textContent = "Phone in view"; $("c-title").textContent = "Your phone is out."; $("c-who").textContent = "Elise said";
+      $("c-voice").classList.add("muted");
+      setWords($("c-line"), "“Put the phone down for a bit, you can check it after.”");
+      card.className = "card on-color phone"; face("caught"); stop();
+    }
+    if (next === "done") {
+      card.className = "card on-color done"; face("done"); stop();
+      faces.done.classList.remove("drawn"); void faces.done.offsetWidth;
+      requestAnimationFrame(function () { faces.done.classList.add("drawn"); });
+    }
+    placeCorner();
+    document.querySelectorAll(".slide").forEach(function (s) {
+      var on = s.dataset.slide === next;
+      s.classList.toggle("out", !on && ORDER.indexOf(s.dataset.slide) < ORDER.indexOf(next));
+      s.classList.toggle("on", on);
+    });
+  }
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      var key = tab.dataset.tab; userTab = key;
+      if (key === "docs") return apply("session");
+      showTab(key); clearTimeout(pending);
+      pending = setTimeout(function () { apply("caught", { tab: key, speak: true }); }, reduce ? 0 : 650);
+    });
+  });
+  $("back").addEventListener("click", function () { userTab = null; apply(scrollState()); });
+  $("allow").addEventListener("click", function () { userTab = null; apply(scrollState()); });
+  $("c-orb").addEventListener("click", function () {
+    var key = tabs.filter(function (t) { return t.classList.contains("front"); })[0].dataset.tab;
+    if (TABS[key]) play(TABS[key].clip, [$("c-voice")]);
+  });
+  var scene = $("scene");
+  function scrollState() {
+    var top = scene.offsetTop, len = scene.offsetHeight - innerHeight;
+    var p = Math.max(0, Math.min(0.9999, (scrollY - top) / len));
+    return ORDER[Math.floor(p * ORDER.length)];
+  }
+  function onScroll() {
+    var next = scrollState();
+    if (next !== state) { userTab = null; apply(next); }
+    arrivals();
+  }
+  addEventListener("scroll", onScroll, { passive: true });
+  document.querySelectorAll(".rail button").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var i = +b.dataset.go, len = scene.offsetHeight - innerHeight;
+      scrollTo({ top: scene.offsetTop + (i + 0.5) / ORDER.length * len, behavior: reduce ? "auto" : "smooth" });
+    });
+  });
+  setRail("session");
+
+  /* ---- 3 · the voice: the recording fills, the voice is built, the four ways to talk arrive; then again ---- */
+  var recbox = $("recbox"), tape = $("tape"), recT = null, recBars = 40;
+  /* each bar is new as it arrives: a random height, loudest in the middle of the take */
+  function addBar(i) { var h = 18 + Math.round(70 * Math.abs(Math.sin((i + 1) / recBars * Math.PI)) * (0.4 + 0.6 * Math.random())); var b = document.createElement("i"); b.style.setProperty("--h", h); tape.appendChild(b); }
+  function recReset() { clearTimeout(recT); recbox.className = "pane recbox"; tape.innerHTML = ""; $("rec-t").textContent = "0:00"; $("rec-state").textContent = "Ready to record"; }
+  function recRun() {
+    recReset(); recbox.classList.add("live"); $("rec-state").textContent = "Recording";
+    var i = 0, step = 150; /* twenty seconds, told in six */
+    (function tick() {
+      if (i < recBars) { addBar(i); i++; $("rec-t").textContent = "0:" + String(Math.round(i / recBars * 20)).padStart(2, "0"); recT = setTimeout(tick, step); return; }
+      recbox.classList.remove("live"); recbox.classList.add("building"); $("rec-state").textContent = "Building the voice";
+      recT = setTimeout(function () { recbox.classList.remove("building"); recbox.classList.add("ready"); $("rec-state").textContent = "Ready to speak"; recT = setTimeout(recRun, 4200); }, 1400);
+    })();
+  }
+  if (reduce) { recbox.classList.add("ready"); for (var rb = 0; rb < recBars; rb++) addBar(rb); $("rec-t").textContent = "0:20"; $("rec-state").textContent = "Ready to speak"; }
+  document.querySelectorAll(".vrow").forEach(function (r) {
+    r.addEventListener("click", function () { play(r.dataset.clip, [r]); });
+    r.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.click(); } });
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll("button[data-play]"), function (button) {
-    button.addEventListener("click", function () {
-      var key = button.dataset.play === "hero" ? (heroKey === "genz" ? "stern" : "genz") : button.dataset.play;
-      playLine(key, ROWS[button.dataset.play]);
-    });
+  /* ---- 5 · get it ---- */
+  var isMac = /Mac/.test(navigator.platform || navigator.userAgent) && navigator.maxTouchPoints < 2;
+  function pickOS(os) {
+    document.querySelectorAll(".os .vcard").forEach(function (c) { c.classList.toggle("on", c.dataset.os === os); });
+    $("way-mac").hidden = os !== "mac"; $("way-win").hidden = os !== "win";
+  }
+  pickOS(isMac ? "mac" : "win");
+  document.querySelectorAll(".os .vcard").forEach(function (c) { c.addEventListener("click", function () { pickOS(c.dataset.os); }); });
+  $("copy").addEventListener("click", function () {
+    var b = $("copy");
+    (navigator.clipboard ? navigator.clipboard.writeText($("cmd").textContent) : Promise.reject()).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600); }, function () { b.textContent = "Select it"; });
   });
 
-  /* ---- reveal on scroll ---- */
-  var revealables = document.querySelectorAll(".reveal");
-  if (reduceMotion || !("IntersectionObserver" in window)) {
-    Array.prototype.forEach.call(revealables, function (el) {
-      el.classList.add("in");
-    });
-  } else {
-    var revealer = new IntersectionObserver(
-      function (entries) {
-        entries.forEach(function (entry) {
-          if (!entry.isIntersecting) return;
-          var siblings = Array.prototype.slice.call(entry.target.parentNode.children);
-          entry.target.style.transitionDelay = Math.min(siblings.indexOf(entry.target), 3) * 60 + "ms";
-          entry.target.classList.add("in");
-          revealer.unobserve(entry.target);
-        });
-      },
-      { rootMargin: "0px 0px -10% 0px", threshold: 0.08 }
-    );
-    Array.prototype.forEach.call(revealables, function (el) {
-      revealer.observe(el);
-    });
+  /* the stacked cards: contents rise once as a card arrives; a card loses its shadow once the
+     next one has covered it; the voice starts talking when its card is in */
+  var sheets = Array.prototype.slice.call(document.querySelectorAll(".deal")), first = document.querySelector(".first");
+  /* room under the stack so the page ends with the last row parked at its sticky top */
+  function tail() {
+    var last = sheets[sheets.length - 1], foot = document.querySelector("footer").offsetHeight;
+    /* each row parks centred in the window (with the footer's height counted in, so the last
+       row and the credit line read as one centred group); the page ends there */
+    var top = function (el) { return Math.max(96, Math.round((innerHeight - el.offsetHeight - foot) / 2)); };
+    sheets.forEach(function (el) { el.style.setProperty("--top", top(el) + "px"); });
+    /* the footer sits right under the last row, and the page keeps as much room under it as
+       there is above the row */
+    $("stack").style.setProperty("--tail", "0px");
+    document.querySelector("footer").style.marginBottom = Math.max(24, top(last)) + "px";
   }
-
-  /* ---- the nav follows the section on screen ---- */
-  var navLinks = Array.prototype.slice.call(document.querySelectorAll(".site-nav a"));
-  var sections = navLinks
-    .map(function (a) {
-      return document.querySelector(a.getAttribute("href"));
-    })
-    .filter(Boolean);
-  var header = document.querySelector(".site-header");
-  var queued = false;
-
-  function syncNav() {
-    queued = false;
-    var line = header.getBoundingClientRect().height + 80;
-    var winner = null;
-    sections.forEach(function (section) {
-      if (section.getBoundingClientRect().top <= line) winner = section.id;
+  tail(); addEventListener("resize", tail); document.querySelectorAll(".os .vcard").forEach(function (b) { b.addEventListener("click", function () { setTimeout(tail, 0); }); });
+  /* a card is "in" while any of it is on screen, so its arrival replays on the way back up */
+  /* the bar's grid lines up with the page's grid whatever the scroll position */
+  var bar = document.querySelector("header");
+  var h1 = document.querySelector(".hero h1");
+  function alignBar() { bar.style.setProperty("--sy", (-(scrollY % 18)) + "px"); bar.classList.toggle("tagged", h1.getBoundingClientRect().bottom < 72); }
+  addEventListener("scroll", alignBar, { passive: true }); alignBar();
+  function arrivals() {
+    sheets.forEach(function (el, i) {
+      var r = el.getBoundingClientRect(), was = el.classList.contains("in");
+      var now = was ? r.bottom > 0 && r.top < innerHeight : r.top < innerHeight * 0.66 && r.bottom > 0;
+      if (now !== was) {
+        el.classList.toggle("in", now);
+        if (el.id === "voice-screen") { if (now && !reduce) recRun(); else recReset(); }
+      }
+      /* covered once the next row has slid over it, or once the end of the stack has pushed it
+         up past its parking spot (a tall row under a short last one) */
+      var next = sheets[i + 1], park = parseFloat(el.style.getPropertyValue("--top")) || 0;
+      el.classList.toggle("covered", !!next && (next.getBoundingClientRect().top <= r.top + r.height / 2 || (park && r.top < park - 2)));
     });
-    if (window.innerHeight + window.scrollY >= document.body.scrollHeight - 2) winner = sections[sections.length - 1].id;
-    navLinks.forEach(function (a) {
-      var on = winner !== null && a.getAttribute("href") === "#" + winner;
-      a.classList.toggle("current", on);
-      if (on) a.setAttribute("aria-current", "true");
-      else a.removeAttribute("aria-current");
-    });
+    var hero = first.querySelector(".hero").getBoundingClientRect();
+    first.classList.toggle("in", hero.bottom > 0);
   }
-
-  function queueSync() {
-    if (queued) return;
-    queued = true;
-    window.requestAnimationFrame(syncNav);
-  }
-
-  window.addEventListener("scroll", queueSync, { passive: true });
-  window.addEventListener("resize", queueSync);
-  syncNav();
+  onScroll();
 })();

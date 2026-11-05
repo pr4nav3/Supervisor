@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Supervisor — a focus timer that talks back</title>
+<link rel="stylesheet" href="base.css" />
+<style>
+  /* Latent's way, in the app's system: nothing snaps; every scene is big enough to fill the
+     window; the demo is pinned and every pixel of scroll moves it. */
+  html { scroll-behavior: auto; }
+  .shell { width: min(100%, 1240px); margin: 0 auto; padding: 0 28px; }
+  header { display: flex; align-items: center; justify-content: space-between; height: 80px; }
+  .brand { display: flex; align-items: center; gap: 12px; font-size: 1.9rem; font-weight: 750; letter-spacing: -0.035em; text-decoration: none; }
+  .brand img { width: 36px; height: 36px; }
+  .tools { display: flex; gap: 8px; }
+  .tools .btn { min-height: 36px; padding: 0 12px; font-size: 0.7rem; }
+  .words .w { display: inline-block; }
+  .developing .w { animation: develop 260ms var(--ease-out) backwards; animation-delay: calc(var(--i) * 45ms); }
+  @keyframes develop { from { opacity: 0; transform: translateY(5px); } }
+  .panel { display: grid; gap: 12px; padding: 24px 26px 26px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .panel .eyebrow { margin: 0; }
+  .part { padding: 120px 0; }
+
+  /* ---- the app's cards ---- */
+  .card { position: relative; overflow: hidden; border: var(--border); border-radius: 7px; box-shadow: 4px 4px 0 var(--sv-shadow-color); background: var(--sv-green); }
+  .face { padding: 14px 16px 12px; display: flex; flex-direction: column; }
+  .face h3 { font-size: 1.45rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.05; }
+  .face .goal { margin-top: 3px; font-size: 0.86rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .face .kicker { font: 400 0.7rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; }
+  .face .left { display: grid; gap: 6px; margin-top: 14px; }
+  .face .left > span { justify-self: end; font: 400 0.8rem/1 var(--font-mono); letter-spacing: 0.03em; text-transform: uppercase; }
+  .face .bar { height: 12px; overflow: hidden; border: 2px solid #141410; border-radius: 6px; background: #fff7df; }
+  .face .bar i { display: block; height: 100%; background: #141410; transition: width 1s linear; }
+  .face .voice { margin-top: 14px; padding: 6px 12px 6px 4px; }
+  .face .voice .orb { width: 56px; height: 56px; }
+  .face .voice .line { font-size: 1rem; }
+  .face .task { margin: 14px -16px 0; padding: 9px 16px; }
+  .face .strip { margin-top: 14px; height: 22px; }
+  .face .strip .on { background: var(--sv-green); }
+  .face .strip i { transform-origin: left; transform: scaleX(0); }
+  .face .stats { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 10px; font: 400 0.68rem/1.3 var(--font-mono); letter-spacing: 0.04em; text-transform: uppercase; }
+  .win { display: grid; gap: 8px; padding: 8px; border: var(--border); border-radius: 7px; background: var(--sv-canvas); background-image: linear-gradient(var(--sv-grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--sv-grid-line) 1px, transparent 1px); background-size: 18px 18px; box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .win .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .win .actions .btn { min-height: 36px; font-size: 0.7rem; }
+
+  /* ---- 1 · first screen: the words, the catches landing; the whole window ---- */
+  .first { min-height: 100svh; display: grid; grid-template-rows: auto 1fr; }
+  .hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); align-items: center; gap: 56px; padding: 0 0 48px; }
+  .hero h1 { font-size: clamp(2.6rem, 5vw, 4.4rem); max-width: 11ch; }
+  .hero > div > p { margin-top: 20px; max-width: 30ch; font-size: 1.15rem; }
+  .cta { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-top: 28px; }
+  .fine { margin-top: 12px; }
+  .deck { position: relative; height: min(600px, 74svh); min-height: 420px; }
+  .deck .timer { position: absolute; left: 0; bottom: 24px; width: 270px; }
+  .deck .catch { position: absolute; right: 0; top: 40px; width: min(560px, 88%); transform-origin: 50% 100%; transition: transform 380ms var(--ease-out), opacity 300ms ease; }
+  .deck .catch .card { cursor: pointer; }
+  .deck .catch.d1 { transform: translateY(-16px) scale(0.96); }
+  .deck .catch.d2 { transform: translateY(-32px) scale(0.92); opacity: 0.85; }
+  .deck .catch.d3 { transform: translateY(-46px) scale(0.88); opacity: 0; pointer-events: none; }
+  .deck .catch.land { animation: land 450ms ease-out; }
+  @keyframes land { 0% { opacity: 0; transform: translateY(-18px) scale(1.06); } 70% { opacity: 1; transform: translateY(0) scale(0.98); } 100% { transform: none; } }
+  .deck .catch .face { padding: 18px 20px 0; }
+  .deck .catch .face h3 { font-size: clamp(1.6rem, 2.6vw, 2.1rem); }
+  .deck .catch .face .voice .line { font-size: 1.1rem; min-height: 2.6em; }
+  .deck .catch .face .task { margin: 14px -20px 0; padding: 10px 20px; }
+  .deck .timer .face h3 { font-size: 1.6rem; }
+
+  /* ---- 2 · the demo, pinned, scrubbed ---- */
+  .scene { position: relative; height: 460vh; }
+  .pin { position: sticky; top: 0; height: 100svh; display: grid; align-content: center; overflow: hidden; }
+  .scene-grid { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 9fr); gap: 40px; align-items: center; }
+  .slides { position: relative; display: grid; }
+  .slide { grid-area: 1 / 1; opacity: 0; will-change: transform, opacity; }
+  .slide h2 { font-size: clamp(1.5rem, 2.4vw, 2rem); letter-spacing: -0.025em; line-height: 1.12; }
+  .slide p { margin: 0; font-size: 1.02rem; }
+  .desk { position: relative; display: grid; grid-template-rows: auto 1fr; gap: 14px; height: min(760px, calc(100svh - 110px)); min-height: 420px; }
+  .tabs { display: flex; gap: 10px; }
+  .tab { position: relative; display: inline-flex; align-items: center; gap: 8px; min-height: 38px; border: var(--border); border-radius: 7px; padding: 0 16px; background: var(--sv-soft-white); color: var(--sv-muted); box-shadow: 2px 2px 0 var(--sv-shadow-color); font: 500 0.72rem/1 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; cursor: pointer; overflow: hidden; }
+  .tab::before { content: ""; position: absolute; inset: 0; background: var(--sv-yellow); opacity: 0; transition: opacity 160ms ease; }
+  .tab > * { position: relative; }
+  .tab .fav { width: 10px; height: 10px; border-radius: 3px; }
+  .tab.docs .fav { background: #4a7bd0; } .tab.yt .fav { background: #ff684f; } .tab.rd .fav { background: #ff8a3d; }
+  .tab.front { color: var(--sv-colored-ink); } .tab.front::before { opacity: 1; }
+  .screen { position: relative; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 4px 4px 0 var(--sv-shadow-color); overflow: hidden; }
+  .view { position: absolute; inset: 0; opacity: 0; }
+  .ln, .bar-row .name, .toolbar i, .yt .title, .yt .meta, .yt .vid i { background: var(--sv-ink); opacity: 0.12; }
+  .ln { display: block; height: 10px; border-radius: 3px; }
+  .bar-row { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 18px; border-bottom: 1px solid var(--sv-grid-line); }
+  .bar-row .search { flex: 1; max-width: 46%; height: 24px; border: 1px solid var(--sv-border); border-radius: 3px; opacity: 0.35; }
+  .docs .bar-row .logo { width: 16px; height: 20px; border-radius: 2px; background: #4a7bd0; }
+  .docs .bar-row .name { width: 140px; height: 10px; border-radius: 3px; opacity: 0.3; }
+  .docs .toolbar { display: flex; gap: 6px; padding: 8px 18px; border-bottom: 1px solid var(--sv-grid-line); }
+  .docs .toolbar i { width: 14px; height: 14px; border-radius: 3px; }
+  .docs .sheet { width: 70%; margin: 22px auto 0; padding: 30px 34px; background: var(--sv-panel); border: 1px solid var(--sv-border); border-radius: 3px 3px 0 0; min-height: 100%; }
+  .docs .sheet h4 { margin: 0 0 16px; font-size: 1.15rem; font-weight: 700; letter-spacing: -0.01em; }
+  .docs .sheet .ln { margin-top: 10px; opacity: 0.18; }
+  .yt .bar-row .logo { display: flex; align-items: center; justify-content: center; width: 26px; height: 18px; border-radius: 3px; background: #ff684f; }
+  .yt .bar-row .logo::after { content: ""; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 7px solid #fff7df; margin-left: 1px; }
+  .yt .body { display: grid; grid-template-columns: minmax(0, 7fr) minmax(0, 3fr); gap: 18px; padding: 18px; }
+  .yt .player { position: relative; aspect-ratio: 16 / 9; border-radius: 3px; background: #141410; display: grid; place-items: center; }
+  .yt .player::after { content: ""; width: 0; height: 0; border-top: 15px solid transparent; border-bottom: 15px solid transparent; border-left: 24px solid #fff7df; margin-left: 5px; opacity: .9; }
+  .yt .player .scrub { position: absolute; left: 14px; right: 14px; bottom: 12px; height: 3px; background: rgba(255,247,223,.3); }
+  .yt .player .scrub::after { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 38%; background: #ff684f; }
+  .yt .title { margin-top: 12px; height: 13px; width: 70%; border-radius: 3px; opacity: 0.3; }
+  .yt .meta { margin-top: 8px; height: 8px; width: 40%; border-radius: 3px; }
+  .yt .side { display: grid; gap: 12px; align-content: start; }
+  .yt .vid { display: grid; grid-template-columns: 64px 1fr; gap: 10px; }
+  .yt .vid i { aspect-ratio: 16 / 9; border-radius: 3px; opacity: 0.2; }
+  .yt .vid .ln + .ln { margin-top: 5px; width: 60%; }
+  .rd .bar-row .logo { width: 18px; height: 18px; border-radius: 50%; background: #ff8a3d; }
+  .rd .feed { display: grid; gap: 10px; padding: 14px 18px; }
+  .rd .post { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 12px 14px; border: 1px solid var(--sv-border); border-radius: 3px; background: var(--sv-panel); }
+  .rd .post .vote { display: grid; gap: 4px; justify-items: center; align-content: start; }
+  .rd .post .vote i { width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 6px solid var(--sv-muted); }
+  .rd .post .vote i + i { border-bottom: 0; border-top: 6px solid var(--sv-muted); }
+  .rd .post .ln:first-child { width: 50%; height: 11px; opacity: 0.3; }
+  .rd .post .ln + .ln { margin-top: 8px; width: 85%; }
+  .cam { position: absolute; left: 18px; bottom: 18px; z-index: 4; width: 190px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); padding: 10px; opacity: 0; will-change: transform, opacity; }
+  .cam .cap { font: 500 0.62rem/1 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; color: var(--sv-muted); }
+  .cam .frame { position: relative; height: 96px; margin-top: 8px; border: var(--border); border-radius: 3px; background: #2b2a26; overflow: hidden; }
+  .cam .head { position: absolute; left: 44%; top: 18px; width: 34px; height: 40px; border-radius: 16px 16px 12px 12px; background: #6b6457; transform: translateX(-50%); }
+  .cam .body { position: absolute; left: 44%; bottom: -12px; width: 86px; height: 40px; border-radius: 20px 20px 0 0; background: #6b6457; transform: translateX(-50%); }
+  .cam .hand { position: absolute; left: 62%; top: 48px; width: 20px; height: 20px; border-radius: 6px; background: #6b6457; }
+  .cam .ph { position: absolute; left: 64%; top: 34px; width: 14px; height: 25px; border-radius: 2px; background: #141410; border: 1px solid #8d8a80; transform: rotate(10deg); }
+  .cam .box { position: absolute; left: 58%; top: 25px; width: 32px; height: 42px; border: 2px dashed var(--sv-yellow); border-radius: 3px; }
+  .cam .box::after { content: "Phone"; position: absolute; left: -2px; top: -13px; padding: 1px 4px; background: var(--sv-yellow); color: #141410; font: 600 0.5rem/1.2 var(--font-mono); letter-spacing: 0.06em; text-transform: uppercase; border-radius: 2px; }
+
+  /* the status card: three faces stacked; the scroll crossfades them and moves the card */
+  .corner { position: absolute; z-index: 5; right: 18px; top: 70px; width: 240px; will-change: transform; }
+  .corner .win { opacity: 0; position: absolute; inset: -8px; z-index: -1; }
+  .corner .card { background: var(--sv-green); }
+  .corner .faces { position: relative; display: grid; }
+  .corner .face { grid-area: 1 / 1; align-self: start; opacity: 0; }
+  .corner .actions { margin-top: 8px; opacity: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .corner .actions .btn { min-height: 36px; font-size: 0.7rem; }
+  .rail { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 14px; }
+  .rail i { position: relative; height: 14px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); overflow: hidden; box-shadow: 2px 2px 0 var(--sv-shadow-color); }
+  .rail i::after { content: ""; position: absolute; inset: 0; background: var(--sv-green); transform-origin: left; transform: scaleX(var(--f, 0)); }
+
+  /* ---- 3 · the voice: wide ---- */
+  .two { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 8fr); align-items: stretch; gap: 28px; }
+  .intro h2 { font-size: clamp(1.9rem, 3.4vw, 2.7rem); }
+  .intro p { font-size: 1.08rem; }
+  .voicebox { display: grid; gap: 14px; padding: 20px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .voicebox .eyebrow { margin: 0; }
+  .voices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .vcard { position: relative; display: grid; gap: 4px; padding: 16px 18px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out, background 160ms ease; }
+  .vcard b { font-size: 1.15rem; font-weight: 700; }
+  .vcard span { font: 400 0.68rem/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--sv-muted); }
+  .vcard.on { background: var(--sv-yellow); color: var(--sv-colored-ink); }
+  .vcard.on span { color: #5d564a; }
+  .vcard.rec { border-style: dashed; box-shadow: none; background: transparent; cursor: default; }
+  .vcard.rec::before { content: ""; position: absolute; right: 14px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--sv-coral); animation: blink 1.6s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  @media (hover: hover) { .vcard:not(.on):not(.rec):hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
+  .vcard:not(.rec):active { transform: translate(2px, 2px); box-shadow: none; }
+  .tones { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tones .chip { min-height: 32px; cursor: pointer; box-shadow: 2px 2px 0 var(--sv-shadow-color); transition: transform 120ms ease-out, box-shadow 120ms ease-out, background 120ms ease; }
+  .tones .chip.on { background: var(--sv-yellow); color: var(--sv-colored-ink); }
+  .tones .chip:active { transform: translate(2px, 2px); box-shadow: none; }
+  @media (hover: hover) { .tones .chip:not(.on):hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
+  .line-card { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; padding: 14px 20px 16px 10px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); }
+  .line-card .orb { grid-row: 1 / 3; width: 68px; height: 68px; }
+  .line-card .who { font: 400 0.7rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--sv-muted); }
+  .line-card .said { margin-top: 2px; font-size: clamp(1.3rem, 2vw, 1.6rem); font-weight: 700; letter-spacing: -0.02em; line-height: 1.15; min-height: 1.3em; }
+  .line-card.muted .orb-core { opacity: 0.35; }
+  .wave { display: flex; align-items: center; gap: 2px; height: 32px; grid-column: 2; }
+  .wave i { flex: 1; height: calc(var(--h) * 1%); min-height: 2px; border-radius: 1px; background: var(--sv-ink); opacity: 0.35; transform-origin: center; transition: background 200ms ease, opacity 200ms ease; }
+  .is-speaking .wave i { background: var(--sv-green); opacity: 1; animation: sway 0.8s ease-in-out infinite; animation-delay: calc(var(--i) * 40ms); }
+  @keyframes sway { 50% { transform: scaleY(0.45); } }
+
+  /* ---- 4 · the promise, edge to edge ---- */
+  .promise { display: grid; justify-items: center; text-align: center; gap: 18px; padding: 96px 28px 92px; border-top: var(--border); border-bottom: var(--border); background: var(--sv-green); }
+  .promise h2 { font-size: clamp(2.2rem, 5vw, 3.8rem); max-width: 16ch; }
+  .promise .chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+  .promise .chip { min-height: 34px; background: #fff7df; font-size: 0.76rem; }
+
+  /* ---- 5 · get it, centred in its own screen ---- */
+  .get { min-height: 100svh; display: grid; align-content: center; }
+  .get-grid { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 32px; align-items: center; }
+  .section-head { display: grid; gap: 10px; max-width: 46ch; }
+  .section-head h2 { font-size: clamp(2rem, 4vw, 3rem); }
+  .section-head p { margin: 0; font-size: 1.08rem; }
+  .os { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .way { display: grid; gap: 14px; padding: 22px 24px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .way[hidden] { display: none; }
+  .way p { margin: 0; font-size: 1.02rem; }
+  .way .req { margin: 0; }
+  .cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border: var(--border); border-radius: 6px; padding: 6px 6px 6px 14px; background: var(--sv-soft-white); }
+  .cmd code { overflow-x: auto; font: 400 0.8rem/1.5 var(--font-mono); white-space: nowrap; }
+  .cmd .btn { min-height: 36px; font-size: 0.7rem; }
+  footer { grid-column: 1 / -1; margin-top: 56px; padding-top: 24px; border-top: var(--border); }
+
+  @media (max-width: 920px) {
+    .hero { grid-template-columns: minmax(0, 1fr); gap: 28px; }
+    .hero h1 { font-size: 2.3rem; }
+    .deck { height: 420px; min-height: 0; }
+    .deck .timer { width: 190px; }
+    .deck .catch { width: 90%; top: 20px; }
+    .scene { height: 420vh; }
+    .scene-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px; align-items: start; }
+    .desk-wrap { order: 1; } .slides { order: 2; }
+    .desk { height: 48svh; min-height: 340px; }
+    .corner { width: 190px; right: 12px; top: 62px; }
+    .yt .body { grid-template-columns: 1fr; } .yt .side { display: none; } .docs .sheet { width: 88%; }
+    .cam { display: none; }
+    .brand { font-size: 1.5rem; }
+    .two, .get-grid { grid-template-columns: minmax(0, 1fr); }
+    .voices { grid-template-columns: 1fr; }
+    .part { padding: 80px 0; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .deck .catch.land { animation: none; }
+    .vcard.rec::before { animation: none; }
+    .is-speaking .wave i { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div class="shell first">
+  <header>
+    <a class="brand" href="#"><img src="../../docs/assets/eye.svg" alt="" />Supervisor</a>
+    <div class="tools">
+      <button class="btn" id="theme" type="button">Dark</button>
+      <a class="btn primary" href="#get">Download</a>
+    </div>
+  </header>
+  <section class="hero">
+    <div>
+      <h1 class="display pop" style="--i: 0">A focus timer that talks back.</h1>
+      <p class="muted pop" style="--i: 1">Get distracted and a voice you recorded tells you to get back to work.</p>
+      <div class="cta pop" style="--i: 2"><a class="btn lg primary" href="#get">Download</a></div>
+      <p class="fine mono muted pop" style="--i: 3">Free · macOS and Windows</p>
+    </div>
+    <div class="deck pop" style="--i: 2" id="deck" aria-label="Reminders, landing one after another">
+      <div class="timer"><div class="card on-color"><div class="face">
+        <h3>On task</h3>
+        <p class="goal">philos 241 midterm</p>
+        <div class="left"><span id="d-left">24:13 left</span><div class="bar"><i id="d-bar" style="width: 46%"></i></div></div>
+      </div></div></div>
+      <template id="catch-tpl">
+        <div class="catch"><div class="card on-color" style="background: var(--sv-coral)" role="button" tabindex="0"><div class="face">
+          <p class="kicker">Distraction</p>
+          <h3 class="t"></h3>
+          <div class="voice">
+            <button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button>
+            <div><p class="who"></p><p class="line words"></p></div>
+          </div>
+          <div class="task"><strong>philos 241 midterm</strong><span class="tl">24:13 left</span></div>
+        </div></div></div>
+      </template>
+    </div>
+  </section>
+</div>
+
+<section class="scene" id="scene">
+  <div class="pin">
+    <div class="shell scene-grid">
+      <div class="slides" id="slides">
+        <div class="slide"><div class="panel"><span class="eyebrow mono muted">The session</span><h2 class="display">Pick a task and a length. The timer sits in the corner and watches which window is in front.</h2></div></div>
+        <div class="slide"><div class="panel"><span class="eyebrow mono muted">The reminder</span><h2 class="display">Open YouTube and stay there, and it speaks up.</h2><p class="muted">Five sites count as distractions to start. Add your own, or allow one for a session.</p></div></div>
+        <div class="slide"><div class="panel"><span class="eyebrow mono muted">The phone</span><h2 class="display">Turn the webcam on and it catches your phone too.</h2><p class="muted">Frames never leave your computer.</p></div></div>
+        <div class="slide"><div class="panel"><span class="eyebrow mono muted">The report</span><h2 class="display">Every session ends with where your time went.</h2><p class="muted">Your longest stretch, how often it spoke up, and a streak across the week.</p></div></div>
+      </div>
+      <div class="desk-wrap">
+        <div class="desk" id="desk">
+          <div class="tabs" aria-label="Windows">
+            <span class="tab docs front" data-tab="docs"><i class="fav"></i><span>Google Docs</span></span>
+            <span class="tab yt" data-tab="yt"><i class="fav"></i><span>YouTube</span></span>
+            <span class="tab rd" data-tab="rd"><i class="fav"></i><span>Reddit</span></span>
+          </div>
+          <div class="screen" id="screen">
+            <div class="view docs" data-view="docs" style="opacity: 1">
+              <div class="bar-row"><i class="logo"></i><i class="name"></i></div>
+              <div class="toolbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="sheet"><h4>Philosophy 241 · Midterm notes</h4><span class="ln" style="width: 96%"></span><span class="ln" style="width: 88%"></span><span class="ln" style="width: 93%"></span><span class="ln" style="width: 58%"></span><span class="ln" style="width: 90%; margin-top: 22px"></span><span class="ln" style="width: 95%"></span><span class="ln" style="width: 70%"></span><span class="ln" style="width: 84%"></span></div>
+            </div>
+            <div class="view yt" data-view="yt">
+              <div class="bar-row"><i class="logo"></i><i class="search"></i></div>
+              <div class="body">
+                <div><div class="player"><i class="scrub"></i></div><div class="title"></div><div class="meta"></div></div>
+                <div class="side"><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="cam" id="cam" aria-hidden="true">
+            <span class="cap">Webcam</span>
+            <div class="frame"><span class="head"></span><span class="body"></span><span class="hand"></span><span class="ph"></span><span class="box"></span></div>
+          </div>
+          <div class="corner" id="corner">
+            <div class="win" id="win"></div>
+            <div class="card on-color" id="card">
+              <div class="faces">
+                <div class="face" id="f-ok" style="opacity: 1">
+                  <h3>On task</h3>
+                  <p class="goal">philos 241 midterm</p>
+                  <div class="left"><span id="clock">29:58 left</span><div class="bar"><i id="c-bar" style="width: 34%"></i></div></div>
+                </div>
+                <div class="face" id="f-caught">
+                  <p class="kicker">Distraction</p>
+                  <h3>You opened YouTube.</h3>
+                  <div class="voice" id="c-voice">
+                    <button class="orb" type="button" id="c-orb" aria-label="Play the line"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span></button>
+                    <div><p class="who">Elise said</p><p class="line words" id="c-line"></p></div>
+                  </div>
+                  <div class="task"><strong>philos 241 midterm</strong><span id="clock2">29:41 left</span></div>
+                </div>
+                <div class="face" id="f-phone">
+                  <p class="kicker">Phone in view</p>
+                  <h3>Your phone is out.</h3>
+                  <div class="voice muted">
+                    <button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core" style="opacity: .35"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg></span></button>
+                    <div><p class="who">Elise said</p><p class="line words" id="p-line"></p></div>
+                  </div>
+                  <div class="task"><strong>philos 241 midterm</strong><span id="clock3">29:41 left</span></div>
+                </div>
+                <div class="face" id="f-done">
+                  <p class="kicker">Session done</p>
+                  <h3>1h 40m focused</h3>
+                  <div class="strip"><i class="on" data-run="0" style="left:0;width:38%"></i><i class="off" data-run="1" style="left:38%;width:5%"></i><i class="on" data-run="2" style="left:43%;width:31%"></i><i class="away" data-run="3" style="left:74%;width:6%"></i><i class="on" data-run="4" style="left:80%;width:20%"></i></div>
+                  <div class="stats"><span>92% focused</span><span>44 min longest</span><span>1 reminder</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="actions" id="c-actions">
+              <button class="btn" type="button" id="allow">Allow once</button>
+              <button class="btn primary" type="button" id="back">Back to my task</button>
+            </div>
+          </div>
+        </div>
+        <div class="rail" aria-hidden="true"><i id="r0"></i><i id="r1"></i><i id="r2"></i><i id="r3"></i></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="shell">
+  <section class="part two" id="voice">
+    <div class="panel intro">
+      <span class="eyebrow mono muted">The voice</span>
+      <h2 class="display">Reminders in a voice you know.</h2>
+      <p class="muted">Derek and Elise come with the app. Record anyone for twenty seconds and it builds their voice, on your computer. Then pick how they talk to you.</p>
+    </div>
+    <div class="voicebox" id="voicebox">
+      <p class="eyebrow mono muted">Voices</p>
+      <div class="voices" role="group" aria-label="Voices">
+        <button class="vcard" type="button" data-voice="derek"><b>Derek</b><span>Comes with the app</span></button>
+        <button class="vcard on" type="button" data-voice="elise"><b>Elise</b><span>Comes with the app</span></button>
+        <div class="vcard rec"><b>Record a voice</b><span>Twenty seconds of anyone</span></div>
+      </div>
+      <p class="eyebrow mono muted" style="margin-top: 4px">How they talk</p>
+      <div class="tones" role="group" aria-label="Personalities">
+        <button class="chip" type="button" data-tone="gentle">Gentle</button>
+        <button class="chip" type="button" data-tone="mom">Mom</button>
+        <button class="chip on" type="button" data-tone="genz">Gen Z</button>
+        <button class="chip" type="button" data-tone="stern">Stern</button>
+      </div>
+      <div class="line-card" id="line-card">
+        <button class="orb" type="button" id="line-orb" aria-label="Play the line"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span></button>
+        <div><p class="who" id="line-who">Elise · Gen Z</p><p class="said words" id="line-said"></p></div>
+        <div class="wave" id="line-wave" aria-hidden="true"></div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section class="promise on-color">
+  <h2 class="display">Everything stays on your computer.</h2>
+  <div class="chips"><span class="chip">No account</span><span class="chip">No servers</span><span class="chip">No analytics</span></div>
+</section>
+
+<section class="get" id="get">
+  <div class="shell get-grid">
+    <div class="section-head">
+      <span class="eyebrow mono muted">Download</span>
+      <h2 class="display">Get Supervisor.</h2>
+      <p class="muted">Free, and open source.</p>
+    </div>
+    <div>
+      <div class="os" role="group" aria-label="Your computer">
+        <button class="vcard" type="button" data-os="mac"><b>macOS</b><span>14 or later · Apple Silicon</span></button>
+        <button class="vcard" type="button" data-os="win"><b>Windows</b><span>10 or 11</span></button>
+      </div>
+      <div class="way" id="way-mac" hidden>
+        <p>Paste one line into Terminal. It installs the app, and the same line updates it.</p>
+        <div class="cmd"><code id="cmd">curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh</code><button class="btn" type="button" id="copy">Copy</button></div>
+      </div>
+      <div class="way" id="way-win" hidden>
+        <p>Download the installer and run it.</p>
+        <div><a class="btn lg primary" href="#">Download for Windows</a></div>
+        <p class="req mono muted">Windows will ask once before it runs a new app. More info, then Run anyway.</p>
+      </div>
+    </div>
+    <footer class="mono muted">Supervisor · Source · Releases · Privacy</footer>
+  </div>
+</section>
+
+<script>
+(function () {
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  var root = document.documentElement, $ = function (id) { return document.getElementById(id); };
+  $("theme").addEventListener("click", function () {
+    var dark = root.getAttribute("data-theme") === "dark";
+    if (dark) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", "dark");
+    $("theme").textContent = dark ? "Dark" : "Light";
+  });
+  var clamp = function (x) { return Math.max(0, Math.min(1, x)); };
+  var sm = function (x) { x = clamp(x); return x * x * (3 - 2 * x); };
+  var seg = function (p, a, b) { return sm((p - a) / (b - a)); };
+  var lerp = function (a, b, t) { return a + (b - a) * t; };
+  function mix(c1, c2, t) { return "rgb(" + [0, 1, 2].map(function (i) { return Math.round(lerp(c1[i], c2[i], t)); }).join(",") + ")"; }
+  var GREEN = [168, 235, 55], CORAL = [255, 104, 79], YELLOW = [255, 207, 49];
+  function setWords(el, text) {
+    el.innerHTML = text.split(" ").map(function (w, i) { return '<span class="w" style="--i:' + i + '">' + w + "</span>"; }).join(" ");
+  }
+  function develop(el) { el.classList.remove("developing"); void el.offsetWidth; if (!reduce) el.classList.add("developing"); }
+  function drawWave(el, key) {
+    var n = 44, out = "", s = key.length * 31 + 7;
+    for (var i = 0; i < n; i++) { s = (s * 9301 + 49297) % 233280; var r = s / 233280; var h = 18 + Math.round(70 * Math.abs(Math.sin(i / n * Math.PI)) * (0.45 + 0.55 * r)); out += '<i style="--h:' + h + ';--i:' + i + '"></i>'; }
+    el.innerHTML = out;
+  }
+  var CLIPS = { genz: "../../docs/assets/voice/elise-genz-respectfully.mp3", stern: "../../docs/assets/voice/derek-stern-not-the-work.mp3" };
+  var audio = null, speaking = [];
+  function stop() { if (audio) audio.pause(); speaking.forEach(function (r) { r.classList.remove("is-speaking"); }); audio = null; speaking = []; }
+  function play(key, rows) {
+    if (!CLIPS[key]) return;
+    if (speaking.length && speaking[0] === rows[0]) return stop();
+    stop();
+    audio = new Audio(CLIPS[key]); speaking = rows; rows.forEach(function (r) { r.classList.add("is-speaking"); });
+    var done = function () { if (speaking[0] === rows[0]) stop(); };
+    audio.addEventListener("ended", done); audio.addEventListener("error", done);
+    audio.play().catch(done);
+  }
+
+  /* ---- 1 · the deck ---- */
+  var CATCHES = [
+    { title: "You opened YouTube.", who: "Elise said", line: "Respectfully, get back to it.", clip: "genz" },
+    { title: "You opened Reddit.", who: "Derek said", line: "That isn't the work. Close it.", clip: "stern" },
+    { title: "You opened Instagram.", who: "Elise said", line: "Why is it open?", clip: null },
+    { title: "You opened TikTok.", who: "Derek said", line: "Leave that for later, it'll keep.", clip: null }
+  ];
+  var dsecs = 24 * 60 + 13, deck = $("deck"), tpl = $("catch-tpl"), ci = 0, pile = [], deckTimer = null;
+  setInterval(function () {
+    dsecs = dsecs > 0 ? dsecs - 1 : 45 * 60;
+    var t = Math.floor(dsecs / 60) + ":" + String(dsecs % 60).padStart(2, "0") + " left";
+    $("d-left").textContent = t; $("d-bar").style.width = Math.round((1 - dsecs / (45 * 60)) * 100) + "%";
+    pile.forEach(function (p) { p.querySelector(".tl").textContent = t; });
+  }, 1000);
+  function restack() {
+    pile.forEach(function (el, i) { var d = pile.length - 1 - i; el.className = "catch" + (d ? " d" + Math.min(d, 3) : ""); });
+    while (pile.length > 3) { var gone = pile.shift(); setTimeout(function () { gone.remove(); }, 320); }
+  }
+  function land() {
+    var c = CATCHES[ci % CATCHES.length]; ci++;
+    var el = tpl.content.firstElementChild.cloneNode(true);
+    el.querySelector(".t").textContent = c.title; el.querySelector(".who").textContent = c.who; el.dataset.clip = c.clip || "";
+    deck.appendChild(el); pile.push(el); restack(); if (!reduce) el.classList.add("land");
+    var line = el.querySelector(".line"); setWords(line, "“" + c.line + "”"); develop(line);
+    el.querySelector(".card").addEventListener("click", function () { if (el.dataset.clip) play(el.dataset.clip, [el.querySelector(".voice")]); });
+  }
+  function runDeck() { clearTimeout(deckTimer); deckTimer = setTimeout(function () { if (!audio) land(); runDeck(); }, 4800); }
+  land(); if (!reduce) runDeck();
+
+  /* ---- 2 · the demo: one function of scroll progress ----
+     0.00-0.18 the session  | 0.18-0.30 the card comes to the middle and turns coral, YouTube in front
+     0.30-0.44 hold         | 0.44-0.56 the phone: yellow, the webcam rises, Docs back in front
+     0.56-0.70 hold         | 0.70-0.82 done: the report, the screen dims, the bar draws
+     0.82-1.00 hold */
+  var secs = 29 * 60 + 58;
+  setInterval(function () {
+    secs = secs > 0 ? secs - 1 : 45 * 60;
+    var t = Math.floor(secs / 60) + ":" + String(secs % 60).padStart(2, "0") + " left";
+    $("clock").textContent = t; $("clock2").textContent = t; $("clock3").textContent = t;
+    $("c-bar").style.width = Math.round((1 - secs / (45 * 60)) * 100) + "%";
+  }, 1000);
+  setWords($("c-line"), "“Respectfully, get back to it.”");
+  setWords($("p-line"), "“Put the phone down for a bit, you can check it after.”");
+  var scene = $("scene"), corner = $("corner"), card = $("card"), win = $("win"), cam = $("cam"), screen = $("screen");
+  var faces = [$("f-ok"), $("f-caught"), $("f-phone"), $("f-done")];
+  var slides = Array.prototype.slice.call(document.querySelectorAll(".slide"));
+  var views = { docs: document.querySelector('[data-view="docs"]'), yt: document.querySelector('[data-view="yt"]') };
+  var tabs = { docs: document.querySelector(".tab.docs"), yt: document.querySelector(".tab.yt") };
+  var runs = Array.prototype.slice.call(document.querySelectorAll("#f-done .strip i"));
+  var cWords = Array.prototype.slice.call($("c-line").querySelectorAll(".w")), pWords = Array.prototype.slice.call($("p-line").querySelectorAll(".w"));
+  var geo = {};
+  function measure() {
+    /* where the card rests in the corner and where it goes, at the width it has there */
+    var scr = screen.getBoundingClientRect();
+    corner.style.transform = ""; corner.style.width = "240px";
+    var r = corner.getBoundingClientRect();
+    geo.w0 = 240; geo.w1 = Math.min(380, scr.width - 48);
+    /* the card is anchored at its right edge, so at the wide size its centre is right - w1/2 */
+    geo.dx = (scr.left + scr.width / 2) - (r.right - geo.w1 / 2);
+    geo.dy = (scr.top + scr.height * 0.14) - r.top;
+    /* face heights at the wide size */
+    corner.style.width = geo.w1 + "px";
+    geo.h = faces.map(function (f) { return f.offsetHeight; });
+    corner.style.width = "240px"; geo.h0 = faces[0].offsetHeight;
+    render(lastP);
+  }
+  var lastP = 0;
+  function render(p) {
+    lastP = p;
+    var a = seg(p, 0.18, 0.30), b = seg(p, 0.44, 0.56), c = seg(p, 0.70, 0.82);
+    var out = Math.max(a, b, c);                   /* how far the card is from its corner self */
+    /* the card: position, width, height, frame, buttons */
+    corner.style.width = lerp(geo.w0, geo.w1, a) + "px";
+    corner.style.transform = "translate(" + (geo.dx * a).toFixed(1) + "px," + (geo.dy * a).toFixed(1) + "px)";
+    win.style.opacity = a.toFixed(3);
+    $("c-actions").style.opacity = Math.min(a, 1 - c).toFixed(3);
+    $("c-actions").style.pointerEvents = a > 0.5 && c < 0.5 ? "auto" : "none";
+    /* which face, and the colour between them */
+    var o = [1 - a, a * (1 - b), b * (1 - c), c];
+    faces.forEach(function (f, i) { f.style.opacity = o[i].toFixed(3); f.style.pointerEvents = o[i] > 0.5 ? "auto" : "none"; });
+    var h = a === 0 ? geo.h0 : (c > 0 ? lerp(geo.h[2], geo.h[3], c) : (b > 0 ? lerp(geo.h[1], geo.h[2], b) : lerp(geo.h0, geo.h[1], a)));
+    card.style.height = Math.round(h) + "px";
+    var col = c > 0 ? mix(YELLOW, YELLOW, c) : (b > 0 ? mix(CORAL, YELLOW, b) : mix(GREEN, CORAL, a));
+    card.style.background = col;
+    /* the words arrive with the scroll */
+    cWords.forEach(function (w, i) { w.style.opacity = clamp((a - 0.6) / 0.4 * cWords.length - i + 1).toFixed(2); });
+    pWords.forEach(function (w, i) { w.style.opacity = clamp((b - 0.6) / 0.4 * pWords.length - i + 1).toFixed(2); });
+    /* the window: YouTube in front while caught, Docs otherwise */
+    var yt = a * (1 - b);
+    views.yt.style.opacity = yt.toFixed(3); views.docs.style.opacity = (1 - yt).toFixed(3);
+    tabs.yt.classList.toggle("front", yt > 0.5); tabs.docs.classList.toggle("front", yt <= 0.5);
+    /* the webcam, and the screen dimming at the end */
+    var camOn = b * (1 - c);
+    cam.style.opacity = camOn.toFixed(3); cam.style.transform = "translateY(" + ((1 - camOn) * 12).toFixed(1) + "px)";
+    screen.style.opacity = (1 - 0.55 * c).toFixed(3);
+    /* the report's bar draws itself as you arrive */
+    runs.forEach(function (r, i) { r.style.transform = "scaleX(" + seg(p, 0.76 + i * 0.03, 0.84 + i * 0.03).toFixed(3) + ")"; });
+    /* the copy: one slide at a time, crossing over with the card */
+    var s = [1 - a, a * (1 - b), b * (1 - c), c];
+    slides.forEach(function (sl, i) { sl.style.opacity = s[i].toFixed(3); sl.style.transform = "translateY(" + ((1 - s[i]) * 10).toFixed(1) + "px)"; sl.style.pointerEvents = s[i] > 0.5 ? "auto" : "none"; });
+    /* the rail */
+    for (var i = 0; i < 4; i++) $("r" + i).style.setProperty("--f", clamp(p * 4 - i + 0.5).toFixed(3));
+  }
+  function progress() {
+    var top = scene.offsetTop, len = scene.offsetHeight - innerHeight;
+    return clamp((scrollY - top) / len);
+  }
+  function onScroll() { render(progress()); }
+  addEventListener("scroll", onScroll, { passive: true });
+  addEventListener("resize", measure);
+  $("c-orb").addEventListener("click", function () { play("genz", [$("c-voice")]); });
+  $("back").addEventListener("click", function () { stop(); });
+  $("allow").addEventListener("click", function () { stop(); });
+  measure();
+
+  /* ---- 3 · the voice box ---- */
+  var VL = {
+    elise: { gentle: "Come on back, you were doing well.", mom: "Why is it open?", genz: "Respectfully, get back to it.", stern: "You set this time aside. Use it." },
+    derek: { gentle: "Leave that for later, it'll keep.", mom: "I can see it from here.", genz: "Bro, lock in.", stern: "That isn't the work. Close it." }
+  };
+  var HAS = { "elise:genz": "genz", "derek:stern": "stern" };
+  var NAMES = { elise: "Elise", derek: "Derek" }, TONE = { gentle: "Gentle", mom: "Mom", genz: "Gen Z", stern: "Stern" }, TONES = ["gentle", "mom", "genz", "stern"];
+  var voice = "elise", tone = "genz", lineCard = $("line-card"), tour = null;
+  function showLine(speak) {
+    var clip = HAS[voice + ":" + tone];
+    document.querySelectorAll(".vcard[data-voice]").forEach(function (c) { c.classList.toggle("on", c.dataset.voice === voice); });
+    document.querySelectorAll(".tones .chip").forEach(function (c) { c.classList.toggle("on", c.dataset.tone === tone); });
+    $("line-who").textContent = NAMES[voice] + " · " + TONE[tone];
+    lineCard.classList.toggle("muted", !clip);
+    setWords($("line-said"), "“" + VL[voice][tone] + "”"); develop($("line-said"));
+    drawWave($("line-wave"), voice + tone);
+    if (speak && clip) play(clip, [lineCard]); else if (speaking[0] === lineCard) stop();
+  }
+  showLine(false);
+  function startTour() { if (tour) return; tour = setInterval(function () { if (audio) return; tone = TONES[(TONES.indexOf(tone) + 1) % TONES.length]; if (tone === "gentle") voice = voice === "elise" ? "derek" : "elise"; showLine(false); }, 4200); }
+  function stopTour() { clearInterval(tour); tour = -1; }
+  document.querySelectorAll(".vcard[data-voice]").forEach(function (c) { c.addEventListener("click", function () { stopTour(); voice = c.dataset.voice; showLine(true); }); });
+  document.querySelectorAll(".tones .chip").forEach(function (c) { c.addEventListener("click", function () { stopTour(); tone = c.dataset.tone; showLine(true); }); });
+  $("line-orb").addEventListener("click", function () { stopTour(); var clip = HAS[voice + ":" + tone]; if (clip) play(clip, [lineCard]); });
+  addEventListener("scroll", function () { var r = $("voicebox").getBoundingClientRect(); if (tour === null && !reduce && r.top < innerHeight * 0.7 && r.bottom > 0) startTour(); }, { passive: true });
+
+  /* ---- 5 · get it ---- */
+  var isMac = /Mac/.test(navigator.platform || navigator.userAgent) && navigator.maxTouchPoints < 2;
+  function pickOS(os) {
+    document.querySelectorAll(".os .vcard").forEach(function (c) { c.classList.toggle("on", c.dataset.os === os); });
+    $("way-mac").hidden = os !== "mac"; $("way-win").hidden = os !== "win";
+  }
+  pickOS(isMac ? "mac" : "win");
+  document.querySelectorAll(".os .vcard").forEach(function (c) { c.addEventListener("click", function () { pickOS(c.dataset.os); }); });
+  $("copy").addEventListener("click", function () {
+    var b = $("copy");
+    (navigator.clipboard ? navigator.clipboard.writeText($("cmd").textContent) : Promise.reject()).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600); }, function () { b.textContent = "Select it"; });
+  });
+})();
+</script>
+</body>
+</html>

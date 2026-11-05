@@ -1,386 +1,194 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Supervisor — a focus timer that talks back</title>
-    <meta
-      name="description"
-      content="Start a session. Leave a distraction open too long and a voice you recorded tells you to get back to work. Free, for Windows and macOS, and everything stays on your computer."
-    />
-    <meta name="color-scheme" content="light dark" />
-    <link rel="icon" href="assets/eye.svg" type="image/svg+xml" />
-    <link rel="preload" href="assets/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin />
-    <link rel="stylesheet" href="styles.css" />
-    <script>
-      // The theme before first paint, and the reveal class only while the script can clear it.
-      (function () {
-        var root = document.documentElement;
-        root.classList.add("js");
-        try {
-          var saved = localStorage.getItem("supervisor-theme");
-          if (saved === "dark" || saved === "light") {
-            root.setAttribute("data-theme", saved);
-          } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-            root.setAttribute("data-theme", "dark");
-          }
-        } catch (error) {
-          /* storage blocked: the light theme */
-        }
-        setTimeout(function () {
-          if (!root.classList.contains("site-ready")) root.classList.remove("js");
-        }, 1500);
-      })();
-    </script>
-  </head>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Supervisor — the focus app that talks back</title>
+<meta name="description" content="Start a session. Open a distraction and a voice you chose tells you to get back to work. Free, for macOS and Windows, and everything stays on your computer." />
+<meta name="color-scheme" content="light dark" />
+<link rel="icon" href="assets/eye.svg" type="image/svg+xml" />
+<link rel="preload" href="assets/fonts/inter-variable.woff2" as="font" type="font/woff2" crossorigin />
+<link rel="stylesheet" href="styles.css" />
+<script>
+  /* the remembered theme, before first paint */
+  (function () {
+    try {
+      var saved = localStorage.getItem("supervisor-theme");
+      if (saved === "dark" || (!saved && matchMedia("(prefers-color-scheme: dark)").matches)) document.documentElement.setAttribute("data-theme", "dark");
+    } catch (e) {}
+  })();
+</script>
+</head>
+<body>
+<header>
+  <div class="shell">
+    <div class="left"><a class="brand" href="#"><img src="assets/eye.svg" alt="" />Supervisor</a><span class="tagline" aria-hidden="true">The focus app that talks back.</span></div>
+    <div class="tools"><button class="btn" id="theme" type="button">Dark</button></div>
+  </div>
+</header>
+<div class="shell first in">
 
-  <body>
-    <a class="skip-link" href="#main">Skip to content</a>
+  <section class="hero">
+    <div>
+      <h1 class="display pop" style="--i: 0">The focus app that talks back.</h1>
+      <p class="muted pop" style="--i: 1">Get distracted and a voice you recorded tells you to get back to work.</p>
+      <div class="cta pop" style="--i: 2"><a class="btn lg primary" href="#get">Download</a></div>
+      <p class="fine mono muted pop" style="--i: 3">Free · macOS and Windows</p>
+    </div>
+    <div class="fan pop" style="--i: 2" id="fan" aria-label="The four personalities">
+      <div class="fcard cream" data-tone="Gentle" data-who="Derek" data-clip="gentle2" role="button" tabindex="0"><div class="tag"><span class="p">Gentle</span><span>Derek</span></div><p class="quote words"></p><div class="foot"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><div class="wave"></div></div></div>
+      <div class="fcard yellow" data-tone="Mom" data-who="Elise" data-clip="mom2" role="button" tabindex="0"><div class="tag"><span class="p">Mom</span><span>Elise</span></div><p class="quote words"></p><div class="foot"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><div class="wave"></div></div></div>
+      <div class="fcard coral" data-tone="Gen Z" data-who="Elise" data-clip="genz2" role="button" tabindex="0"><div class="tag"><span class="p">Gen Z</span><span>Elise</span></div><p class="quote words"></p><div class="foot"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><div class="wave"></div></div></div>
+      <div class="fcard green" data-tone="Stern" data-who="Derek" data-clip="stern2" role="button" tabindex="0"><div class="tag"><span class="p">Stern</span><span>Derek</span></div><p class="quote words"></p><div class="foot"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><div class="wave"></div></div></div>
+    </div>
+  </section>
+</div>
 
-    <header class="site-header">
-      <div class="shell header-inner">
-        <a class="brand" href="#top"><img src="assets/eye.svg" alt="" width="28" height="28" />Supervisor</a>
-        <nav class="site-nav" aria-label="Sections">
-          <ul>
-            <li><a href="#how">How it works</a></li>
-            <li><a href="#voice">The voice</a></li>
-            <li><a href="#sees">What it sees</a></li>
-            <li><a href="#download">Download</a></li>
-          </ul>
-        </nav>
-        <div class="header-tools">
-          <button class="btn theme-toggle" id="theme-toggle" type="button" aria-label="Switch theme">
-            <svg class="sun" viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="12" cy="12" r="4.4" />
-              <path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7" />
-            </svg>
-            <svg class="moon" viewBox="0 0 24 24" aria-hidden="true">
-              <path d="M20 14.2A8.2 8.2 0 0 1 9.8 4a8.2 8.2 0 1 0 10.2 10.2z" />
-            </svg>
-          </button>
-          <a class="btn primary" href="#download">Download</a>
+<section class="scene" id="scene">
+  <div class="pin">
+    <div class="shell scene-grid">
+      <div class="slides" id="slides">
+        <div class="slide on" data-slide="session"><div class="panel"><span class="eyebrow mono muted">The session</span><h2 class="display">Pick a task and a length. The timer sits in the corner and watches which window is in front.</h2></div></div>
+        <div class="slide" data-slide="caught"><div class="panel"><span class="eyebrow mono muted">The reminder</span><h2 class="display">Open a distraction and it speaks up.</h2><p class="muted">Add sites to your distractions list so we can help you stay focused.</p></div></div>
+        <div class="slide" data-slide="phone"><div class="panel"><span class="eyebrow mono muted">The phone</span><h2 class="display">Turn the webcam on and it catches your phone too.</h2><p class="muted">Frames never leave your computer.</p></div></div>
+        <div class="slide" data-slide="done"><div class="panel"><span class="eyebrow mono muted">The report</span><h2 class="display">Every session ends with where your time went.</h2><p class="muted">Trends across weeks and months, so you can see where your focus goes.</p></div></div>
+      </div>
+
+      <div class="desk-wrap">
+        <div class="desk" id="desk">
+          <div class="tabs" role="tablist" aria-label="Windows">
+            <button class="tab docs front" type="button" data-tab="docs"><i class="fav"></i>Google Docs</button>
+            <button class="tab yt" type="button" data-tab="yt"><i class="fav"></i>YouTube</button>
+            <button class="tab rd" type="button" data-tab="rd"><i class="fav"></i>Reddit</button>
+          </div>
+          <div class="screen" id="screen">
+            <div class="view docs on" data-view="docs">
+              <div class="bar-row"><i class="logo"></i><i class="name"></i></div>
+              <div class="toolbar"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="sheet"><h4>Philosophy 241 · Midterm notes</h4><span class="ln" style="width: 96%"></span><span class="ln" style="width: 88%"></span><span class="ln" style="width: 93%"></span><span class="ln" style="width: 58%"></span><span class="ln" style="width: 90%; margin-top: 20px"></span><span class="ln" style="width: 95%"></span><span class="ln" style="width: 70%"></span></div>
+            </div>
+            <div class="view yt" data-view="yt">
+              <div class="bar-row"><i class="logo"></i><i class="search"></i></div>
+              <div class="body">
+                <div><div class="player"><i class="scrub"></i></div><div class="title"></div><div class="meta"></div></div>
+                <div class="side"><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div><div class="vid"><i></i><div><span class="ln"></span><span class="ln"></span></div></div></div>
+              </div>
+            </div>
+            <div class="view rd" data-view="rd">
+              <div class="bar-row"><i class="logo"></i><i class="search"></i></div>
+              <div class="feed">
+                <div class="post"><div class="vote"><i></i><i></i></div><div><span class="ln"></span><span class="ln"></span><span class="ln" style="width: 40%"></span></div></div>
+                <div class="post"><div class="vote"><i></i><i></i></div><div><span class="ln"></span><span class="ln"></span></div></div>
+                <div class="post"><div class="vote"><i></i><i></i></div><div><span class="ln"></span><span class="ln"></span><span class="ln" style="width: 60%"></span></div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="cam" id="cam" aria-hidden="true">
+            <span class="cap">Webcam</span>
+            <div class="frame"><span class="head"></span><span class="body"></span><span class="hand"></span><span class="ph"></span><span class="box"></span></div>
+          </div>
+
+          <div class="corner" id="corner">
+            <!-- in the corner: the timer, bare -->
+            <div class="card on-color bare" id="card-ok"><div class="face" id="f-ok">
+              <h3>On task</h3>
+              <p class="goal">philos 241 midterm</p>
+              <div class="left"><span id="clock">29:58 left</span><div class="bar"><i id="c-bar" style="width: 34%"></i></div></div>
+            </div></div>
+            <!-- in the middle: the status window with its card and its buttons -->
+            <div class="win">
+              <div class="card on-color" id="card" aria-live="polite">
+                <div class="face" id="f-caught" hidden>
+                  <p class="kicker" id="kicker">Distraction</p>
+                  <h3 id="c-title">You opened YouTube.</h3>
+                  <div class="voice" id="c-voice">
+                    <button class="orb" type="button" id="c-orb" aria-label="Play the line"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span></span></button>
+                    <div><p class="who" id="c-who">Elise said</p><p class="line words" id="c-line"></p></div>
+                  </div>
+                  <div class="task"><strong>philos 241 midterm</strong><span id="clock2">29:41 left</span></div>
+                </div>
+                <div class="face" id="f-done" hidden>
+                  <p class="kicker">Session done</p>
+                  <h3>1h 40m focused</h3>
+                  <div class="strip"><i class="on" style="--i:0;left:0;width:38%"></i><i class="off" style="--i:1;left:38%;width:5%"></i><i class="on" style="--i:2;left:43%;width:31%"></i><i class="away" style="--i:3;left:74%;width:6%"></i><i class="on" style="--i:4;left:80%;width:20%"></i></div>
+                  <div class="tiles">
+                    <div class="tile" title="Time in front of your task, out of the whole session"><strong>92%</strong><span>Focused</span></div>
+                    <div class="tile" title="Your longest stretch without a distraction"><strong>44 min</strong><span>Longest</span></div>
+                    <div class="tile" title="How often it spoke up"><strong>1</strong><span>Reminder</span></div>
+                  </div>
+                </div>
+              </div>
+              <div class="actions" id="c-actions">
+                <button class="btn" type="button" id="allow">Allow once</button>
+                <button class="btn primary" type="button" id="back">Back to my task</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="rail" aria-label="The story">
+          <button type="button" data-go="0" aria-label="The session"></button>
+          <button type="button" data-go="1" aria-label="The reminder"></button>
+          <button type="button" data-go="2" aria-label="The phone"></button>
+          <button type="button" data-go="3" aria-label="The report"></button>
         </div>
       </div>
-    </header>
+    </div>
+  </div>
+</section>
 
-    <main id="main">
-      <section class="hero" id="top">
-        <div class="shell hero-grid">
-          <div>
-            <h1 class="display">A focus timer that talks back.</h1>
-            <p class="lead">
-              Start a session. Leave YouTube open too long and a voice you recorded tells you to get
-              back to work. Everything stays on your computer.
-            </p>
-            <div class="hero-actions">
-              <a class="btn btn-lg primary desktop-only" id="hero-download" href="#download">Download</a>
-              <a class="btn btn-lg primary phone-only" id="hero-mail" href="#download">Email me the link</a>
-              <button class="btn btn-lg quiet" id="catch-me" type="button">Or open YouTube instead</button>
-            </div>
-            <p class="hero-note">Free · macOS 14 or later on Apple Silicon · Windows 10 and 11 · No account</p>
-            <ul class="hero-chips">
-              <li><a class="chip" href="https://github.com/pr4nav3/stealth-startup">Open source</a></li>
-              <li class="chip">No analytics</li>
-              <li class="chip">No servers</li>
-              <li class="chip">Runs on CPU</li>
-            </ul>
-          </div>
-
-          <div class="stage" id="stage" aria-live="polite">
-            <!-- The timer window, as it sits in the corner of the screen during a session. -->
-            <div class="timer on-color" id="timer">
-              <div class="slab is-green">
-                <h3>On task</h3>
-                <p>philos 241 midterm</p>
-                <div class="round-dots" aria-label="1 of 4 rounds finished"><i class="done"></i><i class="now"></i><i></i><i></i></div>
-                <div class="progress-row">
-                  <span>29:58 left</span>
-                  <div class="progress" aria-hidden="true"><i style="width: 42%"></i></div>
-                </div>
-              </div>
-              <div class="timer-actions" aria-hidden="true">
-                <span class="btn icon yellow"><svg viewBox="0 0 14 14"><rect x="2" y="1.5" width="3.6" height="11" rx="1" fill="currentColor"/><rect x="8.4" y="1.5" width="3.6" height="11" rx="1" fill="currentColor"/></svg></span>
-                <span class="btn icon danger"><svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5" fill="currentColor"/></svg></span>
-                <span class="btn more">More</span>
-              </div>
-            </div>
-
-            <!-- The reminder card. The page shows it when you take the bait. -->
-            <div class="reminder on-color" id="reminder" hidden>
-              <div class="alert">
-                <p class="kicker">Distraction</p>
-                <h3>You opened YouTube.</h3>
-                <div class="voice-row" id="hero-voice">
-                  <button class="orb" type="button" data-play="hero" aria-label="Play the line again">
-                    <span class="orb-core">
-                      <svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg>
-                      <span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                    </span>
-                  </button>
-                  <div class="voice-text">
-                    <p class="voice-who" id="hero-who">Elise said</p>
-                    <p class="voice-line" id="hero-line">“Respectfully, get back to it.”</p>
-                  </div>
-                </div>
-                <div class="task-strip">
-                  <strong>philos 241 midterm</strong>
-                  <span>29:41 left</span>
-                </div>
-              </div>
-              <div class="reminder-actions">
-                <button class="btn primary" id="back-to-task" type="button">Back to my task</button>
-                <span class="btn" aria-hidden="true">Allow once</span>
-              </div>
-            </div>
-          </div>
+<div class="shell stack" id="stack">
+  <section class="deal voice-sheet" id="voice-screen" style="--i: 0">
+      <div class="pane recbox" id="recbox" aria-label="Recording a voice">
+        <div class="head"><h3>Clone a voice.</h3><span class="clock"><b id="rec-t">0:00</b> / 0:20</span></div>
+        <div class="stage">
+          <div class="name"><b>Dad</b><span id="rec-state">Ready to record</span></div>
+          <button class="orb rec-orb" type="button" id="rec-orb" aria-label="Record again"><span class="orb-core"><i class="dot"></i><svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg></span></button>
+          <div class="wave tape" id="tape" aria-hidden="true"></div>
         </div>
-      </section>
-
-      <section class="section" id="how">
-        <div class="shell">
-          <div class="section-head reveal">
-            <span class="eyebrow">How it works</span>
-            <h2 class="display">Three screens. That's the whole app.</h2>
-          </div>
-          <div class="steps">
-            <article class="panel step reveal">
-              <span class="num">1</span>
-              <div>
-                <h3>Start a session</h3>
-                <p>A goal, a length, how strict it should be. Five distractions come on the list; add yours. Everything else counts as work.</p>
-              </div>
-              <div class="step-art start-row">
-                <div class="chips" aria-label="Distractions">
-                  <span class="chip distraction">YouTube</span>
-                  <span class="chip distraction">Netflix</span>
-                  <span class="chip distraction">TikTok</span>
-                  <span class="chip distraction">Instagram</span>
-                  <span class="chip distraction is-allowed">Reddit</span>
-                  <span class="chip add">+ Add</span>
-                </div>
-                <span class="explain">Click one to allow it once, for this session.</span>
-                <span class="btn primary">Start focus session</span>
-              </div>
-            </article>
-
-            <article class="panel step reveal">
-              <span class="num">2</span>
-              <div>
-                <h3>Drift, and hear about it</h3>
-                <p>Leave a distraction open for a minute and a card pops up with a line in the voice you picked. Your phone or watch counts too, if the webcam is on.</p>
-              </div>
-              <div class="step-art reminder on-color" aria-hidden="true">
-                <div class="alert">
-                  <p class="kicker">Phone or watch in view</p>
-                  <h3>Your phone or watch is out.</h3>
-                  <div class="task-strip">
-                    <strong>Chapter 7 notes</strong>
-                    <span>12:04 left</span>
-                  </div>
-                </div>
-                <div class="reminder-actions">
-                  <span class="btn primary">Back to my task</span>
-                  <span class="btn">Allow once</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="panel step reveal">
-              <span class="num">3</span>
-              <div>
-                <h3>See how it went</h3>
-                <p>Every session gets a report: where the time went, your longest stretch, how often it had to speak up. Rounds and breaks if you want them, a streak, a card you can share.</p>
-              </div>
-              <div class="step-art report on-color" aria-hidden="true">
-                <div class="slab is-yellow">
-                  <h3>Chapter 7 notes</h3>
-                  <div class="live-strip">
-                    <i class="on" style="left: 0; width: 38%"></i>
-                    <i class="off" style="left: 38%; width: 5%"></i>
-                    <i class="on" style="left: 43%; width: 31%"></i>
-                    <i class="away" style="left: 74%; width: 6%"></i>
-                    <i class="on" style="left: 80%; width: 20%"></i>
-                  </div>
-                </div>
-                <div class="tiles">
-                  <div class="tile"><span>Duration</span><strong>1h 40m</strong></div>
-                  <div class="tile"><span>Focused</span><strong>92%</strong></div>
-                  <div class="tile"><span>Longest stretch</span><strong>44 min</strong></div>
-                  <div class="tile"><span>Reminders</span><strong>1</strong></div>
-                </div>
-              </div>
-            </article>
-          </div>
+        <p class="eyebrow mono muted" style="margin: 4px 0 -6px">Comes with the app</p>
+        <div class="voices">
+          <div class="vrow" role="button" tabindex="0" data-clip="genz"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><b>Elise</b><span>Play a line</span></div>
+          <div class="vrow" role="button" tabindex="0" data-clip="stern"><button class="orb" type="button" tabindex="-1" aria-hidden="true"><span class="orb-core"><svg class="orb-play" viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg><span class="orb-bars"><i></i><i></i><i></i><i></i></span></span></button><b>Derek</b><span>Play a line</span></div>
         </div>
-      </section>
-
-      <section class="section" id="voice">
-        <div class="shell feature">
-          <div class="reveal">
-            <span class="eyebrow">The voice</span>
-            <h2 class="display">A notification is easy to ignore. A voice isn't.</h2>
-            <p class="lead">
-              Record anyone for about twenty seconds and Supervisor builds a voice from it. The lines
-              are generated once, on your computer, so a reminder plays the instant you need it.
-            </p>
-            <p class="lead">
-              Each voice has a personality you pick. Every line is text you can rewrite.
-            </p>
-            <div class="personalities" aria-label="Personalities">
-              <span class="chip">Gentle</span>
-              <span class="chip">Mom</span>
-              <span class="chip on">Gen Z</span>
-              <span class="chip">Stern</span>
-            </div>
-          </div>
-          <div class="reveal">
-            <div class="lines">
-              <div class="voice-row standalone" id="row-genz">
-                <button class="orb" type="button" data-play="genz" aria-label="Play Elise's Gen Z line">
-                  <span class="orb-core">
-                    <svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg>
-                    <span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                  </span>
-                </button>
-                <div class="voice-text">
-                  <p class="voice-who">Elise · Gen Z</p>
-                  <p class="voice-line">“Respectfully, get back to it.”</p>
-                </div>
-              </div>
-              <div class="voice-row standalone" id="row-stern">
-                <button class="orb" type="button" data-play="stern" aria-label="Play Derek's stern line">
-                  <span class="orb-core">
-                    <svg class="orb-play" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg>
-                    <span class="orb-bars" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-                  </span>
-                </button>
-                <div class="voice-text">
-                  <p class="voice-who">Derek · Stern</p>
-                  <p class="voice-line">“That isn't the work. Close it.”</p>
-                </div>
-              </div>
-            </div>
-            <p class="lines-note">Derek and Elise come with the app. Your mom doesn't, until you record her.</p>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="phone">
-        <div class="shell feature flip">
-          <div class="reveal">
-            <span class="eyebrow">Phone or watch · optional</span>
-            <h2 class="display">Closing the tab doesn't help if the phone is in your hand.</h2>
-            <p class="lead">
-              Turn the webcam on and Supervisor notices a phone or watch in your hand. It only counts
-              when it can see one, so looking down at your desk is fine.
-            </p>
-            <p class="lead">
-              The camera stays off until you switch it on, and the app works without it. Frames are
-              read and thrown away.
-            </p>
-          </div>
-          <div class="reveal">
-            <div class="panel">
-              <span class="eyebrow">Webcam</span>
-              <div class="setting-row" aria-hidden="true">
-                <span>Turn on webcam models</span>
-                <span class="toggle"></span>
-              </div>
-              <p class="explain" style="margin-top: 8px">Vision models spot a phone or watch in your hand. They run only on this computer.</p>
-              <div class="verdict" aria-hidden="true"><span>Phone or watch in view</span><span>0:13</span></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="section" id="sees">
-        <div class="shell">
-          <div class="section-head reveal">
-            <span class="eyebrow">What it sees</span>
-            <h2 class="display">There's no server behind this.</h2>
-            <p class="lead">No account, no sign-in, nothing phoning home. Check the network tab on this page, too.</p>
-          </div>
-          <div class="sees">
-            <div class="panel reveal">
-              <h3>What it reads</h3>
-              <ul>
-                <li><b>The app in front</b><span>Which program you're looking at.</span></li>
-                <li><b>The address of the page in front</b><span>From the browser's address bar, never the page. That's how it tells YouTube from Google Docs.</span></li>
-                <li><b>The window's title</b><span>Only to name a site when the address can't be read. Never stored.</span></li>
-                <li><b>Whether the webcam sees you, and a phone or watch</b><span>Only if you turn the webcam on. Nobody at the desk for a minute counts as away. The verdict, never the picture.</span></li>
-                <li><b>Sleep and the lock screen</b><span>A closed lid, a locked screen or a display that turned off counts as away.</span></li>
-              </ul>
-            </div>
-            <div class="panel never reveal">
-              <h3>What it never touches</h3>
-              <ul>
-                <li><b>What you type</b></li>
-                <li><b>Your screen</b><span>No screenshots, no scanning.</span></li>
-                <li><b>Page contents or browsing history</b></li>
-                <li><b>Your microphone</b><span>Except while you record a voice.</span></li>
-                <li><b>Anything off this computer</b><span>Recordings, lines, sessions and camera frames stay put.</span></li>
-              </ul>
-            </div>
-          </div>
-          <p class="sees-note reveal">All of it lives in one folder. Delete a voice, a session, or the whole history whenever you want.</p>
-        </div>
-      </section>
-
-      <section class="section" id="download">
-        <div class="shell">
-          <div class="section-head reveal">
-            <span class="eyebrow">Download</span>
-            <h2 class="display">Free. Not out yet.</h2>
-            <p class="lead">The first build lands on macOS, then Windows. Watch the releases page and you'll see it the day it ships.</p>
-          </div>
-          <div class="dl">
-            <div class="panel dl-card reveal" id="dl-mac">
-              <h3>macOS</h3>
-              <p class="req">macOS 14 or later · Apple Silicon</p>
-              <p>One line in Terminal installs it, and the same line updates it. Installed this way, macOS opens it without the unidentified-developer step.</p>
-              <code>curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh</code>
-              <a class="btn primary" href="https://github.com/pr4nav3/stealth-startup/releases">Watch for the release</a>
-            </div>
-            <div class="panel dl-card reveal" id="dl-win">
-              <h3>Windows</h3>
-              <p class="req">Windows 10 or 11 · 64-bit</p>
-              <p>An installer, after the Mac build. New versions will show Windows' "protected your PC" note until the app earns a reputation; More info, then Run anyway.</p>
-              <a class="btn primary" href="https://github.com/pr4nav3/stealth-startup/releases">Watch for the release</a>
-            </div>
-          </div>
-          <div class="dl-notes">
-            <div class="panel reveal">
-              <b>The voice engine is separate</b>
-              <p>The app installs small. The voice engine is a one-time download of about 2 GB, and it runs on the CPU.</p>
-            </div>
-            <div class="panel reveal">
-              <b>On a phone right now?</b>
-              <p><a href="#download" id="mail-link">Email yourself the link</a> and open it on the computer you work on.</p>
-            </div>
-            <div class="panel reveal">
-              <b>Read the source</b>
-              <p>Built with Tauri and Rust. <a href="https://github.com/pr4nav3/stealth-startup">Read it</a>, or build it yourself.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <div class="shell footer-inner">
-        <div class="footer-brand">
-          <img src="assets/eye.svg" alt="" width="24" height="24" />
-          <p>Supervisor · a focus timer that talks back · Windows and macOS</p>
-        </div>
-        <nav class="footer-links" aria-label="Footer">
-          <a href="https://github.com/pr4nav3/stealth-startup">Source</a>
-          <a href="https://github.com/pr4nav3/stealth-startup/releases">Releases</a>
-          <a href="#sees">Privacy</a>
-          <a href="https://github.com/pr4nav3/stealth-startup/issues">Contact</a>
-        </nav>
       </div>
-    </footer>
+      <div class="pane intro">
+        <span class="eyebrow mono muted">The voice</span>
+        <h2 class="display">Reminders in a voice you know.</h2>
+        <p class="muted">Record anyone, with their consent, for twenty seconds. Then generate any line you want in their voice, and make up personalities of your own.</p>
+      </div>
+  </section>
 
-    <script src="site.js"></script>
-  </body>
+  <section class="deal" style="--i: 1"><div class="pane promise on-color" id="promise">
+    <div class="eye" aria-hidden="true"><svg viewBox="0 0 128 128"><defs><clipPath id="socket"><circle cx="64" cy="64" r="51.2"/></clipPath></defs><circle cx="64" cy="64" r="58.88" fill="#101010"/><circle cx="64" cy="64" r="51.2" fill="#f4ead7"/><g class="look" id="look"><circle cx="64" cy="64" r="28.16" fill="#a8eb37"/><circle cx="64" cy="64" r="16.64" fill="#3267ff"/><circle cx="64" cy="64" r="7.04" fill="#101010"/></g><g clip-path="url(#socket)"><g class="shutter"><rect x="0" y="0" width="128" height="116" fill="#f4ead7"/><rect x="0" y="113" width="128" height="3" fill="#101010"/></g></g></svg></div>
+    <h2 class="display">Everything stays on your computer.</h2>
+    <p class="facts">No account, no servers, nothing uploaded.<br />It works with the internet off.</p>
+  </div></section>
+
+  <section class="deal" style="--i: 2"><div class="pane get-grid" id="get">
+    <div class="section-head rise">
+      <span class="eyebrow mono muted">Download</span>
+      <h2 class="display">Get Supervisor.</h2>
+      <p class="muted">Free, and open source.</p>
+    </div>
+      <div class="os rise" role="group" aria-label="Your computer">
+        <button class="vcard" type="button" data-os="mac"><b>macOS</b><span>14 or later · Apple Silicon</span></button>
+        <button class="vcard" type="button" data-os="win"><b>Windows</b><span>10 or 11</span></button>
+      </div>
+      <div class="way rise" id="way-mac" hidden>
+        <p>Paste one line into Terminal. It installs the app, and the same line updates it.</p>
+        <div class="cmd"><code id="cmd">curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh</code><button class="btn" type="button" id="copy">Copy</button></div>
+      </div>
+      <div class="way rise" id="way-win" hidden>
+        <p>Windows may warn that the app is unrecognised. Choose More info, then Run anyway.</p>
+        <div><a class="btn lg primary" href="https://github.com/pr4nav3/stealth-startup/releases">Download for Windows</a></div>
+      </div>
+  </div></section>
+</div>
+<footer><div class="card-line">
+  <span class="who"><b>&copy; 2026 Pranav Karthik</b></span>
+  <a class="btn" href="mailto:tkotalwar@wisc.edu?subject=Supervisor%20feedback"><svg viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4.5h12v8H2z"/><path d="M2 5l6 4.5L14 5"/></svg>Send feedback</a>
+</div></footer>
+<script src="site.js"></script>
+</body>
 </html>
