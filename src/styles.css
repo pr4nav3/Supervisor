@@ -1417,6 +1417,7 @@ button[data-action="cancel-delete-voice"] {
 
 .webcam-side .setting-row {
   grid-template-columns: minmax(0, 1fr) auto;
+  border-top: 0;
 }
 
 /* The camera's name can be long, so it gets the whole row under its label. */
@@ -1466,14 +1467,66 @@ button[data-action="cancel-delete-voice"] {
   font-size: var(--sv-type-3);
 }
 
-.quiet-more {
-  display: block;
-  margin-top: 8px;
+.webcam-metrics div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
 }
 
-.webcam-metrics .metric span {
-  font-size: var(--sv-type-4);
+.webcam-metrics dt {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
 }
+
+.webcam-metrics dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.webcam-metrics dd::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--white-soft);
+}
+
+.webcam-metrics .is-good dd {
+  color: var(--ink);
+}
+
+.webcam-metrics .is-good dd::before {
+  background: var(--sv-green);
+}
+
+.webcam-metrics .is-bad dd {
+  color: var(--ink);
+}
+
+.webcam-metrics .is-bad dd::before {
+  background: var(--sv-coral);
+}
+
+.webcam-note {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+  line-height: 1.4;
+}
+
 
 .webcam-frame-wrap,
 .webcam-frame-wrap img,
@@ -1535,17 +1588,8 @@ button[data-action="cancel-delete-voice"] {
 }
 
 .webcam-metrics {
-  margin-top: 0;
-}
-
-.webcam-metrics .metric {
-  min-height: 0;
-  padding: 8px 10px;
-}
-
-.webcam-metrics .metric strong {
-  margin-top: 4px;
-  font-size: var(--sv-type-2);
+  display: grid;
+  margin: 0;
 }
 
 .state-slab,

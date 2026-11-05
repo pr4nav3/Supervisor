@@ -2914,7 +2914,7 @@ function renderWebcamSettings(): string {
           <section class="panel webcam-test-panel">
             <p class="eyebrow">Camera test</p>
             ${renderWebcamMetrics(frame)}
-            <p class="quiet">No images saved. Vision models run only on this computer.<span class="quiet-more">A phone or watch in view counts as a distraction; leaving your desk marks you as away. Needs ${osFloor()}.</span></p>
+            <p class="webcam-note">No images saved. The models run only on this computer and need ${osFloor()}.</p>
           </section>
         </div>
       </section>
@@ -2951,12 +2951,15 @@ async function refreshCameras(): Promise<void> {
   }
 }
 
+/** Two plain readings. The dot goes green with a face in view and red with a phone or watch. */
 function renderWebcamMetrics(frame: WebcamFrame | null): string {
+  const face = Boolean(frame?.face_in_frame);
+  const phone = Boolean(frame?.phone_in_frame);
   return `
-    <div class="metric-grid webcam-metrics">
-      ${metric("Face", frame?.face_in_frame ? "IN" : "OUT")}
-      ${metric("Phone", frame?.phone_in_frame ? "IN FRAME" : "NO")}
-    </div>
+    <dl class="webcam-metrics">
+      <div class="${face ? "is-good" : ""}"><dt>Face</dt><dd>${face ? "In view" : "Out of view"}</dd></div>
+      <div class="${phone ? "is-bad" : ""}"><dt>Phone or watch</dt><dd>${phone ? "Seen" : "Not seen"}</dd></div>
+    </dl>
   `;
 }
 
