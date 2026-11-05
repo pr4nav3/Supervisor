@@ -33,7 +33,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$H
 git clone git@github.com:pr4nav3/Supervisor.git supervisor   # or https
 cd supervisor
 git config user.name "Pranav Karthik"
-git config user.email "tkotalwar@wisc.edu"
+git config user.email "karthik.pranav88@gmail.com"
 gh auth login --hostname github.com --web      # the USER does this step in the browser, as pr4nav3
 gh auth status                                  # must say pr4nav3
 npm install
