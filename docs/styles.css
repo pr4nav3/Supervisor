@@ -896,7 +896,7 @@ button.orb:active .orb-core {
   .way { grid-column: 1 / -1; }
   .way[hidden] { display: none; }
   .cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border: var(--border); border-radius: 6px; padding: 6px 6px 6px 12px; background: var(--sv-soft-white); }
-  .cmd code { font: 400 0.76rem/1.5 var(--font-mono); white-space: pre-wrap; word-break: break-all; }
+  .cmd code { font: 400 0.7rem/1.5 var(--font-mono); white-space: nowrap; overflow-x: auto; }
   .cmd .btn { min-height: 34px; font-size: 0.68rem; }
   /* the card ends with its credit line: who made it, and a way to write back */
   /* the last line: who, and a way to write back */
