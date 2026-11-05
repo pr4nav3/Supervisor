@@ -1,6 +1,6 @@
 #!/bin/sh
 # Install or update Supervisor on a Mac:
-#   curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh
+#   curl -fsSL https://raw.githubusercontent.com/pr4nav3/Supervisor/main/scripts/install-mac.sh | sh
 #
 # Files fetched with curl carry no quarantine flag, so Gatekeeper never stops the app and the
 # user sees no "Open Anyway" step. Integrity comes from the published SHA-256, authenticity from
@@ -9,7 +9,7 @@
 # Re-running the same line updates the app.
 set -eu
 
-REPO="pr4nav3/stealth-startup"
+REPO="pr4nav3/Supervisor"
 APP="Supervisor"
 # SUPERVISOR_INSTALL_BASE overrides where the zip and its .sha256 come from (local testing).
 BASE="${SUPERVISOR_INSTALL_BASE:-https://github.com/$REPO/releases/latest/download}"

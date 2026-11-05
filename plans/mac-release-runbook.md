@@ -4,7 +4,7 @@ For an agent on a Mac that has never seen this repo. Goal: add the two Mac asset
 GitHub Releases that already hold the Windows ones, so the Mac install line and the in-app
 voice engine download work for Mac users. Nothing else in the app needs changing.
 
-What already exists on GitHub (`pr4nav3/stealth-startup`):
+What already exists on GitHub (`pr4nav3/Supervisor`):
 - Release `v1.0` (latest): `Supervisor_v1.0_x64-setup.exe` and the notes. Needs the Mac app
   zip and its `.sha256` added.
 - Pre-release `voice-runtime`: `supervisor-voice-runtime-windows-x64.zip` and a manifest that
@@ -30,7 +30,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && . "$H
 ## 2. Clone as the user
 
 ```sh
-git clone git@github.com:pr4nav3/stealth-startup.git supervisor   # or https
+git clone git@github.com:pr4nav3/Supervisor.git supervisor   # or https
 cd supervisor
 git config user.name "Pranav Karthik"
 git config user.email "tkotalwar@wisc.edu"
@@ -150,14 +150,14 @@ cat > build/voice-runtime/supervisor-voice-runtime-windows-x64.asset.json <<'EOF
   "executable": "supervisor-voice-worker.exe",
   "sha256": "827cdba5980a73f9cc888fddfd464e7dd6e0a37181f04ea4cc130039eaa76516",
   "target": "windows-x64",
-  "url": "https://github.com/pr4nav3/stealth-startup/releases/download/voice-runtime/supervisor-voice-runtime-windows-x64.zip"
+  "url": "https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/supervisor-voice-runtime-windows-x64.zip"
 }
 EOF
 gh release upload voice-runtime build/voice-runtime/supervisor-voice-runtime-macos-arm64.zip
 ```
 
 Put the Mac zip's release URL into its `.asset.json` `url` field:
-`https://github.com/pr4nav3/stealth-startup/releases/download/voice-runtime/supervisor-voice-runtime-macos-arm64.zip`.
+`https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/supervisor-voice-runtime-macos-arm64.zip`.
 Then:
 
 ```sh
@@ -172,8 +172,8 @@ gh release upload v1.0 build/release/Supervisor-macos-aarch64.zip build/release/
 ## 7. Prove it
 
 ```sh
-curl -sL https://github.com/pr4nav3/stealth-startup/releases/download/voice-runtime/voice-runtime-manifest.json | python3 -m json.tool   # two targets
-curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh   # installs and opens Supervisor on this Mac
+curl -sL https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/voice-runtime-manifest.json | python3 -m json.tool   # two targets
+curl -fsSL https://raw.githubusercontent.com/pr4nav3/Supervisor/main/scripts/install-mac.sh | sh   # installs and opens Supervisor on this Mac
 ```
 
 The installed app must open with no Gatekeeper dialog. Then in the app: Settings > Customize >

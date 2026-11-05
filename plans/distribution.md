@@ -8,7 +8,7 @@ redoing it; each release just reruns the same steps.
 Users paste:
 
 ```
-curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh
+curl -fsSL https://raw.githubusercontent.com/pr4nav3/Supervisor/main/scripts/install-mac.sh | sh
 ```
 
 Why this works without an Apple Developer ID: Gatekeeper only checks files that carry the
@@ -52,7 +52,7 @@ fixed address compiled in as the default (`voice_runtime.rs`, `DEFAULT_MANIFEST_
 `SUPERVISOR_VOICE_PACK_MANIFEST_URL` still overrides it):
 
 ```
-https://github.com/pr4nav3/stealth-startup/releases/download/voice-runtime/voice-runtime-manifest.json
+https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/voice-runtime-manifest.json
 ```
 
 That address is a GitHub Release with tag **`voice-runtime`**, marked **pre-release** so it never

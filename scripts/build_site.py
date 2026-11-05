@@ -12,7 +12,7 @@ import re
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 MOCK = ROOT / "plans" / "landing-mockups"
 DOCS = ROOT / "docs"
-RELEASES = "https://github.com/pr4nav3/stealth-startup/releases"
+RELEASES = "https://github.com/pr4nav3/Supervisor/releases"
 
 
 def between(text: str, start: str, end: str, keep_end: bool = True) -> str:

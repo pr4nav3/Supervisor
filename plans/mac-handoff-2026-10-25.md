@@ -5,7 +5,7 @@ The day's summary for whoever picks the Mac up next. The full checklist is
 
 ## Where things are
 
-- Repo: `github.com/pr4nav3/stealth-startup`. Working branch `app-v2-simplified-rules`;
+- Repo: `github.com/pr4nav3/Supervisor`. Working branch `app-v2-simplified-rules`;
   `main` is fast-forwarded to it.
 - Public docs in the repo: `plans/mac-handoff.md` (full checklist), `plans/distribution.md`
   (release and install), `plans/known-issues.md`, `plans/STATUS.md`.
@@ -93,7 +93,7 @@ few decisions listed at the end.
    - Voice runtime: tag `voice-runtime`, mark **pre-release**; attach the zip and
      `voice-runtime-manifest.json` from `build/voice-runtime/`.
 2. **Install with the one-liner** and do one voice clone in the installed app:
-   `curl -fsSL https://raw.githubusercontent.com/pr4nav3/stealth-startup/main/scripts/install-mac.sh | sh`
+   `curl -fsSL https://raw.githubusercontent.com/pr4nav3/Supervisor/main/scripts/install-mac.sh | sh`
 3. **Quick checks:** close the main window then click the Dock icon; open Brave or Edge fresh
    and see the site appear within seconds; put a full-screen app on a distraction and check the
    nudge card shows on top.

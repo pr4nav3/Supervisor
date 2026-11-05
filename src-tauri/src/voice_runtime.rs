@@ -439,7 +439,7 @@ fn select_runtime_asset(
 /// holds this manifest and the zips it lists; publishing a new runtime replaces those assets,
 /// and no app build has to change. See plans/distribution.md.
 const DEFAULT_MANIFEST_URL: &str =
-    "https://github.com/pr4nav3/stealth-startup/releases/download/voice-runtime/voice-runtime-manifest.json";
+    "https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/voice-runtime-manifest.json";
 
 fn manifest_url() -> String {
     std::env::var("SUPERVISOR_VOICE_PACK_MANIFEST_URL")
