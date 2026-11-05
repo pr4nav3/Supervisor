@@ -238,9 +238,12 @@
   }
   pickOS(isMac ? "mac" : "win");
   document.querySelectorAll(".os .vcard").forEach(function (c) { c.addEventListener("click", function () { pickOS(c.dataset.os); }); });
-  $("copy").addEventListener("click", function () {
-    var b = $("copy");
-    (navigator.clipboard ? navigator.clipboard.writeText($("cmd").textContent) : Promise.reject()).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600); }, function () { b.textContent = "Select it"; });
+  /* each install line has its own Copy */
+  document.querySelectorAll("[data-copy]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var text = $(b.dataset.copy).textContent;
+      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600); }, function () { b.textContent = "Select and copy"; });
+    });
   });
 
   /* the stacked cards: contents rise once as a card arrives; a card loses its shadow once the
