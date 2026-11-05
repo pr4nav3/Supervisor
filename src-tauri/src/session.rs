@@ -1492,7 +1492,7 @@ impl Session {
         self.open_marker_span(Activity::phone(), PHONE_STATE);
         self.camera.phone_since = Some(now);
         self.camera.phone_nudged = false;
-        self.push_event(now, "Phone in view", "WEBCAM");
+        self.push_event(now, "Phone or watch in view", "WEBCAM");
     }
 
     /// Ends the phone once no frame has seen it for a moment (put down, or the camera
@@ -1506,7 +1506,7 @@ impl Session {
         if now.saturating_sub(self.camera.phone_seen_at) >= PHONE_CLEAR_AFTER {
             self.close_open_span(now, storage);
             self.camera.phone_since = None;
-            self.push_event(now, "Phone put down", "WEBCAM");
+            self.push_event(now, "Phone or watch put down", "WEBCAM");
             return;
         }
         let due = !self.camera.phone_nudged && !self.engine.is_muted() || self.engine.nudge_ready(now);
@@ -1514,7 +1514,7 @@ impl Session {
             self.engine.note_nudge(now);
             self.camera.phone_nudged = true;
             self.metrics.nudges += 1;
-            self.push_event(now, "Phone reminder queued", "VOICE 01");
+            self.push_event(now, "Phone or watch reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("phone"), storage);
         }
     }

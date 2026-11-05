@@ -78,7 +78,7 @@ impl Activity {
 
     /// The webcam saw a phone in hand. Interrupts the window in front; counts as distracted.
     pub fn phone() -> Self {
-        Self::marker(PHONE_KEY, "Phone")
+        Self::marker(PHONE_KEY, "Phone or watch")
     }
 
     fn marker(key: &str, label: &str) -> Self {

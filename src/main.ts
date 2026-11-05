@@ -547,7 +547,7 @@ const starterRules: AppRule[] = ["youtube.com", "netflix.com", "tiktok.com", "in
 /** Every personality has lines for each moment. The two that repeat all session want a few. */
 const MOMENTS: { id: PhraseMoment; label: string; when: string; often: boolean }[] = [
   { id: "nudge", label: "Back to work", when: "When you get distracted", often: true },
-  { id: "phone", label: "Phone down", when: "When the camera sees your phone", often: true },
+  { id: "phone", label: "Phone down", when: "When the camera sees your phone or watch", often: true },
   { id: "roundover", label: "Take a break", when: "When a Pomodoro round ends", often: false },
   { id: "sessionover", label: "Session done", when: "When a session ends", often: false },
 ];
@@ -1741,7 +1741,7 @@ function renderSoFarTiles(current: CurrentSession): string {
   const tile = (label: string, value: string, title: string) =>
     `<div class="sofar-tile" title="${attr(title)}"><span>${label}</span><strong>${escapeHtml(value)}</strong></div>`;
   return [
-    tile("Focused", formatHours(current.metrics.focused_seconds), "Time on work: not on a distraction, your phone, or away"),
+    tile("Focused", formatHours(current.metrics.focused_seconds), "Time on work: not on a distraction, your phone or watch, or away"),
     tile("Longest", formatHours(longest), "Longest unbroken run of work"),
     tile("Reminders", String(current.metrics.nudges), "Times Supervisor spoke up"),
   ].join("");
@@ -2061,8 +2061,8 @@ function renderDistractionOverlay(current: CurrentSession): string {
   return `
     <main class="overlay-shell overlay-interrupt">
       <section class="state-slab interrupt-alert">
-        <p class="interrupt-kicker">${phone ? "Phone in view" : "Distraction"}</p>
-        <h2>${phone ? "Your phone is out." : `You opened ${escapeHtml(name)}.`}</h2>
+        <p class="interrupt-kicker">${phone ? "Phone or watch in view" : "Distraction"}</p>
+        <h2>${phone ? "Your phone or watch is out." : `You opened ${escapeHtml(name)}.`}</h2>
         ${renderInterruptVoice()}
         <div class="interrupt-task">
           <strong>${escapeHtml(current.goal)}</strong>
@@ -2171,7 +2171,7 @@ function updateDistractionLatch(current: CurrentSession | null): void {
         distractionLatchedAt = Date.now();
       }
       distractionLatchKey = key;
-      distractionLatchLabel = "Your phone";
+      distractionLatchLabel = "Your phone or watch";
     }
     return;
   }
@@ -2473,7 +2473,7 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
             <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
           </span>
         </label>
-        <span class="explain">Vision models spot a phone in your hand. They run only on this computer.</span>
+        <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
       </section>
       <p class="first-run-where">You can change both later in Settings.</p>
       <div class="first-run-actions">${back}<button class="primary" type="button" data-action="first-run-next">Next</button></div>
@@ -2665,7 +2665,7 @@ function homeTip(): HomeTip | null {
     return { id: "voice", text: "Record a voice you know", label: "Open", action: "tip-voice" };
   }
   if (history.length >= 3 && !settings.webcam_enabled && !hidden("webcam")) {
-    return { id: "webcam", text: "Catch your phone too", label: "Turn on", action: "tip-webcam" };
+    return { id: "webcam", text: "Catch your phone or watch too", label: "Turn on", action: "tip-webcam" };
   }
   const oldest = history[history.length - 1];
   if (oldest && Date.now() - new Date(oldest.started_at).getTime() >= 6 * 86_400_000 && !hidden("share")) {
@@ -2843,7 +2843,7 @@ function renderSettings(): string {
           <p class="eyebrow">Webcam</p>
           <div class="voice-summary">
             <strong>Live camera check</strong>
-            <span class="explain">Vision models spot a phone in your hand. They run only on this computer.</span>
+            <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
             <button type="button" data-action="open-webcam-settings">Open</button>
           </div>
         </section>
@@ -2914,7 +2914,7 @@ function renderWebcamSettings(): string {
           <section class="panel webcam-test-panel">
             <p class="eyebrow">Camera test</p>
             ${renderWebcamMetrics(frame)}
-            <p class="quiet">No images saved. Vision models run only on this computer.<span class="quiet-more">A phone in view counts as a distraction; leaving your desk marks you as away. Needs ${osFloor()}.</span></p>
+            <p class="quiet">No images saved. Vision models run only on this computer.<span class="quiet-more">A phone or watch in view counts as a distraction; leaving your desk marks you as away. Needs ${osFloor()}.</span></p>
           </section>
         </div>
       </section>
@@ -3706,7 +3706,7 @@ function renderVoiceHelpModal(): string {
         <p>Supervisor reminds you with short spoken lines. Record anyone for about twenty seconds, generate their lines once, and from then on they play instantly, offline.</p>
         <ol class="voice-help-steps">
           <li><strong>Record a voice.</strong> Press + New voice and read the prompt aloud. The starter voices come ready.</li>
-          <li><strong>Pick a personality.</strong> It's what the voice says, from Gentle to Stern, or one you write. Each has lines for when you get distracted, when your phone shows up, and when a round or session ends.</li>
+          <li><strong>Pick a personality.</strong> It's what the voice says, from Gentle to Stern, or one you write. Each has lines for when you get distracted, when your phone or watch shows up, and when a round or session ends.</li>
           <li><strong>Generate its lines.</strong> Press Generate under the lines. The first takes about ${FIRST_CLIP_SECONDS} seconds while the voice engine warms up, the rest about ${NEXT_CLIP_SECONDS} seconds each. It needs the voice engine installed and some free memory.</li>
           <li><strong>Select it.</strong> Once its back to work lines are generated, select the voice under Voices.</li>
         </ol>
@@ -4671,7 +4671,7 @@ function renderHistoryItem(item: SessionSummary): string {
       </div>
       <div class="history-item-stats">
         <dl>
-          <div title="Time on work: not on a distraction, your phone, or away"><dt>Focused</dt><dd>${escapeHtml(formatHours(item.focus_seconds))}</dd></div>
+          <div title="Time on work: not on a distraction, your phone or watch, or away"><dt>Focused</dt><dd>${escapeHtml(formatHours(item.focus_seconds))}</dd></div>
           <div title="How long the session ran"><dt>Duration</dt><dd>${formatDuration(item.duration_seconds)}</dd></div>
           <div title="Times Supervisor spoke up about a distraction"><dt>Reminders</dt><dd>${item.nudges}</dd></div>
         </dl>
@@ -5591,7 +5591,7 @@ function renderTimelineLegend(report: SessionReport, unrecorded: boolean): strin
   const items = [
     [["focused"], "state-focused", "Work"],
     [["suspicious", "distracted"], "state-distracted", "Distraction"],
-    [["phone"], "state-phone", "Phone"],
+    [["phone"], "state-phone", "Phone or watch"],
     // Idle (no input) and device asleep / unknown are one "Away"; hovering a segment says which.
     [["idle", "unknown"], "state-idle", "Away"],
   ]
@@ -8085,22 +8085,22 @@ function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
     return "Webcam models on";
   }
   if (alerting) {
-    return "Phone in view";
+    return "Phone or watch in view";
   }
   return frame.face_in_frame ? "In frame" : "Out of frame";
 }
 
 function webcamCopy(frame: WebcamFrame | null, alerting: boolean): string {
   if (!webcamSettings.phoneUse) {
-    return "Turn them on to get a reminder when your phone comes out.";
+    return "Turn them on to get a reminder when your phone or watch comes out.";
   }
   if (!frame) {
     return "Waiting for the first picture.";
   }
   if (alerting) {
-    return "Your phone is out.";
+    return "Your phone or watch is out.";
   }
-  return frame.face_in_frame ? "You're in view, no phone seen." : "Sit in view of the webcam.";
+  return frame.face_in_frame ? "You're in view, no phone or watch seen." : "Sit in view of the webcam.";
 }
 
 async function fireWebcamAlert(): Promise<void> {
@@ -8233,7 +8233,7 @@ function stateCopy(current: CurrentSession | null): string {
   }
 
   if (current.camera.phone_distracted) {
-    return "Put the phone down.";
+    return "Put the phone or watch down.";
   }
 
   if (current.focus?.should_nudge) {
