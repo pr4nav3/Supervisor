@@ -17,6 +17,14 @@ close-to-hide window are not. The Windows live pass is in `plans/STATUS.md`.
 
 ## Found 2026-11-05, not fixed
 
+**Seen once, not reproduced (2026-11-05, Windows debug build).** After a 5-minute session ran out
+on its own, the session timer window stayed up in the corner saying "Ready, No session running".
+The run before it had toggled the timer off, shown a card, dismissed it, turned the timer on again
+and used the tray's "Show session timer". Two clean runs afterwards (End session from the tray, and
+a session left to run out) hid the window as they should. If it comes back, note what was done to
+the timer window during the session.
+
+
 - **The card over a full-screen app on macOS is untested.** If it does not show there, an NSPanel is the fix.
 - **Clicking a card button on macOS brings Supervisor to the front.** An NSPanel would avoid that too.
 - **Vivaldi and Arc on Windows give no address.** UI Automation finds their address field inside a Document, so their sites count as Other websites.
