@@ -1140,3 +1140,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - Part 28, take two: the hop still swapped layers in plain view. Now the front card drops out of the hand through a slot at its base (the fan box clips its bottom edge only), the others step forward, and it rises back in behind them. The layer swap happens while it is out of sight.
 
 - Part 28, take three: the other cards step forward the moment the front card starts to drop, one continuous motion instead of drop-then-step. The dropping card keeps its spot and stays on top until it is out of sight. Card titles grew: the four demo text cards, the yellow voice card and the download card.
+
+- Part 28, take four: the headline sizes went back; it was the small labels (The reminder, The voice, Download) that were too small, so those grew from 0.72rem to 0.92rem on the demo cards, the yellow voice card and the download card. Fan motions to compare live in `landing-mockups/fan-motions.html`: A deal from the back (the click motion), B lift over, C slide out and slip in, D flip through edge-on, E the drop through the slot (the site now), F sink under (the pop, on purpose).
