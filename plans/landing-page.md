@@ -939,6 +939,18 @@ Checked in the browser from `docs/index.html`: every asset and all six clips loa
 self-hosted Inter is active, the fan, demo, stack and footer behave as in the mockup, dark
 and light both render, and a phone width has no horizontal overflow.
 
+## Part 27: captions (2026-11-06)
+
+`docs/` is edited by hand now (the build script was retired on 2026-11-05 and the mockups
+are history), so this went straight into the site. Elise's row had been pointed at the
+fan's Gen Z clip once "Respectfully" left the starter set; it now has a line of its own,
+"Caught in 4K. Close it.", encoded from the starter set. Both rows carry their line as a
+caption under the name instead of "Play a line". And every clip on the page is captioned in
+time: while it plays, the words of its line sit at 35 percent and come up one by one, spread
+evenly over the clip's length (a 40 ms timer, so it keeps time in a background tab), and
+clear when it ends. That covers the fan cards, the two rows and the reminder in the demo
+with one mechanism, since they all already held their words as spans.
+
 ## Part 15: popups, the stack at content height, the eye (2026-11-05)
 
 - **Popups.** The frame round a popup is the app's soft white, not the gridded canvas. The
