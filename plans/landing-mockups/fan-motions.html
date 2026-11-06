@@ -22,7 +22,6 @@
 
   /* the fan, as on the site */
   .fan { position: relative; width: 520px; height: 430px; perspective: 1400px; }
-  .fan.slot { clip-path: inset(-160px -600px -120px -240px); }
   .fcard { position: absolute; left: 40px; bottom: 36px; width: 270px; height: 330px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 18px 18px 14px; border: var(--border); border-radius: 7px; box-shadow: 4px 4px 0 var(--shadow); color: #141410; cursor: pointer; transform-origin: 50% 120%;
     transform: rotate(var(--r, 0deg)) translate(calc(var(--x, 0px) + var(--dx, 0px)), calc(var(--y, 0px) + var(--lift, 0px))) rotateY(var(--fy, 0deg)) scale(var(--s, 1));
     transition: transform 560ms var(--ease-out); will-change: transform; backface-visibility: hidden; }
@@ -53,8 +52,7 @@
   .fcard.edge { --fy: 90deg; transition: transform 260ms cubic-bezier(0.5, 0, 1, 1); }
   .fcard.edge-back { --fy: -90deg; }
   /* E · drop through the slot (the site today) */
-  .fcard.drop { --lift: 580px; --r: -4deg; z-index: 5; transition: transform 360ms cubic-bezier(0.5, 0, 1, 1); }
-  .fcard.below { --lift: 580px; }
+  .fcard.drop { --lift: 290px; --r: -4deg; z-index: 5; transition: transform 360ms cubic-bezier(0.5, 0, 1, 1); }
   /* F · sink: the card shrinks and slides down under the others as they come over it */
   .fcard.sink { --s: 0.92; --lift: 40px; z-index: 0; transition: transform 560ms var(--ease-out); }
 </style>
@@ -104,14 +102,14 @@
       step: function () { twoPhase(cards[order[0]], "out", "aside", 340); } },
     flip: { name: "D · Flip through", note: "<b>Edge-on at ninety degrees.</b> The front card turns on its vertical axis until it is a line, changes layer at that instant (there is nothing to see), and keeps turning into the back slot. The shortest of the five, and the layer swap is genuinely invisible.",
       step: function () { twoPhase(cards[order[0]], "edge", "edge-back", 260); } },
-    drop: { name: "E · Drop through the slot (the site now)", note: "<b>Down through a slot at the base of the hand, then up behind.</b> The current motion, for comparison. The layer swap happens below the slot, but the card is still large and close when it goes, which is the half-second you dislike.",
-      step: function () { twoPhase(cards[order[0]], "drop", "below", 360); } },
+    drop: { name: "E · Drop and tuck (the site now)", note: "<b>Half a card down, in view the whole way, then up into the back.</b> The current motion. The card goes behind at its lowest point, where it is furthest from the others, and slides from there into the back slot in one motion.",
+      step: function () { var f = cards[order[0]]; busy = true; order.push(order.shift()); layout(f); f.classList.add("drop"); say(cards[order[0]]); setTimeout(function () { f.classList.remove("drop"); layout(); setTimeout(function () { busy = false; }, 560); }, 360); } },
     sink: { name: "F · Sink under (the pop, on purpose)", note: "<b>Shrinks and slides down as the others come over it.</b> The Apple Wallet way. Included to show the thing to avoid: the card goes to the back layer at the first frame, so the others' edges appear across it at once.",
       step: function () { var f = cards[order[0]]; busy = true; order.push(order.shift()); layout(f); f.classList.add("sink"); say(cards[order[0]]); setTimeout(function () { f.classList.add("snap"); f.classList.remove("sink"); layout(); reflow(f); f.classList.remove("snap"); busy = false; }, 560); } }
   };
   var mode = location.hash.slice(1) in MODES ? location.hash.slice(1) : "deal", picks = document.getElementById("picks");
   Object.keys(MODES).forEach(function (k) { var b = document.createElement("button"); b.textContent = MODES[k].name; b.dataset.k = k; b.addEventListener("click", function () { pick(k); }); picks.appendChild(b); });
-  function pick(k) { mode = k; fan.classList.toggle("slot", k === "drop"); picks.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.k === k); }); document.getElementById("note").innerHTML = MODES[k].note; restart(); }
+  function pick(k) { mode = k; picks.querySelectorAll("button").forEach(function (b) { b.classList.toggle("on", b.dataset.k === k); }); document.getElementById("note").innerHTML = MODES[k].note; restart(); }
   function step() { if (!busy) MODES[mode].step(); }
   var running = true;
   function restart() { clearInterval(timer); if (running) timer = setInterval(step, 3000); }
