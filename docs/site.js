@@ -100,7 +100,7 @@
     front.classList.add("drop"); sayFront();
     setTimeout(function () {
       front.classList.add("snap", "below"); front.classList.remove("drop"); layoutFan(); void front.offsetWidth; front.classList.remove("snap", "below");
-    }, 320);
+    }, 360);
   }
   function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); sayFront(); runFan(); }
   function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio) fanNext(); }, 3800); }

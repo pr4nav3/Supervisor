@@ -1142,3 +1142,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - Part 28, take three: the other cards step forward the moment the front card starts to drop, one continuous motion instead of drop-then-step. The dropping card keeps its spot and stays on top until it is out of sight. Card titles grew: the four demo text cards, the yellow voice card and the download card.
 
 - Part 28, take four: the headline sizes went back; it was the small labels (The reminder, The voice, Download) that were too small, so those grew from 0.72rem to 0.92rem on the demo cards, the yellow voice card and the download card. Fan motions to compare live in `landing-mockups/fan-motions.html`: A deal from the back (the click motion), B lift over, C slide out and slip in, D flip through edge-on, E the drop through the slot (the site now), F sink under (the pop, on purpose).
+
+- Part 28, take five: the drop through the slot stays. The slot moved 120px down, under the back card, which hangs 106px below the fan box and was getting its corner cut; the drop is 580px over 360ms so the card still clears it.
