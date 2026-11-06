@@ -8721,16 +8721,10 @@ function paintPlayingClip(root: ParentNode = document): void {
     if (!card) {
       return;
     }
+    // The words come and go with the voice, in the same paint as the button.
+    card.classList.toggle("is-speaking", on);
     if (on) {
-      card.classList.add("is-speaking");
       card.scrollIntoView({ block: "nearest", inline: "nearest" });
-    } else if (card.classList.contains("is-speaking")) {
-      // The words stay a moment after the voice stops, long enough to finish reading them.
-      window.setTimeout(() => {
-        if (playingClipPath !== button.dataset.clipPath) {
-          card.classList.remove("is-speaking");
-        }
-      }, 900);
     }
   });
 }

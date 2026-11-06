@@ -1349,7 +1349,7 @@ button.share-card:active {
 
 .first-run-voices .voice-card {
   flex: 1 1 0;
-  min-width: 150px;
+  min-width: 128px;
 }
 
 .first-run-voices .voice-card.is-speaking {
@@ -3548,17 +3548,19 @@ button.personality-more:active {
 
 /* While the voice says hello, the card widens to carry the words beside the play button; the
    row keeps its height, so the other cards stay where they are. */
-.voice-card .voice-card-line {
+/* The box is the theme's panel in both themes, dark or cream, with the theme's ink on it, even
+   on the selected green card: it is gone again the moment the voice stops. */
+.voice-card .voice-card-line,
+.voice-card.selected .voice-card-line {
   display: none;
   min-width: 0;
-  padding: 5px 8px;
+  padding: 4px 7px;
   border: var(--border);
   border-radius: 6px;
-  /* A tint of the card's own ink, so the words read on the plain card and on the selected
-     green one in both themes. */
-  background: color-mix(in srgb, currentColor 9%, transparent);
+  background: var(--sv-panel);
+  color: var(--sv-ink);
   font-family: var(--font-sans);
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 650;
   line-height: 1.2;
   text-transform: none;
