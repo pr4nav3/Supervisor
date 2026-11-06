@@ -146,18 +146,12 @@
   function currentFace() { return state === "done" ? "done" : "caught"; }
   addEventListener("resize", function () { placeCorner(); if (state !== "session") face(currentFace()); });
   corner.addEventListener("transitionend", function (e) { if (e.propertyName === "width" && corner.classList.contains("centered")) placeCorner(); });
-  /* mockup switch: ?rail=numbers shows the numbered steps instead of the filling bars */
-  if (new URLSearchParams(location.search).get("rail") === "numbers") document.body.classList.add("rail-numbers");
-  function setRail(next) {
-    var at = ORDER.indexOf(next);
-    document.querySelectorAll(".rail button").forEach(function (b, i) { b.classList.toggle("full", i <= at); b.classList.toggle("now", i === at); });
-  }
   function apply(next, opts) {
     opts = opts || {};
     clearTimeout(pending); pending = null;
     state = next;
     var tab = opts.tab || (next === "caught" ? "yt" : "docs");
-    showTab(tab); setRail(next);
+    showTab(tab);
     $("cam").classList.toggle("on", next === "phone");
     /* the screen steps back a little whenever the card is speaking to you */
     $("screen").classList.toggle("dim", next !== "session");
@@ -218,13 +212,6 @@
     arrivals();
   }
   addEventListener("scroll", onScroll, { passive: true });
-  document.querySelectorAll(".rail button").forEach(function (b) {
-    b.addEventListener("click", function () {
-      var i = +b.dataset.go, len = scene.offsetHeight - innerHeight;
-      scrollTo({ top: scene.offsetTop + (i + 0.5) / ORDER.length * len, behavior: reduce ? "auto" : "smooth" });
-    });
-  });
-  setRail("session");
 
   /* ---- 3 · the voice: the recording fills, the voice is built, the four ways to talk arrive; then again ---- */
   var recbox = $("recbox"), tape = $("tape"), recT = null, recBars = 40;
@@ -273,7 +260,7 @@
   function fitFan() {
     if (!fanBox || innerWidth <= 920) { if (fanBox) fanBox.style.transform = ""; return; }
     fanBox.style.transform = "";
-    var edge = document.querySelector(".first").getBoundingClientRect().right - 8, right = 0;
+    var edge = innerWidth - 12, right = 0;
     fcards.forEach(function (c) { right = Math.max(right, c.getBoundingClientRect().right); });
     if (right > edge) fanBox.style.transform = "translateX(" + Math.round(edge - right) + "px)";
   }
