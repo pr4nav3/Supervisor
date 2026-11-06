@@ -81,8 +81,9 @@
         start_session: a => { q.set("live", "1"); q.delete("drift"); live.goal = a.input.goal || "Mock session"; live.strictness = a.input.strictness || "normal"; live.nudges = 0; if (/^Practice/.test(live.goal)) setTimeout(() => { if (q.get("live") !== "1") return; q.set("drift", "1"); live.nudges = 1; fire("session-nudge"); }, 6000); return handlers.get_session_snapshot(); },
         delete_session: a => { const i = hist.findIndex(s => s.id === a.id); if (i >= 0) hist.splice(i, 1); return null; },
         get_settings: () => settings,
-        // ?mac=1: a Mac without the Accessibility grant (the Getting started step shows).
-        get_capture_access: () => ({platform: q.get("mac") === "1" ? "macos" : "windows", permissions: {screen_recording: "granted", accessibility: q.get("mac") === "1" ? "missing" : "not_required"}}),
+        // ?mac=1: a Mac without the Accessibility grant (the Getting started step shows);
+        // ?lost=1 as well: macOS stopped honouring a grant it still lists.
+        get_capture_access: () => ({platform: q.get("mac") === "1" ? "macos" : "windows", permissions: {screen_recording: "granted", accessibility: q.get("mac") === "1" ? "missing" : "not_required"}, accessibility_lost: q.get("lost") === "1"}),
         open_accessibility_settings: () => null,
         get_history: () => hist,
         get_rules: () => rules.map(r => ({...r})),

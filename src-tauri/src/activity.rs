@@ -151,10 +151,15 @@ fn capture_foreground(
                 return Ok(sample);
             }
             // Without Screen Recording the window list gives no titles; Accessibility does.
-            // Before classifying: a Finder folder is told from the desktop by its title.
-            if sample.window_title.is_none() {
-                sample.window_title = browser_macos::focused_window_title(sample.process_id)
-                    .and_then(|title| clean_title(&sample.app_name, &title));
+            // Before classifying: a Finder folder is told from the desktop by its title. A
+            // browser's title always comes from its focused window: the window list puts a
+            // browser's small windows first (a picture-in-picture video, a bubble, a menu),
+            // whose titles are blank or not the page's.
+            let browser = crate::website::is_browser(&sample.app_name.to_lowercase());
+            if sample.window_title.is_none() || browser {
+                if let Some(title) = browser_macos::focused_window_title(sample.process_id) {
+                    sample.window_title = clean_title(&sample.app_name, &title);
+                }
             }
             let core_services = crate::macos::core_services_dir()
                 .ok_or("macOS did not report its CoreServices folder")?;
@@ -169,7 +174,7 @@ fn capture_foreground(
                 ForegroundDisposition::ShellSurface => sample.shell_surface = true,
                 ForegroundDisposition::Sample => {}
             }
-            if !sample.shell_surface && crate::website::is_browser(&sample.app_name.to_lowercase()) {
+            if !sample.shell_surface && browser {
                 sample.browser = Some(browser_macos::read_browser(sample.process_id));
             }
         }

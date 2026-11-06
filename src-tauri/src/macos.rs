@@ -84,8 +84,56 @@ pub fn screen_locked() -> bool {
         || display_asleep()
 }
 
+/// Every display is asleep. One asleep among several (a laptop lid closed while an external
+/// screen is in use) is not nobody at the Mac.
 fn display_asleep() -> bool {
-    objc2_core_graphics::CGDisplayIsAsleep(objc2_core_graphics::CGMainDisplayID())
+    use objc2_core_graphics::{CGDisplayIsAsleep, CGError, CGGetActiveDisplayList, CGMainDisplayID};
+
+    let mut displays = [0u32; 16];
+    let mut count = 0u32;
+    // SAFETY: the pointers are to locals of the sizes given.
+    let status = unsafe { CGGetActiveDisplayList(16, displays.as_mut_ptr(), &mut count) };
+    if status != CGError::Success || count == 0 {
+        return CGDisplayIsAsleep(CGMainDisplayID());
+    }
+    displays[..count.min(16) as usize].iter().all(|&display| CGDisplayIsAsleep(display))
+}
+
+/// A display's usable area (no menu bar, no Dock): in points, origin at the top left of the
+/// main display, as window positions are given.
+pub struct ScreenArea {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The usable area of the display the pointer is on: where the user is looking, which is where
+/// a card belongs. Points throughout, so two displays at different scales never mix. Main
+/// thread only (AppKit's screen list); `None` elsewhere.
+pub fn work_area_under_pointer() -> Option<ScreenArea> {
+    use objc2_app_kit::{NSEvent, NSScreen};
+
+    let mtm = objc2::MainThreadMarker::new()?;
+    let point = NSEvent::mouseLocation();
+    let screens = NSScreen::screens(mtm);
+    // The first screen is the one with the menu bar; its frame starts at the origin.
+    let main_height = screens.firstObject()?.frame().size.height;
+    let under_pointer = screens.iter().position(|screen| {
+        let frame = screen.frame();
+        point.x >= frame.origin.x
+            && point.x < frame.origin.x + frame.size.width
+            && point.y >= frame.origin.y
+            && point.y < frame.origin.y + frame.size.height
+    });
+    let screen = screens.objectAtIndex(under_pointer.unwrap_or(0));
+    let visible = screen.visibleFrame();
+    Some(ScreenArea {
+        x: visible.origin.x,
+        y: main_height - (visible.origin.y + visible.size.height),
+        width: visible.size.width,
+        height: visible.size.height,
+    })
 }
 
 /// `/System/Library/CoreServices` as macOS reports it: home of the Dock, Spotlight,

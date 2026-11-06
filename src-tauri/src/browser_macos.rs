@@ -133,10 +133,13 @@ impl Reader {
         if self.failed.len() > 64 {
             self.failed.retain(|_, at| at.elapsed() < RETRY_AFTER);
         }
+        // A remembered path that now lands on a side panel or DevTools (a web area too, with
+        // a chrome:// or devtools:// address) is stale: the page has moved; search again.
         let web_area = self
             .paths
             .get(&pid)
             .and_then(|path| walk(&window, path))
+            .filter(|web_area| is_page_address(string_attr(web_area, "AXURL").as_deref()))
             .or_else(|| {
                 // Stale after a toolbar change, or never found: search this window again.
                 let (web_area, path) = find_web_area(&window)?;
@@ -149,6 +152,9 @@ impl Reader {
             let building = self.enabled.get(&pid).is_some_and(|at| at.elapsed() < TREE_BUILD_GRACE);
             if !building {
                 self.failed.insert(window_key, Instant::now());
+                // Chromium drops its tree again after a long stretch with nobody asking; one
+                // cheap write asks again before the next search.
+                enable_chromium_accessibility(&app);
             }
             return BrowserRead::default();
         };
@@ -232,8 +238,7 @@ fn find_web_area(window: &CFType) -> Option<(CFRetained<CFType>, Vec<usize>)> {
         }
         let role = string_attr(&element, "AXRole");
         if role.as_deref() == Some("AXWebArea") {
-            let address = string_attr(&element, "AXURL").unwrap_or_default();
-            if address.starts_with("http://") || address.starts_with("https://") {
+            if is_page_address(string_attr(&element, "AXURL").as_deref()) {
                 return Some((element, path));
             }
             if fallback.is_none() {
@@ -251,6 +256,11 @@ fn find_web_area(window: &CFType) -> Option<(CFRetained<CFType>, Vec<usize>)> {
         }
     }
     fallback
+}
+
+/// A page on the web, as against a browser's own panels (chrome://, devtools://, brave://).
+fn is_page_address(address: Option<&str>) -> bool {
+    address.is_some_and(|address| address.starts_with("http://") || address.starts_with("https://"))
 }
 
 /// Follow a remembered path; `None` once anything along it moved.

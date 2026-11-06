@@ -19,7 +19,8 @@
         "minHeight": 760,
         "resizable": true,
         "acceptFirstMouse": true,
-        "dragDropEnabled": false
+        "dragDropEnabled": false,
+        "backgroundThrottling": "disabled"
       }
     ],
     "security": {

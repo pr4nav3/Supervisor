@@ -2551,11 +2551,14 @@ button.recap-app-row:active {
   padding: 0;
   border: 2px solid var(--sv-border);
   border-radius: 5px;
+  /* --range-p is 0 to 1. The thumb's centre runs from 12px to 100% - 12px (its own width),
+     so the yellow fill ends under it and the labels below sit under its stops. */
+  --thumb: calc(12px + var(--range-p, 0) * (100% - 24px));
   background:
     linear-gradient(
       90deg,
-      var(--sv-yellow) 0 var(--range-progress),
-      var(--sv-panel-alt) var(--range-progress) 100%
+      var(--sv-yellow) 0 var(--thumb),
+      var(--sv-panel-alt) var(--thumb) 100%
     );
 }
 
@@ -2571,8 +2574,9 @@ button.recap-app-row:active {
 }
 
 #preflight-duration::-moz-range-thumb {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
   border: 2px solid var(--sv-border);
   border-radius: 6px;
   background: var(--sv-green);
@@ -2591,15 +2595,8 @@ button.recap-app-row:active {
 
 .duration-ticks span {
   position: absolute;
+  left: calc(12px + var(--p) * (100% - 24px));
   transform: translateX(-50%);
-}
-
-.duration-ticks span:first-child {
-  transform: none;
-}
-
-.duration-ticks span:last-child {
-  transform: translateX(-100%);
 }
 
 .preflight-disclosure {
@@ -7087,12 +7084,22 @@ dt,
   justify-content: flex-start;
 }
 
-/* History storage trouble: the sentence and its Dismiss on one row. */
-.notice-storage {
+/* History storage trouble, or a Mac without Accessibility: the sentence and its button on one
+   row. In the running session's distractions card it sits between the chips and Edit. */
+.notice-storage,
+.notice-access {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.notice-access {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  line-height: 1.4;
 }
 
 .recording-prompt {

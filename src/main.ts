@@ -801,7 +801,8 @@ let memoryInfoOpen = false;
 let modelDeleteOpen = false;
 let voiceBackend: VoiceBackendStatus | null = null;
 /** What the OS lets Supervisor see; null until the backend answers. */
-let captureAccess: { platform: string; permissions: CapturePermissions } | null = null;
+type CaptureAccess = { platform: string; permissions: CapturePermissions; accessibility_lost: boolean };
+let captureAccess: CaptureAccess | null = null;
 let voiceDownload: VoiceDownloadSnapshot | null = null;
 let voiceBusy: VoiceBusy = null;
 let voiceDeleteTargetId: string | null = null;
@@ -947,7 +948,8 @@ async function init(): Promise<void> {
     // The backend sends this once per nudge, the moment it is due (a webview timer would be
     // throttled while the window is minimized).
     await listen("session-nudge", async () => {
-      await refreshSnapshot();
+      // Past the poll's in-flight guard: the line must come from the snapshot with this nudge.
+      await refreshSnapshotNow();
       void playNudge(snapshot?.current ?? null);
       paintFirstRunLive(snapshot?.current ?? null);
     });
@@ -1619,6 +1621,7 @@ function renderSession(current: CurrentSession | null): string {
         <aside class="panel session-rules-card">
           <p class="eyebrow">Distractions</p>
           ${onBreak ? `<p class="session-break-note">Don't count during a break.</p>` : renderSessionDistractions(current.exceptions)}
+          ${renderAccessNotice(true)}
           <button type="button" data-action="open-session-rules">Edit distractions</button>
         </aside>
         </div>
@@ -2226,6 +2229,11 @@ function updateDistractionLatch(current: CurrentSession | null): void {
     return;
   }
   if (focus.interrupt) {
+    // A dismissal is for one distraction: another one, or this one again after a visit
+    // elsewhere, gets its card.
+    if (distractionDismissedFor && distractionDismissedFor !== key) {
+      distractionDismissedFor = "";
+    }
     if (distractionDismissedFor !== key) {
       if (distractionLatchKey !== key) {
         distractionLatchedAt = Date.now();
@@ -2347,7 +2355,7 @@ const PRACTICE_KEY = "practice.id";
 
 async function refreshCaptureAccess(): Promise<void> {
   try {
-    const access = await invoke<{ platform: string; permissions: CapturePermissions }>("get_capture_access");
+    const access = await invoke<CaptureAccess>("get_capture_access");
     const changed = JSON.stringify(access) !== JSON.stringify(captureAccess);
     captureAccess = access;
     if (changed) {
@@ -2361,6 +2369,31 @@ async function refreshCaptureAccess(): Promise<void> {
 /** macOS reads browser addresses through Accessibility; without it every site is Other websites. */
 function accessibilityMissing(): boolean {
   return captureAccess?.platform === "macos" && captureAccess.permissions.accessibility === "missing";
+}
+
+/** How to get Accessibility back. A grant macOS stopped honouring after an update still shows
+ *  as allowed, and switching it off and on does nothing: the entry has to be made again. */
+function accessibilityHowTo(): string {
+  return captureAccess?.accessibility_lost
+    ? "macOS stopped honouring the permission when Supervisor was updated, even though the list still shows it on. Remove Supervisor from the list with the minus button, then add it again with plus."
+    : "Turn Supervisor on in the Accessibility list.";
+}
+
+/** The start screen and the running session on a Mac without Accessibility: websites can't be
+ *  caught, so a list of websites would catch nothing and the user has to know why. */
+function renderAccessNotice(short = false): string {
+  if (!accessibilityMissing()) {
+    return "";
+  }
+  const why = short
+    ? "Websites aren't being caught: macOS hasn't allowed Accessibility."
+    : "Supervisor can't tell one website from another until macOS allows Accessibility, so only apps on the list are caught.";
+  return `
+    <section class="notice notice-access">
+      <span>${why} ${escapeHtml(accessibilityHowTo())}</span>
+      <button class="small-button" type="button" data-action="onboard-accessibility">Open System Settings</button>
+    </section>
+  `;
 }
 
 function firstRunSteps(): FirstRunStep[] {
@@ -2488,7 +2521,7 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
           ${missing ? `<button type="button" data-action="onboard-accessibility">Open System Settings</button>` : `<span class="first-run-ok">Allowed</span>`}
         </div>
       </section>
-      <p class="first-run-where">${missing ? "Turn Supervisor on in the list, then come back here. Without it, Supervisor can't tell one website from another." : "macOS remembers this. You won't be asked again."}</p>
+      <p class="first-run-where">${missing ? `${escapeHtml(accessibilityHowTo())} Then come back here. Without it, Supervisor can't tell one website from another.` : "macOS remembers this. You won't be asked again."}</p>
       <div class="first-run-actions">${back}<button class="primary" type="button" data-action="first-run-next">Next</button></div>
     `;
   }
@@ -2741,7 +2774,7 @@ function renderStartAction(): string {
 
 function renderPreflightModal(): string {
   const ruleCount = permanentRules.length;
-  const progress = ((draft.duration_minutes - 15) / 75) * 100;
+  const progress = (draft.duration_minutes - 15) / 75;
   return `
     <div class="modal-backdrop" role="presentation">
       <section class="modal-panel preflight-panel" role="dialog" aria-modal="true" aria-labelledby="preflight-title">
@@ -2770,14 +2803,13 @@ function renderPreflightModal(): string {
               <span>How long?</span>
               <output id="preflight-duration-output" for="preflight-duration">${draft.duration_minutes} min</output>
             </div>
-            <input id="preflight-duration" type="range" min="15" max="90" step="5" value="${draft.duration_minutes}" style="--range-progress: ${progress}%" />
+            <input id="preflight-duration" type="range" min="15" max="90" step="5" value="${draft.duration_minutes}" style="--range-p: ${progress}" />
             <div class="duration-ticks" aria-hidden="true">
-              <span style="left: 0%">15</span>
-              <span style="left: 20%">30</span>
-              <span style="left: 60%">60</span>
-              <span style="left: 100%">90</span>
+              ${[15, 30, 60, 90].map((minutes) => `<span style="--p: ${(minutes - 15) / 75}">${minutes}</span>`).join("")}
             </div>
           </section>`}
+
+          ${renderAccessNotice()}
 
           <details class="preflight-disclosure" data-preflight-section="blocks" ${preflightBlocksOpen ? "open" : ""}>
             <summary>
@@ -5901,7 +5933,7 @@ function bindPreflight(root: ParentNode): void {
   root.querySelector<HTMLInputElement>("#preflight-duration")?.addEventListener("input", (event) => {
     const slider = event.target as HTMLInputElement;
     draft.duration_minutes = Number(slider.value || 25);
-    slider.style.setProperty("--range-progress", `${((draft.duration_minutes - 15) / 75) * 100}%`);
+    slider.style.setProperty("--range-p", String((draft.duration_minutes - 15) / 75));
     const output = root.querySelector("#preflight-duration-output");
     if (output) {
       output.textContent = `${draft.duration_minutes} min`;
@@ -6120,10 +6152,9 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "dismiss-distraction") {
+    // The card's own distraction, which may no longer be the one in front.
     const live = snapshot?.current;
-    if (live) {
-      distractionDismissedFor = distractionIdentity(live);
-    }
+    distractionDismissedFor = distractionLatchKey || (live ? distractionIdentity(live) : "");
     distractionLatchKey = "";
     distractionLatchLabel = "";
     overlayMoreOpen = false;
@@ -6133,9 +6164,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "allow-session") {
     const live = snapshot?.current;
-    if (live) {
-      distractionDismissedFor = distractionIdentity(live);
-    }
+    distractionDismissedFor = distractionLatchKey || (live ? distractionIdentity(live) : "");
     distractionLatchKey = "";
     distractionLatchLabel = "";
     overlayMoreOpen = false;

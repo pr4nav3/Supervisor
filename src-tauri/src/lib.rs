@@ -271,15 +271,43 @@ fn get_settings(state: State<'_, AppState>) -> Result<SessionSettings, String> {
 struct CaptureAccess {
     platform: &'static str,
     permissions: activity::CapturePermissions,
+    /// macOS granted Accessibility to an earlier build and no longer honours it: System
+    /// Settings still lists Supervisor as allowed, but every read fails. Happens when a build
+    /// is signed differently from the one that was allowed. Only removing Supervisor from the
+    /// list and adding it again fixes it, so the user has to be told exactly that.
+    accessibility_lost: bool,
 }
 
 /// What the OS lets Supervisor see, for the Getting started card. On macOS the first call
 /// shows the system's Accessibility prompt.
 #[tauri::command]
-fn get_capture_access() -> CaptureAccess {
+fn get_capture_access(app: AppHandle) -> CaptureAccess {
+    let permissions = activity::capture_permissions();
+    let accessibility_lost = accessibility_lost(&app, &permissions);
     CaptureAccess {
         platform: std::env::consts::OS,
-        permissions: activity::capture_permissions(),
+        permissions,
+        accessibility_lost,
+    }
+}
+
+/// A marker file remembers that Accessibility was granted once; granted no longer means the
+/// grant went stale (see `CaptureAccess::accessibility_lost`).
+fn accessibility_lost(app: &AppHandle, permissions: &activity::CapturePermissions) -> bool {
+    let Ok(dir) = app.path().app_data_dir() else {
+        return false;
+    };
+    let marker = dir.join("accessibility-granted");
+    match permissions.accessibility {
+        activity::PermissionState::Granted => {
+            if !marker.exists() {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(&marker, b"");
+            }
+            false
+        }
+        activity::PermissionState::Missing => marker.exists(),
+        activity::PermissionState::NotRequired => false,
     }
 }
 
@@ -899,7 +927,11 @@ fn setup_status_window(app: &mut tauri::App) -> tauri::Result<()> {
     .focused(false)
     .visible(false)
     // A distraction in a full-screen app or on another desktop must show its card there.
-    .visible_on_all_workspaces(true);
+    .visible_on_all_workspaces(true)
+    // This page is what brings a card up, and it is hidden whenever the session timer is off.
+    // macOS 14 suspends a hidden webview after about five minutes; a suspended page hears no
+    // event and shows no card.
+    .background_throttling(tauri::utils::config::BackgroundThrottlingPolicy::Disabled);
     // Never the active window (WS_EX_NOACTIVATE), so showing it for a card leaves the keyboard
     // in the browser; its buttons still take clicks. tao keeps this through its own style
     // rewrites, which a style set by hand would not survive.
@@ -1153,8 +1185,23 @@ fn automation_snapshot(label: String, path: String, height: Option<f64>, app: Ap
         .map_err(|error| error.to_string())
 }
 
+/// A hidden app (Cmd-H, or another app's Hide Others) shows none of its windows: `show` and
+/// `set_focus` do nothing until it is unhidden. Without activating it, so nobody loses the
+/// keyboard to a card. Nothing to do on other systems.
+fn unhide_app(app: &tauri::AppHandle) {
+    #[cfg(target_os = "macos")]
+    let _ = app.run_on_main_thread(|| {
+        if let Some(mtm) = objc2::MainThreadMarker::new() {
+            objc2_app_kit::NSApplication::sharedApplication(mtm).unhideWithoutActivation();
+        }
+    });
+    #[cfg(not(target_os = "macos"))]
+    let _ = app;
+}
+
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        unhide_app(app);
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -1169,6 +1216,7 @@ fn show_status_window_internal(app: &AppHandle) -> Result<(), String> {
             .lock()
             .map(|sessions| sessions.status_window_on_top())
             .unwrap_or(true);
+        unhide_app(app);
         let _ = window.unminimize();
         let _ = window.set_always_on_bottom(false);
         window
@@ -1223,6 +1271,7 @@ fn session_ended(app: &AppHandle) {
 /// without any key press; the user's own window keeps the keyboard, as Windows intends.
 fn raise_main_window(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        unhide_app(app);
         let _ = window.unminimize();
         let _ = window.show();
         #[cfg(windows)]
@@ -1278,12 +1327,12 @@ fn set_status_window_size(
         .map(|state| state.sessions.lock().map(|sessions| sessions.status_window_enabled()).unwrap_or(true))
         .unwrap_or(true);
     if center {
-        // Show desktop (Win+D) can still minimize it; a card must come back from that.
+        // Show desktop (Win+D) can still minimize it, and on a Mac Hide (Cmd-H) or another
+        // app's Hide Others can hide it; a card must come back from all of those.
+        unhide_app(&app);
         let _ = window.unminimize();
         let _ = window.set_always_on_top(true);
-        if !timer_shown {
-            let _ = window.show();
-        }
+        let _ = window.show();
     } else if !timer_shown {
         let _ = window.hide();
     } else if let Some(state) = app.try_state::<AppState>() {
@@ -1339,9 +1388,36 @@ fn place_status_window(
     let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) else {
         return Ok(());
     };
+    // On a Mac the display the pointer is on, in points: the user is looking there, and two
+    // displays at different scales (a Retina laptop beside an external screen) would otherwise
+    // mix pixel sizes, landing the card on the wrong screen or off it.
+    #[cfg(target_os = "macos")]
+    if let Some(area) = crate::macos::work_area_under_pointer() {
+        let (width, height) = logical.unwrap_or_else(|| {
+            let scale = window.scale_factor().unwrap_or(1.0);
+            window
+                .outer_size()
+                .map(|size| {
+                    let size: tauri::LogicalSize<f64> = size.to_logical(scale);
+                    (size.width, size.height)
+                })
+                .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT))
+        });
+        let (x, y) = if center {
+            (area.x + (area.width - width) / 2.0, area.y + (area.height - height) / 2.0)
+        } else {
+            (area.x + area.width - width, area.y)
+        };
+        return window
+            .set_position(tauri::LogicalPosition::new(x, y))
+            .map_err(|error| error.to_string());
+    }
+    // The display the pointer is on; failing that, the main window's, then the primary.
     let monitor = app
-        .get_webview_window(MAIN_WINDOW_LABEL)
-        .and_then(|main| main.current_monitor().ok().flatten())
+        .cursor_position()
+        .ok()
+        .and_then(|at| app.monitor_from_point(at.x, at.y).ok().flatten())
+        .or_else(|| app.get_webview_window(MAIN_WINDOW_LABEL).and_then(|main| main.current_monitor().ok().flatten()))
         .or_else(|| app.primary_monitor().ok().flatten());
     let Some(monitor) = monitor else {
         return Ok(());
