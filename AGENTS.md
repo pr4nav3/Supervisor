@@ -13,5 +13,4 @@ Supervisor-specific defaults:
 - Leave one runnable check for non-trivial logic.
 - Words users see are plain, never internal names. Say line (not clip, phrase); reminder (not nudge); personality (not tone); Generate and Regenerate for making a line's audio; voice engine (not model pack, runtime, worker); recording (not reference); Allow once / Always allow (not exception, Not today, Never a distraction); start screen (not preflight). GPU and vision models stay as they are. Code identifiers keep their names.
 
-Baseline branch: `app-v2-simplified-rules` (`main` is an ancestor; fast-forward it when ready). Notes live in the private repo pr4nav3/Supervisor-notes, cloned at `notes/` (ignored here; in a worktree, read `C:SERSKARTHPROJECTSSUPERVISOR
-OTES`). TRACKER: `NOTES/PLANS/STATUS.MD`. AGENT STARTER BUGS: `NOTES/PLANS/KNOWN-ISSUES.MD`. MAC WORK: `NOTES/PLANS/MAC-HANDOFF.MD`. SITE NOTES: `NOTES/PLANS/LANDING-PAGE.MD`.
+Baseline branch: `app-v2-simplified-rules` (`main` is an ancestor; fast-forward it when ready). Notes live in the private repo pr4nav3/Supervisor-notes, cloned at `notes/` (ignored here; in a worktree, read `C:\Users\karth\Projects\Supervisor\notes`). Tracker: `notes/plans/STATUS.md`. Agent starter bugs: `notes/plans/known-issues.md`. Mac work: `notes/plans/mac-handoff.md`. Site notes: `notes/plans/landing-page.md`.
