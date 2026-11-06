@@ -35,8 +35,10 @@ def main() -> int:
     parser.add_argument("--work", type=pathlib.Path, required=True)
     parser.add_argument("--seeds", type=int, nargs="+", default=[11, 22, 23])
     parser.add_argument("--device", default="cpu")
+    parser.add_argument("--voices", nargs="+", default=list(INTROS))
     args = parser.parse_args()
-    for voice, text in INTROS.items():
+    for voice in args.voices:
+        text = INTROS[voice]
         lines = args.work / f"{voice}.json"
         args.work.mkdir(parents=True, exist_ok=True)
         lines.write_text(json.dumps({"phrases": [{"id": "intro", "tone": "gentle", "text": text}]}), encoding="utf-8")
