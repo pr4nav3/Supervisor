@@ -146,9 +146,11 @@
   function currentFace() { return state === "done" ? "done" : "caught"; }
   addEventListener("resize", function () { placeCorner(); if (state !== "session") face(currentFace()); });
   corner.addEventListener("transitionend", function (e) { if (e.propertyName === "width" && corner.classList.contains("centered")) placeCorner(); });
+  /* mockup switch: ?rail=numbers shows the numbered steps instead of the filling bars */
+  if (new URLSearchParams(location.search).get("rail") === "numbers") document.body.classList.add("rail-numbers");
   function setRail(next) {
     var at = ORDER.indexOf(next);
-    document.querySelectorAll(".rail button").forEach(function (b, i) { b.classList.toggle("full", i <= at); });
+    document.querySelectorAll(".rail button").forEach(function (b, i) { b.classList.toggle("full", i <= at); b.classList.toggle("now", i === at); });
   }
   function apply(next, opts) {
     opts = opts || {};

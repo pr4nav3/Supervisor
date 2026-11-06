@@ -803,6 +803,16 @@ button.orb:active .orb-core {
   .rail button { position: relative; height: 14px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); cursor: pointer; padding: 0; overflow: hidden; box-shadow: 2px 2px 0 var(--sv-shadow-color); }
   .rail button::after { content: ""; position: absolute; inset: 0; background: var(--sv-green); transform-origin: left; transform: scaleX(0); transition: transform 380ms var(--ease-out); }
   .rail button.full::after { transform: none; }
+  .rail button span { display: none; }
+  /* the other rail: four numbered squares; the step you are on is green, the ones behind you are ink, the rest wait */
+  .rail-numbers .rail { display: flex; gap: 8px; }
+  .rail-numbers .rail button { width: 36px; height: 36px; overflow: visible; font: 500 0.8rem/1 var(--font-mono); color: var(--sv-muted); transition: background 220ms ease, color 220ms ease, transform 120ms ease-out, box-shadow 120ms ease-out; }
+  .rail-numbers .rail button::after { display: none; }
+  .rail-numbers .rail button span { display: block; }
+  .rail-numbers .rail button.full { background: var(--sv-panel); color: var(--sv-ink); }
+  .rail-numbers .rail button.now { background: var(--sv-green); color: #141410; }
+  @media (hover: hover) { .rail-numbers .rail button:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
+  .rail-numbers .rail button:active { transform: translate(2px, 2px); box-shadow: none; }
 
   /* ---- 3 · the voice: on the left a recording becomes a voice; on the right the two voices that come with the app ---- */
   .voice-sheet .pane { padding: 24px; }
