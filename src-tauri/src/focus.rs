@@ -23,6 +23,17 @@ pub struct FocusEngine {
     muted: bool,
     /// From the webcam: nobody has been in view, without input, long enough to be away.
     camera_away: bool,
+    /// The place just left, with its clock, so a quick look elsewhere (a second on the work
+    /// window, a Finder click) is not a fresh arrival with a fresh grace and first reminder.
+    left: Option<LeftPlace>,
+}
+
+#[derive(Debug)]
+struct LeftPlace {
+    place: Activity,
+    window_started_at: Duration,
+    nudged_here: bool,
+    left_at: Duration,
 }
 
 impl FocusEngine {
@@ -38,6 +49,7 @@ impl FocusEngine {
             nudged_here: false,
             muted: false,
             camera_away: false,
+            left: None,
         }
     }
 
@@ -53,10 +65,38 @@ impl FocusEngine {
             .as_ref()
             .is_none_or(|place| place.kind != activity.kind || place.key != activity.key)
         {
+            // Leaving a place keeps its clock for a while; coming back inside the cooldown
+            // carries on where it left off, the time away not counted, like a hold. Otherwise
+            // (long enough away, or a different place) this is a fresh arrival.
+            let just_left = self.place.take().map(|place| LeftPlace {
+                place,
+                window_started_at: self.window_started_at + self.held_time(now),
+                nudged_here: self.nudged_here,
+                left_at: now,
+            });
+            let back = match self.left.take() {
+                Some(left)
+                    if left.place.kind == activity.kind
+                        && left.place.key == activity.key
+                        && elapsed_seconds(now, left.left_at) <= self.config.nudge_cooldown_seconds =>
+                {
+                    Some(left)
+                }
+                _ => None,
+            };
+            self.left = just_left;
             self.place = Some(activity.clone());
-            self.window_started_at = now;
             self.held_since = None;
-            self.nudged_here = false;
+            match back {
+                Some(left) => {
+                    self.window_started_at = left.window_started_at + now.saturating_sub(left.left_at);
+                    self.nudged_here = left.nudged_here;
+                }
+                None => {
+                    self.window_started_at = now;
+                    self.nudged_here = false;
+                }
+            }
         }
 
         if self.camera_away {
@@ -103,7 +143,13 @@ impl FocusEngine {
         change(self);
         if !was_distracting && self.place_is_distracting() {
             self.place = None;
+            self.left = None;
         }
+    }
+
+    /// How long the current place's clock has been held, if it is.
+    fn held_time(&self, now: Duration) -> Duration {
+        self.held_since.map_or(Duration::ZERO, |since| now.saturating_sub(since))
     }
 
     fn place_is_distracting(&self) -> bool {
@@ -564,6 +610,43 @@ mod tests {
         assert!(!idle.should_nudge);
         assert_eq!(returned.state, FocusState::Suspicious);
         assert!(!returned.should_nudge);
+    }
+
+    #[test]
+    fn a_quick_look_elsewhere_does_not_restart_a_distraction() {
+        let mut engine = test_engine(vec![AppRule::website("youtube.com")]);
+        let youtube = Activity::website("chrome", "youtube.com");
+        let docs = Activity::website("chrome", "docs.google.com");
+        // 25 s on YouTube, 1 s on the work page, repeated: the clock must carry on, so the
+        // first reminder still comes (here: nudge after 10 s of the place's own time).
+        observe(&mut engine, &youtube, 0.0, 0);
+        assert_eq!(observe(&mut engine, &youtube, 0.0, 8).state, FocusState::Distracted);
+        observe(&mut engine, &docs, 0.0, 9);
+        let back = observe(&mut engine, &youtube, 0.0, 10);
+        // The second away is not counted; the grace is not restarted.
+        assert_eq!(back.state, FocusState::Distracted);
+        assert_eq!(back.seconds_on_current_window, 9);
+        assert!(observe(&mut engine, &youtube, 0.0, 11).should_nudge);
+        // Away longer than the cooldown (30 s here): a fresh arrival with a fresh grace.
+        observe(&mut engine, &docs, 0.0, 12);
+        let fresh = observe(&mut engine, &youtube, 0.0, 50);
+        assert_eq!(fresh.state, FocusState::Suspicious);
+        assert_eq!(fresh.seconds_on_current_window, 0);
+    }
+
+    #[test]
+    fn coming_back_inside_the_cooldown_keeps_the_cooldown() {
+        let mut engine = test_engine(vec![AppRule::website("youtube.com")]);
+        let youtube = Activity::website("chrome", "youtube.com");
+        let docs = Activity::website("chrome", "docs.google.com");
+        observe(&mut engine, &youtube, 0.0, 0);
+        assert!(observe(&mut engine, &youtube, 0.0, 10).should_nudge);
+        observe(&mut engine, &docs, 0.0, 15);
+        // Back at 20: not a second first reminder; the cooldown (30 s from 10) still runs.
+        for at in 20..40 {
+            assert!(!observe(&mut engine, &youtube, 0.0, at).should_nudge, "at {at}");
+        }
+        assert!(observe(&mut engine, &youtube, 0.0, 40).should_nudge);
     }
 
     #[test]

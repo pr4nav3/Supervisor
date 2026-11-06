@@ -297,6 +297,11 @@ def reply(stream: TextIO, payload: Dict[str, Any]) -> None:
 
 
 def serve(args: argparse.Namespace) -> int:
+    # The app speaks UTF-8 JSON, but a frozen Windows build defaults to the ANSI code page
+    # (cp1252), which garbles accented paths and line text. PYTHONUTF8 does not reach a
+    # PyInstaller build, so set it here.
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
     if not args.model_dir.exists():
         raise WorkerError(f"Model directory not found: {args.model_dir}")
     configure_runtime_environment(args.cache_dir or args.model_dir)

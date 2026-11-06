@@ -124,10 +124,14 @@ impl SessionManager {
         Ok(())
     }
 
-    /// Clears the one-time "started a fresh database" card. Other notices stay until fixed.
+    /// Clears the "started a fresh database" card and a failed save; a later failure shows
+    /// again. History being off stays: nothing the user dismisses fixes it.
     pub fn dismiss_storage_notice(&mut self, now: Duration) -> SessionSnapshot {
         if matches!(self.startup_notice, Some(StorageNotice::Reset { .. })) {
             self.startup_notice = None;
+        }
+        if let Some(storage) = self.storage.as_ref() {
+            storage.clear_failure();
         }
         self.snapshot(now)
     }
@@ -292,6 +296,7 @@ impl SessionManager {
             round: 1,
             break_until: None,
             break_over: false,
+            break_over_at: 0,
             focused_at_round_start: 0,
             rounds_focused_seconds: Vec::new(),
             moments: 0,
@@ -634,6 +639,8 @@ struct Pomodoro {
     /// While on a break: when it ends (same clock as `now`, in seconds).
     break_until: Option<u64>,
     break_over: bool,
+    /// When the break was seen to be over (seconds on the session clock).
+    break_over_at: u64,
     focused_at_round_start: u64,
     rounds_focused_seconds: Vec<u64>,
     moments: u64,
@@ -650,6 +657,9 @@ struct Camera {
     phone_seen_at: Duration,
     /// This phone span has had its first nudge (which plays with its card, cooldown or not).
     phone_nudged: bool,
+    /// The last phone reminder: a phone picked up again soon after gets no second
+    /// first-reminder exemption, or a detector dropout would bring one every few seconds.
+    last_phone_nudge_at: Option<Duration>,
 }
 
 #[derive(Clone, Debug)]
@@ -756,9 +766,13 @@ impl Session {
         };
         if !plan.break_over && now.as_secs() >= until {
             plan.break_over = true;
+            // From the break's end when the tick saw it in time; after a sleep through the
+            // break, from now, so the user still gets the full wait before the round starts
+            // itself.
+            plan.break_over_at = if now.as_secs().saturating_sub(until) > LOST_TIME_AFTER.as_secs() { now.as_secs() } else { until };
             plan.moments += 1;
             self.push_event(now, "Break over", "POMODORO");
-        } else if plan.break_over && now.as_secs() >= until + plan.break_seconds {
+        } else if plan.break_over && now.as_secs() >= plan.break_over_at + plan.break_seconds {
             // Waited one more break's length with nobody back: the next round starts itself,
             // as the start screen's "Done around" promised.
             self.start_next_round(now, storage);
@@ -788,7 +802,7 @@ impl Session {
         let plan = self.pomodoro.as_ref()?;
         let (phase, phase_remaining_seconds) = match plan.break_until {
             // Break over: how long until the next round starts by itself.
-            Some(until) if plan.break_over => ("break_over", (until + plan.break_seconds).saturating_sub(now.as_secs())),
+            Some(_) if plan.break_over => ("break_over", (plan.break_over_at + plan.break_seconds).saturating_sub(now.as_secs())),
             Some(until) => ("break", until.saturating_sub(now.as_secs())),
             None => (
                 "work",
@@ -812,12 +826,6 @@ impl Session {
         matches!(self.status, SessionStatus::Active | SessionStatus::Snoozed)
     }
 
-    fn fresh_engine(&self) -> FocusEngine {
-        let mut engine = FocusEngine::new(self.strictness.focus_config(), self.rules.clone());
-        engine.set_exceptions(self.exceptions.clone());
-        engine.set_muted(self.status == SessionStatus::Snoozed);
-        engine
-    }
 
     fn unmute(&mut self) {
         self.status = SessionStatus::Active;
@@ -944,6 +952,9 @@ impl Session {
         self.camera = Camera::default();
         // A mute keeps its wall-clock end through the pause; resume picks it back up if any is left.
         self.engine.set_muted(false);
+        // The place in front keeps its clock through the pause: coming back is not a new
+        // arrival with a new grace, and the reminder cooldown is not forgotten.
+        self.engine.hold(now);
         self.status = SessionStatus::Paused;
         self.push_event(now, "Session paused", "HOLD");
         self.persist_event(now, "pause", None, storage);
@@ -958,7 +969,8 @@ impl Session {
             }
             self.status = if still_muted { SessionStatus::Snoozed } else { SessionStatus::Active };
             self.last_accounted_at = now;
-            self.engine = self.fresh_engine();
+            self.engine.set_muted(still_muted);
+            self.engine.set_camera_away(false);
             self.supervisor_state = None;
             self.push_event(now, "Session resumed", "LIVE");
             self.persist_event(now, "resume", None, storage);
@@ -996,7 +1008,8 @@ impl Session {
         }
         self.rules = rules;
         self.engine.replace_rules(self.rules.clone());
-        self.latest_focus = None;
+        // The cached focus stays: the next sample's second is still credited (a cleared
+        // cache dropped one second per rule edit), and the sample replaces it at once.
         self.last_accounted_at = now;
     }
 
@@ -1250,6 +1263,7 @@ impl Session {
             metrics: self.metrics.clone(),
             evidence: self.evidence.clone(),
             focus: self.latest_focus.clone(),
+            supervisor_in_front: self.supervisor_state.is_some(),
             exceptions: self.exceptions.clone(),
             camera: self.camera_status(now),
             pomodoro: self.pomodoro_status(now),
@@ -1509,10 +1523,18 @@ impl Session {
             self.push_event(now, "Phone or watch put down", "WEBCAM");
             return;
         }
-        let due = !self.camera.phone_nudged && !self.engine.is_muted() || self.engine.nudge_ready(now);
+        // A phone is a new distraction, so its first reminder plays with its card whatever the
+        // window reminders' cooldown; but only once per cooldown, or a phone picked up again
+        // (or a detector dropout) would bring a reminder every few seconds.
+        let cooldown = self.strictness.focus_config().nudge_cooldown_seconds;
+        let first = !self.camera.phone_nudged
+            && !self.engine.is_muted()
+            && self.camera.last_phone_nudge_at.is_none_or(|at| now.saturating_sub(at).as_secs() >= cooldown);
+        let due = first || self.engine.nudge_ready(now);
         if now.saturating_sub(since).as_secs() >= self.phone_grace_seconds() && due {
             self.engine.note_nudge(now);
             self.camera.phone_nudged = true;
+            self.camera.last_phone_nudge_at = Some(now);
             self.metrics.nudges += 1;
             self.push_event(now, "Phone or watch reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("phone"), storage);
@@ -1713,6 +1735,9 @@ pub struct CurrentSession {
     pub metrics: SessionMetrics,
     pub evidence: Vec<EvidenceEvent>,
     pub focus: Option<FocusSnapshot>,
+    /// Supervisor's own window is in front: `focus` is the place the user came from, with
+    /// its clock held, and this time counts as work.
+    pub supervisor_in_front: bool,
     /// Distractions allowed for this session.
     pub exceptions: Vec<AppRule>,
     pub camera: CameraStatus,
@@ -3133,6 +3158,19 @@ mod tests {
     }
 
     #[test]
+    fn failed_save_notice_is_plain_and_dismissible() {
+        let mut manager = test_manager();
+        let storage = manager.storage.as_ref().unwrap();
+        storage.record_failure("save span", "database or disk is full".to_string());
+        storage.record_failure("save span", "database is locked".to_string());
+        let failed = |reason: &str| Some(StorageNotice::Failed { reason: reason.to_string() });
+        assert_eq!(manager.snapshot(seconds(0)).storage_notice, failed("the disk is full"));
+        assert_eq!(manager.dismiss_storage_notice(seconds(0)).storage_notice, None);
+        manager.storage.as_ref().unwrap().record_failure("save span", "database is locked".to_string());
+        assert_eq!(manager.snapshot(seconds(0)).storage_notice, failed("the file is locked by another program"));
+    }
+
+    #[test]
     fn stop_summary_includes_top_hints_and_nudges() {
         let mut manager = test_manager();
         manager.start(
@@ -3419,6 +3457,76 @@ mod tests {
 
     fn seconds(value: u64) -> Duration {
         Duration::from_secs(value)
+    }
+
+    #[test]
+    fn a_pause_keeps_the_distraction_clock_and_the_cooldown() {
+        let mut manager = test_manager();
+        manager.start(input_minutes("A", Strictness::Normal, 60), seconds(0));
+        // Normal: distracted after 8 s, first reminder at 60 s, cooldown 120 s.
+        for t in 100..=160 {
+            record(&mut manager, site("youtube.com", 0.0), seconds(t));
+        }
+        assert_eq!(manager.snapshot(seconds(160)).current.unwrap().metrics.nudges, 1);
+        manager.pause(seconds(171));
+        manager.resume(seconds(172));
+        let back = record(&mut manager, site("youtube.com", 0.0), seconds(173)).current.unwrap().focus.unwrap();
+        // Still distracted, no new grace, and the next reminder waits out the cooldown.
+        assert_eq!(back.state, FocusState::Distracted);
+        for t in 174..=278 {
+            assert!(!record(&mut manager, site("youtube.com", 0.0), seconds(t)).current.unwrap().focus.unwrap().should_nudge, "at {t}");
+        }
+        // 120 s after the reminder at 160: the cooldown is wall-clock time.
+        let next = (279..=285).find(|t| record(&mut manager, site("youtube.com", 0.0), seconds(*t)).current.unwrap().focus.unwrap().should_nudge);
+        assert_eq!(next, Some(280));
+    }
+
+    #[test]
+    fn phone_reminders_share_the_cooldown() {
+        let mut manager = webcam_manager();
+        manager.start(input_minutes("A", Strictness::Strict, 60), seconds(0));
+        let mut reminders = Vec::new();
+        let mut last = 0;
+        // Phone seen for 6 s then missed for 3 s, over and over, two frames a second.
+        for half in 0..(240 * 2) {
+            let t = Duration::from_millis(half * 500);
+            let sec = half / 2;
+            manager.record_webcam(sec % 9 < 6, true, t);
+            if half % 2 == 0 {
+                let n = record(&mut manager, sample("Code", "x", 0.0), t).current.unwrap().metrics.nudges;
+                if n != last {
+                    reminders.push(sec);
+                    last = n;
+                }
+            }
+        }
+        // Strict: first after the 5 s grace, then never inside the 90 s cooldown.
+        assert_eq!(reminders.first(), Some(&5));
+        for pair in reminders.windows(2) {
+            assert!(pair[1] - pair[0] >= 90, "reminders at {reminders:?}");
+        }
+    }
+
+    #[test]
+    fn a_break_slept_through_still_waits_before_the_next_round() {
+        let mut manager = test_manager();
+        let mut input = input_minutes("A", Strictness::Normal, 100);
+        input.pomodoro = Some(PomodoroInput { work_minutes: 25, break_minutes: 5, rounds: 4 });
+        manager.start(input, seconds(0));
+        for t in 0..=1500 {
+            record(&mut manager, sample("Code", "x", 0.0), seconds(t));
+        }
+        let on_break = manager.snapshot(seconds(1501)).current.unwrap().pomodoro.unwrap();
+        assert_eq!(on_break.phase, "break");
+        // The machine sleeps from 1600 until 9000; the first tick after waking.
+        let woke = manager.tick(seconds(9000)).current.unwrap().pomodoro.unwrap();
+        assert_eq!(woke.phase, "break_over");
+        assert_eq!(woke.phase_remaining_seconds, 300);
+        assert_eq!(manager.tick(seconds(9001)).current.unwrap().pomodoro.unwrap().phase, "break_over");
+        assert_eq!(manager.tick(seconds(9299)).current.unwrap().pomodoro.unwrap().phase, "break_over");
+        let started = manager.tick(seconds(9300)).current.unwrap().pomodoro.unwrap();
+        assert_eq!(started.phase, "work");
+        assert_eq!(started.round, 2);
     }
 
     fn metric_total(metrics: &SessionMetrics) -> u64 {

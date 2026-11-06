@@ -119,12 +119,14 @@ pub fn work_area_under_pointer() -> Option<ScreenArea> {
     let screens = NSScreen::screens(mtm);
     // The first screen is the one with the menu bar; its frame starts at the origin.
     let main_height = screens.firstObject()?.frame().size.height;
+    // mouseLocation's y runs from 1 to the screen's height, not 0 to height - 1, so the top
+    // row of a screen is y == origin.y + height (NSMouseInRect's rule for unflipped points).
     let under_pointer = screens.iter().position(|screen| {
         let frame = screen.frame();
         point.x >= frame.origin.x
             && point.x < frame.origin.x + frame.size.width
-            && point.y >= frame.origin.y
-            && point.y < frame.origin.y + frame.size.height
+            && point.y > frame.origin.y
+            && point.y <= frame.origin.y + frame.size.height
     });
     let screen = screens.objectAtIndex(under_pointer.unwrap_or(0));
     let visible = screen.visibleFrame();

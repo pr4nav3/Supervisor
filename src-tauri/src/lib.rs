@@ -181,10 +181,13 @@ fn stop_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSna
 }
 
 #[tauri::command]
-async fn flag_current_distracting(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
+async fn flag_current_distracting(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
     let mut sessions = lock_sessions(&state)?;
     let now = state.started_at.elapsed();
-    Ok(sessions.flag_current(now))
+    let snapshot = sessions.flag_current(now);
+    // The timer window changed the rules; the main window's Rules list reloads on this.
+    let _ = app.emit(RULES_CHANGED_EVENT, ());
+    Ok(snapshot)
 }
 
 #[tauri::command]
@@ -409,11 +412,14 @@ fn set_app_name(
 #[tauri::command]
 async fn update_rules(
     rules: Vec<focus::AppRule>,
+    app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<session::RulesSaved, String> {
     let mut sessions = lock_sessions(&state)?;
     let now = state.started_at.elapsed();
-    Ok(sessions.update_rules(rules, now))
+    let saved = sessions.update_rules(rules, now);
+    let _ = app.emit(RULES_CHANGED_EVENT, ());
+    Ok(saved)
 }
 
 #[tauri::command]
@@ -599,6 +605,10 @@ async fn generate_voice_clips(
     state: State<'_, AppState>,
     input: voice::GenerateVoiceClipsInput,
 ) -> Result<voice::VoiceProfileSummary, String> {
+    // A download or update renames the engine folder the generation would run from.
+    if voice::download_active(&state.voice_download) {
+        return Err("The voice engine is downloading. Wait for it to finish.".to_string());
+    }
     let worker = state.voice_worker.clone();
     tauri::async_runtime::spawn_blocking(move || voice::generate_clips(app, &worker, input))
         .await
@@ -752,7 +762,13 @@ pub fn run() {
     tauri::Builder::default()
         // Must be the first plugin: a second launch focuses this window and exits before
         // it can open the database.
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // `supervisor --quit` from the install script: the exit handler stops and saves
+            // the running session, where a killed process would have lost its last seconds.
+            if args.iter().any(|arg| arg == "--quit") {
+                app.exit(0);
+                return;
+            }
             show_main_window(app);
         }))
         .setup(|app| {
@@ -782,6 +798,13 @@ pub fn run() {
             setup_status_window(app)?;
             if let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                 size_page_exactly(&main);
+            }
+            // The Mac install script (an update) sends TERM and waits ten seconds. Nothing
+            // in Tauri or tao handles the signal, so the default would kill the process and
+            // lose the running session's last seconds; the ticker turns it into a quit.
+            #[cfg(unix)]
+            unsafe {
+                libc::signal(libc::SIGTERM, terminate_requested as libc::sighandler_t);
             }
             setup_tray(app)?;
             #[cfg(target_os = "macos")]
@@ -869,14 +892,19 @@ pub fn run() {
             // Closing the main window hides it, as on any Mac app: the session keeps running,
             // nudges keep playing (the page plays them), and the tray or Dock brings it back.
             // Destroying it would leave nothing for "Show Supervisor" to show.
+            // The session timer too: Task View and Alt-Tab offer a close button for it on
+            // Windows, and a destroyed timer window would mean no cards until a restart.
             tauri::RunEvent::WindowEvent {
                 label,
                 event: tauri::WindowEvent::CloseRequested { api, .. },
                 ..
-            } if label == MAIN_WINDOW_LABEL => {
+            } if label == MAIN_WINDOW_LABEL || label == OVERLAY_WINDOW_LABEL => {
                 api.prevent_close();
-                if let Some(window) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+                if let Some(window) = app.get_webview_window(&label) {
                     let _ = window.hide();
+                }
+                if label != MAIN_WINDOW_LABEL {
+                    return;
                 }
                 // A Settings camera preview has no reason to run with nothing showing it.
                 let state = app.state::<AppState>();
@@ -1255,6 +1283,7 @@ fn hide_status_window(app: &AppHandle) {
 /// A session ended, run out or stopped: the status window goes, and the main window plays a
 /// closing line. Sent once per session, from wherever it ended.
 const SESSION_END_EVENT: &str = "session-end";
+const RULES_CHANGED_EVENT: &str = "rules-changed";
 
 /// The main window comes to the front, so the closing line is heard with its card and report
 /// in view, not as a voice from nowhere.
@@ -1279,7 +1308,20 @@ fn raise_main_window(app: &AppHandle) {
             let _ = window.set_always_on_top(true);
             let _ = window.set_always_on_top(false);
         }
-        #[cfg(not(windows))]
+        // macOS: in front without becoming the active app, as the name says; tao's set_focus
+        // is activateIgnoringOtherApps, which takes the keyboard mid-sentence, or is refused
+        // by macOS 14 and leaves the window behind.
+        #[cfg(target_os = "macos")]
+        {
+            let window = window.clone();
+            let _ = app.run_on_main_thread(move || {
+                if let Ok(pointer) = window.ns_window() {
+                    let ns_window: &objc2_app_kit::NSWindow = unsafe { &*pointer.cast::<objc2_app_kit::NSWindow>() };
+                    ns_window.orderFrontRegardless();
+                }
+            });
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
         let _ = window.set_focus();
     }
 }
@@ -1332,6 +1374,8 @@ fn set_status_window_size(
         unhide_app(&app);
         let _ = window.unminimize();
         let _ = window.set_always_on_top(true);
+        #[cfg(windows)]
+        bring_card_forward(&window);
         let _ = window.show();
     } else if !timer_shown {
         let _ = window.hide();
@@ -1344,6 +1388,37 @@ fn set_status_window_size(
         let _ = window.set_always_on_top(pin);
     }
     place_status_window(&app, Some((width, height)), center)
+}
+
+/// Windows: the timer window belongs to the virtual desktop it was last shown on (tao's
+/// "visible on all workspaces" does nothing here), so a card would come up on the wrong
+/// desktop; it is moved to the one the window in front is on. And a topmost flag already set
+/// is not re-applied by tao, so a topmost window opened since (a picture-in-picture video)
+/// would cover the card: it is put on top again, without taking activation.
+#[cfg(windows)]
+fn bring_card_forward(window: &tauri::WebviewWindow) {
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+    use windows::Win32::UI::Shell::{IVirtualDesktopManager, VirtualDesktopManager};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
+    };
+
+    let Ok(handle) = window.hwnd() else {
+        return;
+    };
+    let hwnd = HWND(handle.0 as *mut _);
+    unsafe {
+        if let Ok(manager) = CoCreateInstance::<_, IVirtualDesktopManager>(&VirtualDesktopManager, None, CLSCTX_ALL) {
+            let here = manager.IsWindowOnCurrentVirtualDesktop(hwnd).map(|on| on.as_bool()).unwrap_or(true);
+            if !here {
+                if let Ok(desktop) = manager.GetWindowDesktopId(GetForegroundWindow()) {
+                    let _ = manager.MoveWindowToDesktop(hwnd, &desktop);
+                }
+            }
+        }
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
 }
 
 /// How much of a window's "inner" height the title bar takes. On macOS the window's content
@@ -1380,6 +1455,21 @@ fn position_status_window(app: &AppHandle) -> Result<(), String> {
     place_status_window(app, None, false)
 }
 
+/// AppKit's screen list is main-thread only. A sync command is already there; an async one
+/// (`start_session`) and the ticker are not, so the read is sent over and waited for.
+#[cfg(target_os = "macos")]
+fn mac_work_area_under_pointer(app: &AppHandle) -> Option<crate::macos::ScreenArea> {
+    if let Some(area) = crate::macos::work_area_under_pointer() {
+        return Some(area);
+    }
+    let (sender, receiver) = std::sync::mpsc::channel();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(crate::macos::work_area_under_pointer());
+    })
+    .ok()?;
+    receiver.recv_timeout(Duration::from_secs(2)).ok().flatten()
+}
+
 fn place_status_window(
     app: &AppHandle,
     logical: Option<(f64, f64)>,
@@ -1392,7 +1482,7 @@ fn place_status_window(
     // displays at different scales (a Retina laptop beside an external screen) would otherwise
     // mix pixel sizes, landing the card on the wrong screen or off it.
     #[cfg(target_os = "macos")]
-    if let Some(area) = crate::macos::work_area_under_pointer() {
+    if let Some(area) = mac_work_area_under_pointer(app) {
         let (width, height) = logical.unwrap_or_else(|| {
             let scale = window.scale_factor().unwrap_or(1.0);
             window
@@ -1423,9 +1513,8 @@ fn place_status_window(
         return Ok(());
     };
     let area = monitor.work_area();
-    let scale = window
-        .scale_factor()
-        .unwrap_or_else(|_| monitor.scale_factor());
+    // The target display's scale: the window may still be on another display.
+    let scale = monitor.scale_factor();
     let fallback_size = tauri::PhysicalSize::new(
         (OVERLAY_WIDTH * scale).round() as u32,
         (OVERLAY_HEIGHT * scale).round() as u32,
@@ -1621,6 +1710,14 @@ fn automation_result(text: String) -> Result<(), String> {
     std::fs::rename(&tmp, dir.join("result.json")).map_err(|error| error.to_string())
 }
 
+/// Set by the TERM handler; only a flag may be touched inside a signal handler.
+static TERM_REQUESTED: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(unix)]
+extern "C" fn terminate_requested(_signal: libc::c_int) {
+    TERM_REQUESTED.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
 fn start_session_ticker(app: AppHandle) {
     let mut last_loop = app.state::<AppState>().started_at.elapsed();
     let mut nudges_seen = (0, 0);
@@ -1629,11 +1726,18 @@ fn start_session_ticker(app: AppHandle) {
     let mut tray_label = String::new();
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(1));
+        if TERM_REQUESTED.load(std::sync::atomic::Ordering::SeqCst) {
+            // The exit handler stops and saves the session.
+            app.exit(0);
+            return;
+        }
 
         let (ended_after_tick, should_poll, pause_label) = {
             let state = app.state::<AppState>();
-            let now = state.started_at.elapsed();
+            // The lock first, then the clock: a command holding the lock for long (a VACUUM)
+            // must not read as the machine having slept.
             let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let now = state.started_at.elapsed();
             // This loop runs every second; a long silence means the machine slept or froze.
             if now.saturating_sub(last_loop) > session::LOST_TIME_AFTER {
                 sessions.record_lost_time(last_loop, now);
@@ -1675,8 +1779,8 @@ fn start_session_ticker(app: AppHandle) {
         }) else {
             let ended = {
                 let state = app.state::<AppState>();
-                let now = state.started_at.elapsed();
                 let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                let now = state.started_at.elapsed();
                 last_loop = now;
                 sessions.record_capture_gap(now);
                 let had_current = sessions.has_current();
@@ -1691,9 +1795,9 @@ fn start_session_ticker(app: AppHandle) {
 
         let ended = {
             let state = app.state::<AppState>();
-            let now = state.started_at.elapsed();
             let identity = state.identity.clone();
             let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let now = state.started_at.elapsed();
             let was_polling = sessions.should_poll_activity();
             let snapshot = sessions.record_sample(sample, now, &identity);
             // A slow capture (a hung Accessibility read) is not the machine sleeping.

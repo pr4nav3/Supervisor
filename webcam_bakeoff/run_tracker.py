@@ -134,8 +134,16 @@ def main() -> int:
 
     try:
         paths = verify_models(args.models)
+        # From bytes, not a path: OpenCV opens a path with the narrow (ANSI) API on Windows,
+        # which fails under a user folder with an accented letter.
         face_detector = cv2.FaceDetectorYN.create(
-            str(paths[FACE_MODEL]), "", (320, 320), args.face_score, 0.3, 5000
+            "onnx",
+            np.fromfile(str(paths[FACE_MODEL]), dtype=np.uint8),
+            np.empty(0, dtype=np.uint8),
+            (320, 320),
+            args.face_score,
+            0.3,
+            5000,
         )
         object_detector = load_detector(
             DETECTOR,

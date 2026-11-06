@@ -18,7 +18,6 @@ const CURRENT_DIR: &str = "current";
 const STAGING_DIR: &str = "staging";
 const PREVIOUS_DIR: &str = "previous";
 const INSTALL_FILE: &str = "install.json";
-const DOWNLOAD_FILE: &str = "runtime.download.zip";
 const DOWNLOAD_CANCELLED: &str = "download cancelled";
 /// No whole-request timeout: a gigabyte on a slow line takes as long as it takes. A stall is
 /// what ends an attempt, and the next one resumes from the partial file.
@@ -189,7 +188,10 @@ pub fn install_runtime(
     }
 
     fs::create_dir_all(runtime_root(root)).map_err(|error| error.to_string())?;
-    let archive_path = runtime_root(root).join(DOWNLOAD_FILE);
+    let archive_path = runtime_root(root).join(download_file(&asset.sha256));
+    // Named after the hash, so a partial of an asset since replaced at the same URL is never
+    // resumed into the new one (old bytes + new bytes fail the hash). Older partials go.
+    remove_other_partials(&runtime_root(root), &archive_path);
     // The zip, then its unpacked copy (about twice the zip) beside it until the zip is removed.
     crate::voice::ensure_free_space(root, asset.bytes.saturating_mul(3))?;
     let client = download_client()?;
@@ -213,6 +215,22 @@ pub fn install_runtime(
     )?;
 
     Ok(status(root))
+}
+
+fn download_file(sha256: &str) -> String {
+    format!("runtime-{}.download.zip", sha256.get(..16).unwrap_or(sha256))
+}
+
+fn remove_other_partials(dir: &Path, keep: &Path) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for path in entries.flatten().map(|entry| entry.path()) {
+        let partial = path.file_name().and_then(|name| name.to_str()).is_some_and(|name| name.ends_with(".download.zip"));
+        if partial && path != keep {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 fn report_installed(
@@ -325,13 +343,23 @@ pub(crate) fn fetch_file(
         return Err(DOWNLOAD_CANCELLED.to_string());
     }
     let partial = fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
-    let start = range_start(partial, expected_bytes);
-    let mut request = client.get(url);
-    if let Some(start) = start {
-        request = request.header(reqwest::header::RANGE, format!("bytes={start}-"));
+    let mut start = range_start(partial, expected_bytes);
+    let send = |start: Option<u64>| {
+        let mut request = client.get(url);
+        if let Some(start) = start {
+            request = request.header(reqwest::header::RANGE, format!("bytes={start}-"));
+        }
+        // `send` builds its timers on call, so it has to run inside the runtime.
+        tauri::async_runtime::block_on(async { request.send().await }).map_err(|error| plain_fetch_error(&error))
+    };
+    let mut response = send(start)?;
+    // The server can't serve that range (the file changed under the same name): start over
+    // now rather than fail every attempt on the same partial.
+    if start.is_some() && response.status() == reqwest::StatusCode::RANGE_NOT_SATISFIABLE {
+        start = None;
+        response = send(None)?;
     }
-    let mut response = tauri::async_runtime::block_on(async { request.send().await?.error_for_status() })
-        .map_err(|error| plain_fetch_error(&error))?;
+    let mut response = response.error_for_status().map_err(|error| plain_fetch_error(&error))?;
     let mut downloaded = kept_bytes(start, response.status());
     let mut writer = if downloaded > 0 {
         fs::OpenOptions::new().append(true).open(path)
@@ -911,6 +939,50 @@ mod tests {
         let error = fetch_file(&download_client().unwrap(), "http://127.0.0.1:9/x", &path, 10, &AtomicBool::new(false), |_| {})
             .unwrap_err();
         assert_eq!(error, SERVER_UNREACHABLE);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_refused_range_starts_the_download_over() {
+        use std::io::{BufRead, BufReader};
+        use std::net::TcpListener;
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/x", listener.local_addr().unwrap());
+        // Answers a Range request with 416 and a plain one with the whole file.
+        let server = std::thread::spawn(move || {
+            for stream in listener.incoming().take(2) {
+                let mut stream = stream.unwrap();
+                let mut ranged = false;
+                for line in BufReader::new(&stream).lines() {
+                    let line = line.unwrap();
+                    ranged |= line.to_ascii_lowercase().starts_with("range:");
+                    if line.is_empty() {
+                        break;
+                    }
+                }
+                let reply = if ranged {
+                    "HTTP/1.1 416 Range Not Satisfiable
+Content-Length: 0
+Connection: close
+
+"
+                } else {
+                    "HTTP/1.1 200 OK
+Content-Length: 10
+Connection: close
+
+new bytes!"
+                };
+                stream.write_all(reply.as_bytes()).unwrap();
+            }
+        });
+        let root = test_dir("refused-range");
+        fs::create_dir_all(&root).unwrap();
+        let path = root.join("x.download");
+        fs::write(&path, b"old").unwrap();
+        fetch_file(&download_client().unwrap(), &url, &path, 10, &AtomicBool::new(false), |_| {}).unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new bytes!");
+        server.join().unwrap();
         let _ = fs::remove_dir_all(root);
     }
 

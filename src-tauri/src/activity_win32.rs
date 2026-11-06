@@ -32,7 +32,7 @@ use windows::Win32::System::Diagnostics::ToolHelp::{
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::System::Power::{RegisterPowerSettingNotification, POWERBROADCAST_SETTING};
 use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
-use windows::Win32::System::SystemServices::GUID_CONSOLE_DISPLAY_STATE;
+use windows::Win32::System::SystemServices::GUID_SESSION_DISPLAY_STATUS;
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -211,7 +211,9 @@ fn listen_for_display_state() {
         };
         if RegisterPowerSettingNotification(
             HANDLE(hwnd.0),
-            &GUID_CONSOLE_DISPLAY_STATE,
+            // This session's display, not the console's: over Remote Desktop the machine's own
+            // monitor going dark means nothing to the person working.
+            &GUID_SESSION_DISPLAY_STATUS,
             DEVICE_NOTIFY_WINDOW_HANDLE,
         )
         .is_err()
@@ -229,7 +231,7 @@ unsafe extern "system" fn display_state_proc(hwnd: HWND, message: u32, wparam: W
     if message == WM_POWERBROADCAST && wparam.0 == PBT_POWERSETTINGCHANGE as usize {
         // SAFETY: for this event Windows passes a POWERBROADCAST_SETTING it owns for the call.
         let setting = unsafe { &*(lparam.0 as *const POWERBROADCAST_SETTING) };
-        if setting.PowerSetting == GUID_CONSOLE_DISPLAY_STATE && setting.DataLength >= 1 {
+        if setting.PowerSetting == GUID_SESSION_DISPLAY_STATUS && setting.DataLength >= 1 {
             // 0 off, 1 on, 2 dimmed (still readable, so still on).
             DISPLAY_OFF.store(setting.Data[0] == 0, Ordering::Relaxed);
         }

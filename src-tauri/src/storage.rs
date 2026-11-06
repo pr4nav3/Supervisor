@@ -10,7 +10,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-const SCHEMA_VERSION: i32 = 14;
+const SCHEMA_VERSION: i32 = 15;
 /// Weeks of history the Trends page and the attention-span chart can draw.
 /// Weeks the History card and the home page read; Trends itself reads every week.
 const TREND_WEEK_COUNT: usize = 8;
@@ -111,6 +111,19 @@ pub fn open_or_reset(
             }),
         ),
         Err(reason) => (None, Some(StorageNotice::Off { reason })),
+    }
+}
+
+fn plain_failure(what: &str, error: &str) -> &'static str {
+    let error = error.to_ascii_lowercase();
+    if error.contains("full") {
+        "the disk is full"
+    } else if error.contains("locked") || error.contains("busy") {
+        "the file is locked by another program"
+    } else if what.starts_with("read") {
+        "a read failed"
+    } else {
+        "a write failed"
     }
 }
 
@@ -607,6 +620,8 @@ impl SessionStorage {
                 PRAGMA foreign_keys = ON;
                 PRAGMA journal_mode = WAL;
                 PRAGMA synchronous = FULL;
+                PRAGMA busy_timeout = 2000;
+                PRAGMA secure_delete = ON;
                 ",
             )
             .map_err(|error| error.to_string())?;
@@ -620,16 +635,22 @@ impl SessionStorage {
         Ok(())
     }
 
-    /// Remembers the first failed save or read so the UI can say history isn't saving.
+    /// Remembers the first failed save or read so the UI can say history isn't saving. The
+    /// UI gets a plain reason; SQLite's own text goes to the log only.
     pub fn record_failure(&self, what: &str, error: String) {
         eprintln!("supervisor storage: {what}: {error}");
         self.failure
             .borrow_mut()
-            .get_or_insert_with(|| format!("{what}: {error}"));
+            .get_or_insert_with(|| plain_failure(what, &error).to_string());
     }
 
     pub fn failure(&self) -> Option<String> {
         self.failure.borrow().clone()
+    }
+
+    /// The user dismissed the notice; a later failure shows it again.
+    pub fn clear_failure(&self) {
+        self.failure.take();
     }
 
     fn migrate(&self) -> Result<(), String> {
@@ -874,6 +895,17 @@ impl SessionStorage {
             }
             tx.execute_batch("PRAGMA user_version = 14;").map_err(|error| error.to_string())?;
             tx.commit().map_err(|error| error.to_string())?;
+        }
+        if version < 15 {
+            // Events were read per session with a full table scan: years of history held the
+            // sessions lock for seconds on Trends and Delete all history. A fresh database
+            // gets the index here too, since it runs every step.
+            self.conn.execute_batch(
+                "BEGIN;
+                 CREATE INDEX IF NOT EXISTS event_session ON event(session_id, at_offset_seconds);
+                 PRAGMA user_version = 15;
+                 COMMIT;",
+            ).map_err(|error| error.to_string())?;
         }
         Ok(())
     }
@@ -2025,7 +2057,13 @@ impl SessionStorage {
                 median_stretch_seconds: median(&stats.stretches),
                 recovery_median_seconds: stats.recovery_median(),
             });
-            start = unit.next(start);
+            let next = unit.next(start);
+            // `next` saturates at the last representable date (a session from a broken
+            // clock dated 9999); without this the loop never ends.
+            if next <= start {
+                break;
+            }
+            start = next;
         }
         Ok(periods)
     }
@@ -2121,6 +2159,11 @@ impl SessionStorage {
         // The settings page says deleting frees space, so the file has to shrink.
         self.conn
             .execute_batch("VACUUM")
+            .map_err(|error| error.to_string())?;
+        // In WAL mode VACUUM's pages land in the -wal file, which keeps the deleted text and
+        // never shrinks until checkpointed and truncated.
+        self.conn
+            .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
             .map_err(|error| error.to_string())?;
         Ok(())
     }
@@ -3842,6 +3885,31 @@ mod tests {
             .map(|span| (span.started_offset_seconds, span.seconds, span.state.as_str())).collect();
         assert_eq!(spans, vec![(0, 100, "focused"), (100, 100, "focused"), (200, 20, "distracted")]);
         assert_eq!(report.events[0].at_offset_seconds, 110);
+    }
+
+    #[test]
+    fn version_fifteen_indexes_events_by_session() {
+        let has_index = |storage: &SessionStorage| -> bool {
+            let mut stmt = storage.conn.prepare("SELECT name FROM pragma_index_list('event')").unwrap();
+            let names: Vec<String> = stmt.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
+            names.iter().any(|name| name == "event_session")
+        };
+        let storage = SessionStorage::open_in_memory().unwrap();
+        assert!(has_index(&storage));
+        storage.conn.execute_batch("DROP INDEX event_session; PRAGMA user_version = 14;").unwrap();
+        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
+        assert!(has_index(&reopened));
+    }
+
+    #[test]
+    fn trend_periods_end_at_the_last_representable_date() {
+        let storage = SessionStorage::open_in_memory().unwrap();
+        let id = storage.insert_session("Broken clock", Strictness::Normal, "9999-12-30T00:00:00Z", 60).unwrap();
+        storage.close_session(id, "9999-12-30T00:01:00Z", "stopped", 60).unwrap();
+        let today = parse_day("9999-12-30").unwrap();
+        for unit in [TrendUnit::Week, TrendUnit::Month] {
+            assert_eq!(storage.trend_periods(unit, today, None).unwrap().len(), 1);
+        }
     }
 
     #[test]

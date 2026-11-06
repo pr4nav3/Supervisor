@@ -1,6 +1,6 @@
 # Known issues
 
-Last updated: 2026-10-31
+Last updated: 2026-11-05
 
 Starter list when swapping agents. Baseline is **`app-v2-simplified-rules`**; `origin/main` was
 fast-forwarded to it on 2026-10-25, and everything since is merged into both.
@@ -14,6 +14,17 @@ the mock and CI. Shared code is covered by the Mac run; Windows capture, the job
 close-to-hide window are not. The Windows live pass is in `plans/STATUS.md`.
 
 ---
+
+## Found 2026-11-05, not fixed
+
+- **The card over a full-screen app on macOS is untested.** If it does not show there, an NSPanel is the fix.
+- **Clicking a card button on macOS brings Supervisor to the front.** An NSPanel would avoid that too.
+- **Vivaldi and Arc on Windows give no address.** UI Automation finds their address field inside a Document, so their sites count as Other websites.
+- **The webcam detector only knows phones.** It has a phone class and nothing for a watch, so "watch" is unmeasured.
+- **Days are bucketed in the current time zone.** After travelling, past sessions move to different days.
+- **The day card reads only the 20 cached sessions.** A day with older sessions outside that cache shows less than it should.
+- **Deleting a line leaves its generated audio files on disk.**
+- **The repository has no LICENSE file** while the site says "open source". The license is the user's call.
 
 ## Window supervision / history
 

@@ -361,6 +361,14 @@ h1 {
   pointer-events: none;
 }
 
+/* Stays in the page between messages (a live region), so empty it draws nothing. Not
+   display: none, which would take it out of what screen readers watch. */
+.feedback-toast:empty {
+  border: 0;
+  padding: 0;
+  box-shadow: none;
+}
+
 .session-home {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(300px, 0.85fr);
@@ -493,14 +501,17 @@ h1 {
   min-width: 0;
 }
 
+/* Three across while REMINDERS fits a tile (78px); in a narrow window the third takes its own
+   row rather than its label running out of the tile. */
 .sofar-tiles {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 6px;
   margin-top: 6px;
 }
 
 .sofar-tile {
+  flex: 1 1 78px;
   min-width: 0;
   padding: 6px 8px;
   border: var(--border);
@@ -2584,10 +2595,11 @@ button.recap-app-row:active {
   cursor: grab;
 }
 
+/* 40px: the slider's 38px margin plus its 2px border, inside which the thumb travels. */
 .duration-ticks {
   position: relative;
   height: 12px;
-  margin: -4px 38px 0;
+  margin: -4px 40px 0;
   color: var(--ink);
   font-family: var(--font-mono);
   font-size: 0.65rem;
@@ -2656,10 +2668,16 @@ button.recap-app-row:active {
   gap: 10px;
 }
 
+/* The panel scrolls when Distractions and Advanced are open in a short window; Start stays in
+   reach at its foot. A panel-coloured shadow fills the padding below it, so rows scrolling under never show there. */
 .preflight-start {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   width: 100%;
   min-height: 46px;
   margin-top: 14px;
+  box-shadow: var(--shadow-control), 0 24px 0 4px var(--panel);
 }
 
 .clone-status p {
@@ -3958,6 +3976,8 @@ button.overlay-more.is-open::before {
 
 .interrupt-alert h2 {
   margin-top: 4px;
+  /* A long site name breaks rather than run off the 420 px card. */
+  overflow-wrap: anywhere;
   font-size: 1.75rem;
   font-weight: 750;
   letter-spacing: -0.035em;
@@ -5535,6 +5555,7 @@ button.recap-bar-col:active .recap-bar {
 
 /* A label may spill into a neighbour's room; only where that neighbour's label is hidden. */
 .trend-ticks span {
+  justify-self: center;
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   letter-spacing: 0.04em;
@@ -5615,8 +5636,10 @@ button.recap-bar-col:active .recap-bar {
   transform: translate(-50%, 0);
 }
 
-/* Line charts have no Avg tag to make room for. */
+/* Line charts have no Avg tag to make room for. Points sit at each column's exact centre
+   (no gap), so the labels' columns must not have one either. */
 .trend-line-plot + .trend-ticks {
+  column-gap: 0;
   padding-right: 0;
 }
 

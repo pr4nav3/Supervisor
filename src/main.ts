@@ -155,6 +155,9 @@ interface CurrentSession {
   metrics: SessionMetrics;
   evidence: EvidenceEvent[];
   focus: FocusSnapshot | null;
+  /** Supervisor's own window is in front: `focus` is the place the user came from, its clock
+   *  held, and this time counts as work. */
+  supervisor_in_front: boolean;
   /** Distractions allowed for this session. */
   exceptions: AppRule[];
   camera: CameraStatus;
@@ -822,7 +825,12 @@ let recordingTickId: number | null = null;
 let recordingStartedAtMs: number | null = null;
 let lastError = "";
 let voiceError = "";
-let feedbackMessage = "";
+// Made once and kept: a live region must already be in the page when its text changes, or
+// screen readers skip the announcement. Empty, it draws nothing (styles.css).
+const feedbackToast = document.createElement("div");
+feedbackToast.className = "feedback-toast";
+feedbackToast.setAttribute("role", "status");
+document.body.appendChild(feedbackToast);
 let feedbackTimer: number | null = null;
 let pollId: number | null = null;
 let snapshotInFlight = false;
@@ -939,6 +947,11 @@ async function init(): Promise<void> {
   if (appView === "main") {
     await listen<WebcamFrame>("webcam-frame", (event) => {
       applyWebcamFrame(event.payload);
+    });
+    // A rule saved elsewhere (the timer window's Always allow or block) must reach this copy.
+    await listen("rules-changed", async () => {
+      permanentRules = await invoke<AppRule[]>("get_rules");
+      render();
     });
     // The daily check found and installed a new worker build.
     await listen("voice-engine-updated", async () => {
@@ -1172,7 +1185,15 @@ async function refreshSnapshotNow(): Promise<void> {
   reconcilePolling();
 }
 
+/** An error banner is about the step that failed; leaving the tab or closing a pop-up moves
+ *  on from it. Removed in place, since a pop-up closing repaints only its own layer. */
+function clearLastError(): void {
+  lastError = "";
+  document.getElementById("last-error")?.remove();
+}
+
 function closeTopLayer(): void {
+  clearLastError();
   if (voiceBusy === "download-model" && ["complete", "cancelling", "error"].includes(voiceDownload?.phase ?? "")) {
     dismissDownloadModal();
     return;
@@ -1360,6 +1381,7 @@ function sessionViewKey(current: CurrentSession | null): string {
     current.strictness,
     current.snoozed_until_seconds ?? "",
     focus?.state ?? "",
+    current.supervisor_in_front ? 1 : 0,
     focus?.distracting ? 1 : 0,
     focus?.should_nudge ? 1 : 0,
     focus?.interrupt ? 1 : 0,
@@ -1402,6 +1424,7 @@ function viewKey(): string {
     sessionReport?.id ?? "",
     dayCardKey,
     trends.daily_focus.length,
+    snapshot?.storage_notice?.kind ?? "",
   ].join("\u001f");
 }
 
@@ -1430,6 +1453,10 @@ function paintLive(current: CurrentSession | null): void {
   const overlayTime = document.querySelector<HTMLElement>(".overlay-progress > span");
   if (overlayTime) {
     overlayTime.textContent = `${label} left`;
+  }
+  const breakOver = document.querySelector<HTMLElement>(".moment-break-over .moment-goal");
+  if (breakOver && current.pomodoro?.phase === "break_over") {
+    breakOver.textContent = breakOverLine(current.pomodoro);
   }
   paintSoFar(current);
   document
@@ -1510,7 +1537,7 @@ function render(): void {
           <h1>Supervisor</h1>
         </div>
         <div class="topbar-status">
-          ${current ? `<button class="status-chip" type="button" data-tab="session" aria-label="Session status">${escapeHtml(statusChip(current))}</button>` : renderStreakChip()}
+          ${current ? `<button class="status-chip" type="button" data-tab="session">${escapeHtml(statusChip(current))}</button>` : renderStreakChip()}
           <button class="theme-toggle" type="button" data-action="toggle-theme">${theme === "dark" ? "Dark" : "Light"}</button>
         </div>
       </header>
@@ -1521,7 +1548,7 @@ function render(): void {
         ${tabButton("history", "History")}
       </nav>
 
-      ${lastError ? `<section class="notice">${escapeHtml(lastError)}</section>` : ""}
+      ${lastError ? `<section class="notice" id="last-error">${escapeHtml(lastError)}</section>` : ""}
       ${renderStorageNotice(snapshot?.storage_notice ?? null)}
       ${voiceError && activeTab === "settings" ? `<section class="notice">${escapeHtml(voiceError)}</section>` : ""}
       ${permissionNotice(current)}
@@ -1595,13 +1622,13 @@ function renderSession(current: CurrentSession | null): string {
   return `
     <section class="active-session-page">
       <div class="active-session-grid">
-        <section class="state-slab active-state-card ${stateClass(current)}" aria-live="polite">
+        <section class="state-slab active-state-card ${stateClass(current)}">
           ${
             current.pomodoro
               ? `<div class="eyebrow-row"><p class="eyebrow">${escapeHtml(roundLabel(current.pomodoro))}</p>${renderRoundDots(current.pomodoro)}</div>`
               : `<p class="eyebrow">Current session</p>`
           }
-          <h2>${escapeHtml(stateTitle(current))}</h2>
+          <h2 aria-live="polite">${escapeHtml(stateTitle(current))}</h2>
           <div class="active-goal">
             <span>Session goal</span>
             <strong>${escapeHtml(current.goal)}</strong>
@@ -1610,7 +1637,7 @@ function renderSession(current: CurrentSession | null): string {
             <strong>${timer.label}</strong>
             <span>${escapeHtml(timer.caption)}</span>
           </div>
-          <div class="live-strip" aria-label="Session so far: what happened, then the time left">${liveStripRuns(current)}</div>
+          <div class="live-strip" role="img" aria-label="Session so far: what happened, then the time left">${liveStripRuns(current)}</div>
         </section>
 
         <div class="session-side">
@@ -1675,6 +1702,10 @@ function liveTimer(current: CurrentSession): { label: string; caption: string; p
     caption: pomodoro.phase === "break_over" ? `Until round ${pomodoro.round + 1} starts by itself` : `Until round ${pomodoro.round + 1}`,
     percent: Math.min(100, Math.round(((pomodoro.break_seconds - left) / pomodoro.break_seconds) * 100)),
   };
+}
+
+function breakOverLine(pomodoro: PomodoroStatus): string {
+  return `Round ${pomodoro.round + 1} starts by itself in ${formatDuration(pomodoro.phase_remaining_seconds)}, or now.`;
 }
 
 /** One dot per round. Finished ones take the colour opposite the slab (yellow on a round,
@@ -1975,9 +2006,9 @@ function renderOverlay(current: CurrentSession | null): string {
   const pinned = settings.status_window_on_top;
   return `
     <main class="overlay-shell">
-      <section class="state-slab overlay-slab ${stateClass(current)}" aria-live="polite">
+      <section class="state-slab overlay-slab ${stateClass(current)}">
         ${nudgesMuted ? `<span class="overlay-muted-tag" title="Reminders muted. Still tracking.">Muted</span>` : ""}
-        <h2>${escapeHtml(stateTitle(current))}</h2>
+        <h2 aria-live="polite">${escapeHtml(stateTitle(current))}</h2>
         <p>${escapeHtml(current?.goal || stateCopy(current))}</p>
         ${current ? renderOverlayProgress(current) : ""}
       </section>
@@ -2070,7 +2101,7 @@ function renderMomentOverlay(current: CurrentSession): string {
       <main class="overlay-shell overlay-interrupt">
         <section class="state-slab interrupt-alert moment-break-over">
           <h2 class="moment-title">Break over.</h2>
-          <p class="moment-goal">Round ${pomodoro.round + 1} starts by itself in ${Math.max(1, Math.round(pomodoro.break_seconds / 60))} minutes, or now.</p>
+          <p class="moment-goal">${breakOverLine(pomodoro)}</p>
           <div class="moment-gap"></div>
         </section>
         <div class="interrupt-actions moment-actions">
@@ -2375,7 +2406,7 @@ function accessibilityMissing(): boolean {
  *  as allowed, and switching it off and on does nothing: the entry has to be made again. */
 function accessibilityHowTo(): string {
   return captureAccess?.accessibility_lost
-    ? "macOS stopped honouring the permission when Supervisor was updated, even though the list still shows it on. Remove Supervisor from the list with the minus button, then add it again with plus."
+    ? "If Supervisor is already on in the list, macOS stopped honouring it when Supervisor was updated: remove it with the minus button, then add it again with plus. If it is off, turn it on."
     : "Turn Supervisor on in the Accessibility list.";
 }
 
@@ -2789,7 +2820,7 @@ function renderPreflightModal(): string {
         <div class="preflight-main">
           <label class="preflight-goal">
             <span>What are you working on?</span>
-            <input id="preflight-goal" maxlength="220" value="${attr(draft.goal)}" placeholder="Finish the Supervisor UI overhaul" />
+            <input id="preflight-goal" maxlength="120" value="${attr(draft.goal)}" placeholder="Finish the Supervisor UI overhaul" />
           </label>
 
           <div class="mode-tabs" role="group" aria-label="Session kind">
@@ -2953,7 +2984,7 @@ function renderWebcamSettings(): string {
         <section class="state-slab webcam-stage ${webcamStateClass(frame, alerting)}" aria-live="polite">
           <h2 id="webcam-title">${escapeHtml(webcamTitle(frame, alerting))}</h2>
           <p id="webcam-copy">${escapeHtml(webcamCopy(frame, alerting))}</p>
-          <div class="webcam-frame-wrap${frame?.jpeg ? " is-live" : ""}" id="webcam-frame-wrap">
+          <div class="webcam-frame-wrap${frame?.jpeg && webcamSettings.phoneUse ? " is-live" : ""}" id="webcam-frame-wrap">
             <img id="webcam-preview" alt="" />
             <p id="webcam-waiting" class="webcam-waiting">${escapeHtml(webcamWaitingCopy())}</p>
           </div>
@@ -3028,7 +3059,7 @@ function renderWebcamMetrics(frame: WebcamFrame | null): string {
   const face = Boolean(frame?.face_in_frame);
   const phone = Boolean(frame?.phone_in_frame);
   return `
-    <dl class="webcam-metrics">
+    <dl class="webcam-metrics"${webcamSettings.phoneUse ? "" : " hidden"}>
       <div class="${face ? "is-good" : ""}"><dt>Face</dt><dd>${face ? "In view" : "Out of view"}</dd></div>
       <div class="${phone ? "is-bad" : ""}"><dt>Phone or watch</dt><dd>${phone ? "Seen" : "Not seen"}</dd></div>
     </dl>
@@ -3234,12 +3265,13 @@ function fitQuote(): void {
     return;
   }
   // The grid stretches the card to the side column, so the smallest size shows the real room.
-  // The quote takes at most 60% of it: a card full of text reads like a wall.
+  // The quote takes at most 60% of it: a card full of text reads like a wall. In a short window
+  // the eyebrow and the attribution leave less than that, so the card must not overflow either.
   quote.style.fontSize = "18px";
   const room = card.clientHeight * 0.6;
   const fits = (px: number) => {
     quote.style.fontSize = `${px}px`;
-    return quote.offsetHeight <= room && quote.scrollWidth <= quote.clientWidth;
+    return quote.offsetHeight <= room && quote.scrollWidth <= quote.clientWidth && card.scrollHeight <= card.clientHeight;
   };
   let low = 18;
   let high = 60;
@@ -4413,7 +4445,7 @@ function renderHistoryToolbar(weekStart: string): string {
       <div class="history-week-nav">
         <button type="button" class="history-week-arrow" data-action="history-week-prev" ${prevDisabled ? "disabled" : ""} aria-label="Previous week">‹</button>
         <button type="button" class="history-week-label ${weekPickerOpen ? "is-open" : ""}" data-action="toggle-week-picker" aria-expanded="${weekPickerOpen}" aria-haspopup="dialog" title="Pick a week">
-          <h2>${escapeHtml(formatWeekRange(weekStart))}, ${parseDayKey(weekStart).getFullYear()}${tag ? `<span>${tag}</span>` : ""}</h2>
+          <h2>${escapeHtml(formatWeekRange(weekStart))}${tag ? `<span>${tag}</span>` : ""}</h2>
         </button>
         <button type="button" class="history-week-arrow" data-action="history-week-next" ${nextDisabled ? "disabled" : ""} aria-label="Next week">›</button>
         ${weekStart === current ? "" : `<button type="button" class="history-week-today" data-action="history-week-today">This week</button>`}
@@ -4756,7 +4788,7 @@ function renderHistoryItem(item: SessionSummary): string {
       <div class="history-item-stats">
         <dl>
           <div title="Time on work: not on a distraction, your phone or watch, or away"><dt>Focused</dt><dd>${escapeHtml(formatHours(item.focus_seconds))}</dd></div>
-          <div title="How long the session ran"><dt>Duration</dt><dd>${formatDuration(item.duration_seconds)}</dd></div>
+          <div title="How long the session ran"><dt>Duration</dt><dd>${formatSpan(item.duration_seconds)}</dd></div>
           <div title="Times Supervisor spoke up about a distraction"><dt>Reminders</dt><dd>${item.nudges}</dd></div>
         </dl>
         ${renderMiniTimeline(item)}
@@ -4959,6 +4991,8 @@ async function saveAppEdit(): Promise<void> {
     const countsChanged = edit.distraction !== edit.wasDistraction;
     const addressChanged = ruleValue.toLowerCase() !== edit.key.toLowerCase();
     if (edit.listable !== false && (countsChanged || addressChanged)) {
+      // Fresh from the backend: the timer window may have added rules since this window loaded.
+      permanentRules = await invoke<AppRule[]>("get_rules");
       const target: AppRule["target"] = site ? "website" : "app";
       const named = (rule: AppRule, value: string) => rule.target === target && rule.value.toLowerCase() === value.toLowerCase();
       const others = permanentRules.filter((rule) => !named(rule, edit.key) && !named(rule, ruleValue));
@@ -5421,8 +5455,9 @@ function pomodoroStat(report: SessionReport): string {
   if (!plan) {
     return "";
   }
-  const rounds = Math.max(1, report.events.filter((event) => event.kind === "round_start").length);
-  return reportStat("Rounds", `${Math.min(rounds, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
+  // Rounds finished: each round end, plus the last one when the session ran its course.
+  const finished = report.events.filter((event) => event.kind === "round_over").length + (report.ended_reason === "completed" ? 1 : 0);
+  return reportStat("Rounds", `${Math.min(finished, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
 }
 
 function reportStat(labelText: string, value: string, help: string): string {
@@ -5710,6 +5745,7 @@ function bindEvents(root: ParentNode = document): void {
   // The closing line's pop-up also goes away on a click outside it.
   root.querySelector(".session-over-backdrop")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) {
+      clearLastError();
       sessionOver = null;
       paintModalLayer();
     }
@@ -5720,6 +5756,7 @@ function bindEvents(root: ParentNode = document): void {
       if (next === activeTab) {
         return;
       }
+      clearLastError();
       animateOnArrival(next);
       const leavingWebcam = settingsView === "webcam";
       if (voiceInfoId) {
@@ -5918,6 +5955,12 @@ function bindEvents(root: ParentNode = document): void {
 function bindPreflight(root: ParentNode): void {
   root.querySelector<HTMLTextAreaElement>("#preflight-goal")?.addEventListener("input", (event) => {
     draft.goal = (event.target as HTMLTextAreaElement).value;
+  });
+  root.querySelector<HTMLInputElement>("#preflight-goal")?.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !composing(event)) {
+      event.preventDefault();
+      void runAction("confirm-start-session");
+    }
   });
 
   root.querySelectorAll<HTMLDetailsElement>("[data-preflight-section]").forEach((details) => {
@@ -6196,6 +6239,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "close-session-rules") {
+    clearLastError();
     sessionRulesOpen = false;
     ruleEditor = null;
     paintSessionRulesLayer();
@@ -6302,6 +6346,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "open-preflight") {
     preflightExceptions = [];
+    // A strictness picked here is for that one session; each start screen begins at the default.
+    draft.strictness = settings.default_strictness;
     draft.duration_minutes = Math.min(90, Math.max(15, draft.duration_minutes));
     preflightBlocksOpen = false;
     preflightAdvancedOpen = false;
@@ -6313,6 +6359,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   // Cancel goes back to the session screen, so the calendar pops in again, as on Escape.
   if (action === "close-preflight") {
+    clearLastError();
     preflightOpen = false;
     ruleEditor = null;
     animateOnArrival("session");
@@ -6441,6 +6488,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "app-edit-cancel") {
+    clearLastError();
     appEdit = null;
     paintModalLayer();
     return;
@@ -6484,6 +6532,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     historyView = "list";
     sessionReport = null;
     historyConfirm = null;
+    // A row's rename popup belongs to the report; it must not outlive it.
+    appEdit = null;
     animateOnArrival("history");
     await refreshHistoryWeek();
     return;
@@ -6492,6 +6542,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "ask-delete-session") {
     const id = Number(source?.dataset.sessionId);
     if (Number.isInteger(id) && id > 0) {
+      appEdit = null;
       historyConfirm = { kind: "delete-session", id };
       paintModalLayer();
     }
@@ -6506,6 +6557,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "cancel-history-confirm") {
+    clearLastError();
     historyConfirm = null;
     paintModalLayer();
     return;
@@ -6528,7 +6580,10 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     webcamError = "";
     render();
     void refreshCameras();
-    await startWebcamPreview();
+    // The backend turns the camera on for a preview: with the switch off it stays off.
+    if (webcamSettings.phoneUse) {
+      await startWebcamPreview();
+    }
     return;
   }
 
@@ -6898,6 +6953,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
   if (action === "close-session-over") {
+    clearLastError();
     sessionOver = null;
     const ended = history[0];
     if (ended && !snapshot?.current && sessionReport?.id !== ended.id) {
@@ -6908,6 +6964,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
   if (action === "cancel-quit") {
+    clearLastError();
     quitConfirmOpen = false;
     paintModalLayer();
     return;
@@ -7135,9 +7192,19 @@ function paintRuleEditorLive(): void {
   }
 }
 
+const ruleKey = (rule: AppRule) => `${rule.target}\n${rule.value.toLowerCase()}`;
+
 async function persistPermanentRuleChanges(previous: AppRule[]): Promise<void> {
   try {
-    const saved = await invoke<RulesSaved>("update_rules", { rules: permanentRules });
+    // The timer window can add rules behind this window's back: apply this edit (what changed
+    // from previous) to the backend's fresh list, so a stale copy never overwrites it.
+    const before = new Set(previous.map(ruleKey));
+    const after = new Set(permanentRules.map(ruleKey));
+    const added = permanentRules.filter((rule) => !before.has(ruleKey(rule)));
+    const addedKeys = new Set(added.map(ruleKey));
+    const fresh = await invoke<AppRule[]>("get_rules");
+    const rules = [...added, ...fresh.filter((rule) => !addedKeys.has(ruleKey(rule)) && (after.has(ruleKey(rule)) || !before.has(ruleKey(rule))))];
+    const saved = await invoke<RulesSaved>("update_rules", { rules });
     permanentRules = saved.rules;
     lastError = "";
     render();
@@ -7949,34 +8016,16 @@ function tabButton(tab: Tab, text: string): string {
   return `<button data-tab="${tab}" class="${activeTab === tab ? "active" : ""}" type="button">${text}</button>`;
 }
 
-function paintFeedback(): void {
-  let toast = document.getElementById("feedback-toast");
-  if (!feedbackMessage) {
-    toast?.remove();
-    return;
-  }
-  if (!toast) {
-    toast = document.createElement("div");
-    toast.id = "feedback-toast";
-    toast.className = "feedback-toast";
-    toast.setAttribute("role", "status");
-    document.body.appendChild(toast);
-  }
-  toast.textContent = feedbackMessage;
-}
-
 function showFeedback(message: string, durationMs = 1400): void {
-  feedbackMessage = message;
-  paintFeedback();
+  feedbackToast.textContent = message;
 
   if (feedbackTimer !== null) {
     window.clearTimeout(feedbackTimer);
   }
 
   feedbackTimer = window.setTimeout(() => {
-    feedbackMessage = "";
+    feedbackToast.textContent = "";
     feedbackTimer = null;
-    paintFeedback();
   }, durationMs);
 }
 
@@ -8001,13 +8050,23 @@ async function setWebcamEnabled(enabled: boolean): Promise<void> {
     });
     webcamError = "";
   } catch (error) {
-    webcamError = `Couldn't save that: ${errorText(error)}`;
+    // A toast, not the error line: that line is hidden while the switch is off, which is
+    // where a failed save to turn it on leaves it.
+    showFeedback(`Couldn't save that: ${errorText(error)}`, 4000);
     const box = document.getElementById("webcam-phone-use") as HTMLInputElement | null;
     if (box) {
       box.checked = settings.webcam_enabled;
     }
   }
   webcamSettings.phoneUse = settings.webcam_enabled;
+  // The first run's switch shares this; only the Webcam page shows a preview.
+  if (webcamSettings.phoneUse) {
+    if (settingsView === "webcam" && activeTab === "settings") {
+      void startWebcamPreview();
+    }
+  } else {
+    void stopWebcamPreview();
+  }
   paintWebcamDom();
 }
 
@@ -8120,7 +8179,8 @@ function paintWebcamDom(): void {
   const alerting = webcamWouldAlert(frame);
   const img = document.getElementById("webcam-preview") as HTMLImageElement | null;
   const wrap = document.getElementById("webcam-frame-wrap");
-  if (img && frame?.jpeg) {
+  // A frame from before the switch went off is not shown as live.
+  if (img && frame?.jpeg && webcamSettings.phoneUse) {
     img.src = `data:image/jpeg;base64,${frame.jpeg}`;
     img.alt = "Webcam preview";
     wrap?.classList.add("is-live");
@@ -8150,7 +8210,7 @@ function paintWebcamDom(): void {
   const liveError = document.getElementById("webcam-live-error");
   if (liveError) {
     liveError.textContent = webcamError;
-    liveError.hidden = !webcamError;
+    liveError.hidden = !(webcamSettings.phoneUse && webcamError);
   }
   const gpuNote = document.getElementById("webcam-gpu-note");
   if (gpuNote) {
@@ -8243,7 +8303,10 @@ function permissionNotice(_current: CurrentSession | null): string {
 /** Minutes today still needs to count toward the streak (0 once it counts). */
 function streakMinutesLeft(): number {
   const seconds = dayFocusMap().get(dayKey(new Date())) ?? 0;
-  return Math.max(0, Math.ceil((STREAK_DAY_SECONDS - seconds) / 60));
+  // Rounded like the day card's minutes, so card + chip make 25. Between 24.5 and 25 minutes
+  // the day doesn't count yet, so the chip still asks for 1.
+  const left = Math.round(STREAK_DAY_SECONDS / 60) - Math.round(seconds / 60);
+  return Math.max(seconds < STREAK_DAY_SECONDS ? 1 : 0, left);
 }
 
 /** The start screen's length for the missing minutes: the slider's steps of 5, from 15. */
@@ -8281,7 +8344,7 @@ function statusChip(current: CurrentSession | null): string {
     return "MUTED";
   }
 
-  return current.focus?.should_nudge ? "PAY ATTENTION" : "LIVE";
+  return current.focus?.interrupt ? "PAY ATTENTION" : "LIVE";
 }
 
 function stateTitle(current: CurrentSession | null): string {
@@ -8301,6 +8364,11 @@ function stateTitle(current: CurrentSession | null): string {
     return current.camera.phone_distracted ? "Phone or watch out" : "Phone or watch in view";
   }
 
+  // Looking at Supervisor: the place the user came from keeps its clock held, and this time
+  // is work, so the headline must not still say Distracted.
+  if (current.supervisor_in_front && current.focus?.state !== "idle") {
+    return "On task";
+  }
   switch (current.focus?.state) {
     case "focused":
       return "On task";
@@ -8328,7 +8396,7 @@ function stateCopy(current: CurrentSession | null): string {
     return "Put the phone or watch down.";
   }
 
-  if (current.focus?.should_nudge) {
+  if (current.focus?.interrupt) {
     return "You have been here long enough. Pay attention.";
   }
 
@@ -8352,6 +8420,9 @@ function stateClass(current: CurrentSession | null): string {
     return current.camera.phone_distracted ? "state-distracted" : "state-suspicious";
   }
 
+  if (current.supervisor_in_front && current.focus?.state !== "idle") {
+    return "state-focused";
+  }
   return `state-${current.focus?.state ?? "waiting"}`;
 }
 
@@ -8369,8 +8440,9 @@ async function playMoment(phase: string): Promise<void> {
   if (phase === "break_over") {
     return;
   }
-  const moments = snapshot?.current?.pomodoro?.moments ?? 1;
-  await playMomentLine("roundover", moments - 1);
+  // The round just finished takes the next line; moments also count break ends.
+  const round = snapshot?.current?.pomodoro?.round ?? 1;
+  await playMomentLine("roundover", round - 1);
 }
 
 /** The id of the session most recently seen running, so its end can find its own summary. */
@@ -9235,7 +9307,7 @@ function voiceBusyTitle(): string {
 
 function voiceBusyCopy(): string {
   if (voiceBusy === "generate-clips") {
-    return "About a minute, all on this computer. Generated lines play without the voice engine.";
+    return "A few minutes the first time, then seconds, all on this computer. Generated lines play without the voice engine.";
   }
   if (voiceBusy === "download-model") {
     return "The voice engine is large. Supervisor goes back to using little memory once the line is generated.";
@@ -9426,6 +9498,10 @@ async function openHistoryReport(id: number, review = false): Promise<void> {
     settingsView = "home";
     await stopWebcamPreview();
   }
+  if (settingsView === "voice") {
+    leaveVoiceScreen();
+    settingsView = "home";
+  }
   try {
     sessionReport = await invoke<SessionReport>("get_session_report", { id });
     if (review) {
@@ -9458,7 +9534,12 @@ async function confirmHistoryAction(): Promise<void> {
   }
   historyConfirm = null;
   if (confirm.kind === "delete-session" && confirm.id) {
-    await runHistoryCommand("delete_session", { id: confirm.id }, "Session deleted");
+    const id = confirm.id;
+    // SQLite can hand a deleted id to the next session, which must still get its Session done card.
+    await runHistoryCommand("delete_session", { id }, "Session deleted", () => {
+      knownHistoryIds.delete(id);
+      practiceIds.delete(id);
+    });
     historyView = "list";
     sessionReport = null;
     animateOnArrival("history");
@@ -9466,7 +9547,11 @@ async function confirmHistoryAction(): Promise<void> {
     return;
   }
   if (confirm.kind === "delete-all") {
-    await runHistoryCommand("delete_all_history", undefined, "History cleared");
+    await runHistoryCommand("delete_all_history", undefined, "History cleared", () => {
+      knownHistoryIds.clear();
+      practiceIds.clear();
+      writeLocal("review.lastOffered", "0");
+    });
     historyView = "list";
     sessionReport = null;
     await refreshHistoryWeek();
@@ -9477,9 +9562,11 @@ async function runHistoryCommand(
   command: string,
   args: Record<string, unknown> | undefined,
   message: string,
+  forget: () => void,
 ): Promise<void> {
   try {
     await invoke(command, args ?? {});
+    forget();
     snapshot = await invoke<SessionSnapshot>("get_session_snapshot");
     settings = snapshot.settings;
     history = snapshot.history;
@@ -10206,8 +10293,7 @@ function drawWeekCard(recap: WeekRecap, framed = false): HTMLCanvasElement | nul
   const { canvas, ctx } = drawn;
   const palette = cardPalette();
   const today = dayKey(new Date());
-  const year = parseDayKey(recap.start).getFullYear();
-  const top = drawCardHeader(ctx, "Your week", `${formatWeekRange(recap.start)}, ${year}`, recap.focus_seconds);
+  const top = drawCardHeader(ctx, "Your week", formatWeekRange(recap.start), recap.focus_seconds);
 
   const panelW = CARD_WIDTH - CARD_PAD * 2;
   drawCardPanel(ctx, CARD_PAD, top, panelW, panelH);
@@ -10330,15 +10416,19 @@ function addDaysKey(key: string, days: number): string {
   return dayKey(date);
 }
 
+/** "Oct 5–11, 2026"; a week across New Year names both years: "Dec 28, 2026–Jan 3, 2027". */
 function formatWeekRange(startKey: string): string {
   const start = parseDayKey(startKey);
   const end = parseDayKey(addDaysKey(startKey, 6));
   const startMonth = start.toLocaleDateString(undefined, { month: "short" });
   const endMonth = end.toLocaleDateString(undefined, { month: "short" });
-  if (startMonth === endMonth) {
-    return `${startMonth} ${start.getDate()}–${end.getDate()}`;
+  if (start.getFullYear() !== end.getFullYear()) {
+    return `${startMonth} ${start.getDate()}, ${start.getFullYear()}–${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
   }
-  return `${startMonth} ${start.getDate()}–${endMonth} ${end.getDate()}`;
+  if (startMonth === endMonth) {
+    return `${startMonth} ${start.getDate()}–${end.getDate()}, ${end.getFullYear()}`;
+  }
+  return `${startMonth} ${start.getDate()}–${endMonth} ${end.getDate()}, ${end.getFullYear()}`;
 }
 
 function formatWeekStart(startKey: string): string {

@@ -1,4 +1,4 @@
-/* Built from plans/landing-mockups by scripts/build_site.py. Edit the mockup, then rebuild. */
+/* The live site's script. Edited by hand; plans/landing-mockups is history, not the source. */
 (function () {
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   var root = document.documentElement, $ = function (id) { return document.getElementById(id); };
@@ -23,7 +23,7 @@
     el.innerHTML = out;
   }
   var CLIPS = {
-    genz: "assets/voice/elise-genz-respectfully.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3",
+    genz: "assets/voice/elise-genz-bro-lock-in.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3",
     gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3",
     genz2: "assets/voice/elise-genz-bro-lock-in.mp3", stern2: "assets/voice/derek-stern-wasting-time.mp3"
   };
@@ -99,7 +99,7 @@
     $("clock").textContent = t; $("clock2").textContent = t;
     $("c-bar").style.width = Math.round((1 - secs / (45 * 60)) * 100) + "%";
   }, 1000);
-  var TABS = { yt: { title: "You opened YouTube.", who: "Elise said", line: "Respectfully, get back to it.", clip: "genz" },
+  var TABS = { yt: { title: "You opened YouTube.", who: "Elise said", line: "Bro, lock in.", clip: "genz" },
                rd: { title: "You opened Reddit.", who: "Derek said", line: "That isn't the work. Close it.", clip: "stern" } };
   var ORDER = ["session", "caught", "phone", "done"];
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab")), views = Array.prototype.slice.call(document.querySelectorAll(".view"));

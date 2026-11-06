@@ -4,6 +4,78 @@ Last updated: 2026-10-31 (second Mac pass, a different MacBook, Apple Silicon, m
 Baseline: `main` (ahead of `app-v2-simplified-rules` since 2026-10-29). Tracker:
 `plans/STATUS.md`. Holes to expect: `plans/known-issues.md`.
 
+**Rebuild and retest after the 2026-11-05 evening fixes (commit b1a8d72).** Pranav's own Mac
+showed no reminder card with Brave on a distracting site. Nothing here was run on a Mac; each fix
+below is from reading the code and the libraries, and each has a check. Pull, `cargo test`,
+`npm run check`, `sh scripts/release-mac.sh`, then the checks, then replace the `v1.0` Mac zip
+and its `.sha256` (`gh release upload v1.0 --clobber ...`) and the hashes in
+`plans/release-2026-11-05.md`. There are no users yet, so the assets are replaced in place.
+
+What changed on the Mac side, and what to check for each:
+
+- **A stale Accessibility grant is named.** The 1.0 release is signed with the re-minted
+  certificate, so a Mac that allowed an earlier build keeps Supervisor listed and on while
+  `AXIsProcessTrusted` is false: every site is Other websites, no website card ever comes. The
+  app now remembers (a marker file `accessibility-granted` in its data folder) that it was once
+  granted, and when it is missing again the start screen, the running session's Distractions
+  card and the Getting started step all say so and tell the user to remove Supervisor from the
+  list with the minus button and add it again. Check: on a Mac that had an older build, open
+  the start screen; the red notice should be there. Follow its words; the notice goes and a
+  Brave site on the list shows its card at the strictness time. Also check a fresh Mac: the
+  plain "Turn Supervisor on in the Accessibility list" wording, with no mention of an update.
+- **Hidden app.** tao's `show()` is `makeKeyAndOrderFront`, which shows nothing while the app
+  is hidden (Cmd-H in Supervisor, or Hide Others from Brave). Every card and the session-end
+  raise now unhide the app first, without activating it. Check: Cmd-H Supervisor, open a listed
+  site in Brave, wait for the card.
+- **Suspended page.** macOS 14 suspends a hidden webview after about five minutes. The overlay
+  page is hidden whenever the session timer is off, and it is the page that brings a card up.
+  Both windows now set `backgroundThrottling: disabled`. Check: timer window off, main window
+  closed, work for ten minutes, then open a listed site: the card must come.
+- **Two displays.** The card is placed on the display the pointer is on, in points, from
+  AppKit's own screen list (`macos::work_area_under_pointer`), instead of the main window's
+  monitor in mixed pixel scales. Check with an external screen: a distraction on either display
+  gets the card centred on that display, and the corner timer sits in that display's top right
+  with no gap and nothing off-screen. One display: as before.
+- **Browser read stuck on a side panel.** A remembered path to the web area is only trusted if
+  it still has an http(s) address; otherwise the window is searched again. And when a search
+  fails after Chromium's grace, the accessibility switch is sent again (Chromium drops its tree
+  after a long quiet stretch). Check: Brave with the sidebar or Leo open, then a listed site:
+  the site is named within a few ticks.
+- **Browser titles.** A browser's title always comes from its focused window through
+  Accessibility, not from the first on-screen window in the window list (a picture-in-picture
+  video or a bubble). Check: picture-in-picture on, the Session tab still names the page.
+- **Lock check.** "Screen locked" needs every active display asleep, not only the main one.
+  Check (external screen, lid closed in clamshell mode): a session keeps recording.
+
+Added later the same evening (the second review, `plans/review-2026-11-05-evening.md`), each
+to check on the Mac too:
+
+- **Update mid-session.** `curl ... | sh` while a session runs: the app now quits on TERM
+  through its own exit path. Check: History shows the session as stopped with its time, not
+  abandoned.
+- **Session end raise.** The main window comes forward with `orderFrontRegardless`, without
+  activating. Check: type in TextEdit while a 5-minute session ends; the keys stay in TextEdit
+  and the report window is in front.
+- **Second session in one run, two displays.** The corner timer lands on the right display
+  (placement now works from the async start command too).
+- **Top row of an external display.** The pointer pushed up into an external display's menu
+  bar still puts the card on that display.
+- **Voice worker with accents.** A recording in a folder with an accented letter, and a line
+  with "café": generate and play (the worker now reads and writes UTF-8). Needs the rebuilt
+  engine zip.
+- **Webcam page with the switch off** opens without starting the camera.
+- **A listed site in Brave with the sidebar open**: the site is named within a few seconds.
+
+Not changed, needs one test: **a full-screen Brave** (green button or a full-screen video).
+The overlay is a plain NSWindow at floating level with `CanJoinAllSpaces | FullScreenAuxiliary`;
+if the card does not show over a full-screen app, the fix is a non-activating `NSPanel` (the
+tauri-nspanel pattern) and should be built on the Mac.
+
+The shared changes also in this commit: a dismissed card comes back for a different
+distraction; Back to my task and Allow once act on the card's own distraction; the main window
+reads the fresh snapshot before playing a line; the start screen slider's marks and fill
+follow the thumb.
+
 **Second Mac pass (2026-10-31, Tejal's MacBook, fresh clone, nothing installed).** Everything
 below was done from zero: rustup, `npm install`, both Python venvs, the YOLO export, the dev
 certificate, the signed debug bundle, the voice engine download. Then the app was driven through

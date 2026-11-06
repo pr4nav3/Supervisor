@@ -290,11 +290,11 @@ fn spawn_worker(
 
     let mut child = command
         .spawn()
-        .map_err(|error| format!("Could not start webcam worker: {error}"))?;
+        .map_err(|error| format!("Could not start the camera: {error}"))?;
     let stdout = child
         .stdout
         .take()
-        .ok_or_else(|| "webcam worker stdout missing".to_string())?;
+        .ok_or_else(|| "Could not start the camera: it gave no output.".to_string())?;
     let stop = state.replace_stop_flag()?;
     if let Ok(mut lifetime) = state.lifetime.lock() {
         *lifetime = Some(crate::voice::bind_worker_lifetime(&child));
@@ -433,6 +433,9 @@ fn read_worker<R: std::io::Read>(
     // GPU mode gave up this run. Not a camera failure: the CPU worker starts on the next tick
     // instead of waiting out RETRY_AFTER.
     let mut gpu_broke = false;
+    // The worker's own error (camera denied, no camera) says what to do; the generic stopped
+    // frame after it would replace that on the Webcam page within milliseconds.
+    let mut reported_error = false;
     for line in reader.lines() {
         if stop.load(Ordering::SeqCst) {
             return;
@@ -453,6 +456,7 @@ fn read_worker<R: std::io::Read>(
                     gpu_failed.store(true, Ordering::SeqCst);
                     gpu_broke = true;
                 }
+                reported_error |= frame.error.is_some();
                 on_frame(&app, &frame);
                 let _ = app.emit(WORKER_EVENT, &frame);
             }
@@ -467,10 +471,9 @@ fn read_worker<R: std::io::Read>(
                 *at = Some(Instant::now());
             }
         }
-        let _ = app.emit(
-            WORKER_EVENT,
-            WebcamFrame::error_frame("Webcam worker stopped"),
-        );
+        if !reported_error {
+            let _ = app.emit(WORKER_EVENT, WebcamFrame::error_frame("The camera stopped."));
+        }
     }
 }
 
@@ -490,7 +493,7 @@ fn worker_command(app: &AppHandle) -> Result<Command, String> {
         .join(format!("{WORKER_NAME}{}", std::env::consts::EXE_SUFFIX));
     if !worker.is_file() {
         return Err(format!(
-            "The webcam worker is missing from this install ({}). Reinstall Supervisor.",
+            "Camera tracking is missing from this install ({}). Reinstall Supervisor.",
             worker.display()
         ));
     }

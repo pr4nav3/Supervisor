@@ -1,4 +1,4 @@
-/* Built from plans/landing-mockups by scripts/build_site.py. Edit the mockup, then rebuild. */
+/* The live site's styles. Edited by hand; plans/landing-mockups is history, not the source. */
 
 /* Shared base for the landing-page mock-ups: the app's tokens, the app's cards, the app's
    motion. Each direction adds only its own composition on top. */
@@ -681,7 +681,8 @@ button.orb:active .orb-core {
   .win .actions .btn { min-height: 34px; font-size: 0.68rem; }
 
   /* ---- 1 · the words, and the catches landing ---- */
-  .first { min-height: 100vh; display: grid; align-content: center; }
+  /* the fanned cards lean past the right edge at many widths; clip so the page never scrolls sideways */
+  .first { min-height: 100vh; display: grid; align-content: center; overflow-x: clip; }
   .first:not(.in) .hero .pop { animation: none; opacity: 0; }
   .hero { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); align-items: center; gap: 48px; padding: 0 0 56px; }
   .hero h1 { font-size: clamp(2.4rem, 4.6vw, 3.9rem); max-width: 11ch; }
@@ -912,7 +913,6 @@ button.orb:active .orb-core {
     .fan { height: 360px; width: 100%; }
     .fcard { left: 8px; width: 220px; height: 270px; }
     .fcard.r1 { --r: 7deg; --x: 18px; } .fcard.r2 { --r: 14deg; --x: 36px; --y: 10px; } .fcard.r3 { --r: 21deg; --x: 54px; --y: 22px; }
-    .first { overflow-x: clip; }
     .fcard .quote { font-size: 1.4rem; }
     .scene { height: 400vh; }
     .scene-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 16px; align-items: start; }

@@ -1903,7 +1903,9 @@ fn clip_path_matches(path: &Path, clip_id: &str) -> bool {
     let Some(stem) = path.file_stem().and_then(|value| value.to_str()) else {
         return false;
     };
-    stem == clip_id || stem.ends_with(&format!("_{clip_id}"))
+    // Exact id, not a suffix: `custom_gentle_come_on_back` is a different line from
+    // `gentle_come_on_back`.
+    stem == clip_id || clip_phrase_id(stem) == clip_id
 }
 
 fn same_path(left: &Path, right: &Path) -> bool {
@@ -3116,6 +3118,14 @@ mod tests {
         assert!(!clip_path_matches(
             Path::new("01_focus_tab_switching_lock_in.wav"),
             "other"
+        ));
+        assert!(!clip_path_matches(
+            Path::new("custom_gentle_come_on_back.wav"),
+            "gentle_come_on_back"
+        ));
+        assert!(clip_path_matches(
+            Path::new("custom_gentle_come_on_back.wav"),
+            "custom_gentle_come_on_back"
         ));
     }
 
