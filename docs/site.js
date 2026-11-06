@@ -94,11 +94,12 @@
      while it slips back in behind them, so it changes layer only while out of sight */
   function fanNext() {
     var front = fcards[fanOrder[0]];
-    front.classList.add("drop");
+    fanOrder.push(fanOrder.shift());
+    /* one continuous motion: the others step forward as the front card drops, which keeps its spot until it is out of sight */
+    fanOrder.forEach(function (idx, pos) { var c = fcards[idx]; if (c !== front) { c.classList.remove("r0", "r1", "r2", "r3"); c.classList.add("r" + pos); } });
+    front.classList.add("drop"); sayFront();
     setTimeout(function () {
-      fanOrder.push(fanOrder.shift());
       front.classList.add("snap", "below"); front.classList.remove("drop"); layoutFan(); void front.offsetWidth; front.classList.remove("snap", "below");
-      sayFront();
     }, 320);
   }
   function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); sayFront(); runFan(); }

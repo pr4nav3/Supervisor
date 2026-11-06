@@ -1138,3 +1138,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - Voices: Stern is Elise, Gen Z is Derek (fan and demo). The phone line plays Elise. The clone card has Derek saying "And that's the session. Good work today." All four clips came from the app's own generated set on this machine.
 
 - Part 28, take two: the hop still swapped layers in plain view. Now the front card drops out of the hand through a slot at its base (the fan box clips its bottom edge only), the others step forward, and it rises back in behind them. The layer swap happens while it is out of sight.
+
+- Part 28, take three: the other cards step forward the moment the front card starts to drop, one continuous motion instead of drop-then-step. The dropping card keeps its spot and stays on top until it is out of sight. Card titles grew: the four demo text cards, the yellow voice card and the download card.

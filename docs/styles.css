@@ -704,7 +704,7 @@ button.orb:active .orb-core {
   .fcard.r3 { --r: 27deg; --x: 102px; --y: 30px; z-index: 1; }
   @media (hover: hover) { .fcard:hover { --lift: -12px; box-shadow: 6px 6px 0 var(--sv-shadow-color); } }
   /* the front card drops out through the slot, then rises back in at the back while the others step forward */
-  .fcard.drop { --lift: 440px; --r: -4deg; transition: transform 320ms cubic-bezier(0.5, 0, 1, 1); }
+  .fcard.drop { --lift: 440px; --r: -4deg; z-index: 5; transition: transform 320ms cubic-bezier(0.5, 0, 1, 1); }
   .fcard.below { --lift: 440px; }
   .fcard.snap { transition: none; }
   .fcard.cream { background: var(--sv-panel); color: var(--sv-ink); } .fcard.yellow { background: var(--sv-yellow); } .fcard.coral { background: var(--sv-coral); } .fcard.green { background: var(--sv-green); }
@@ -730,7 +730,7 @@ button.orb:active .orb-core {
   .slide { grid-area: 1 / 1; opacity: 0; transform: translateY(8px); transition: opacity 220ms ease, transform 320ms var(--ease-out); pointer-events: none; }
   .slide.on { opacity: 1; transform: none; pointer-events: auto; transition-delay: 120ms; }
   .slide.out { transform: translateY(-8px); }
-  .slide h2 { font-size: clamp(1.4rem, 2.3vw, 1.85rem); letter-spacing: -0.025em; line-height: 1.12; }
+  .slide h2 { font-size: clamp(1.75rem, 2.9vw, 2.3rem); letter-spacing: -0.03em; line-height: 1.08; }
   .slide p { margin: 0; font-size: 1rem; }
 
   /* the tabs are cards of their own; the screen is a card below them, with a gap between */
@@ -811,7 +811,7 @@ button.orb:active .orb-core {
   .voice-sheet .pane { padding: 24px; }
   .intro { align-self: center; align-content: center; gap: 16px; background: var(--sv-yellow); color: #141410; }
   .intro .eyebrow, .intro .muted { color: #5d564a; }
-  .intro h2 { font-size: clamp(1.6rem, 2.8vw, 2.2rem); }
+  .intro h2 { font-size: clamp(1.9rem, 3.3vw, 2.6rem); }
   .intro p { margin: 0; font-size: 1.02rem; }
   .recbox .voices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .vrow { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; padding: 8px 14px 8px 8px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
@@ -893,6 +893,7 @@ button.orb:active .orb-core {
   .promise .facts { display: grid; gap: 6px; margin: 0; font-size: 1.05rem; color: #3b3a2e; }
   /* ---- 5 · get it: one choice, two ways ---- */
   .get-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px 32px; align-items: center; padding: 32px; align-content: center; }
+  .get-grid .section-head h2 { font-size: clamp(2rem, 3.6vw, 2.8rem); }
   .os { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .os .vcard { text-align: left; }
   .os .vcard.on { background: var(--sv-yellow); }
