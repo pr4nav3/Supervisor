@@ -710,15 +710,16 @@ button.orb:active .orb-core {
   .fcard.cream { background: var(--sv-panel); color: var(--sv-ink); } .fcard.yellow { background: var(--sv-yellow); } .fcard.coral { background: var(--sv-coral); } .fcard.green { background: var(--sv-green); }
   .fcard .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
   /* the personality: a chip in the inner colour with ink text and the orb's shadow, the button-on-a-card rule; it matches the orb in every theme */
-  .fcard .tag .p { opacity: 1; padding: 8px 14px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); color: var(--sv-ink); box-shadow: 3px 3px 0 var(--sv-shadow-color); font: 750 1.2rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; }
+  .fcard .tag .p { opacity: 1; padding: 8px 14px; border: var(--border); border-radius: 6px; background: var(--sv-panel); color: var(--sv-ink); box-shadow: 3px 3px 0 var(--sv-shadow-color); font: 750 1.2rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; }
   .fcard .quote { align-self: center; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.08; }
   .fcard .foot { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
   .fcard .foot .wave { grid-column: 2; height: 30px; }
   .fcard .foot .wave i { background: currentColor; opacity: 0.45; }
   .fcard.is-speaking .foot .wave i { opacity: 1; }
   .fcard.cream .wave i { color: var(--sv-ink); }
-  /* every chip and orb on the fan uses the theme's own inner colour and ink, whatever the card's colour, so they all swap together */
-  .fcard .orb-core { background: var(--sv-soft-white); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
+  /* the chip and the orb are the outer card colour, in the theme's ink; the cream card is that colour itself, so on it they take the inner colour instead */
+  .fcard .orb-core { background: var(--sv-panel); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
+  .fcard.cream .tag .p, .fcard.cream .orb-core { background: var(--sv-soft-white); }
   /* while speaking, every orb is green with dark ink, the plain-card ones included */
   .fcard.is-speaking .orb-core, .vrow.is-speaking .orb-core { background: var(--sv-green); color: #141410; }
   /* in the dark theme the orbs on the coloured cards go dark too, with a light glyph; green while speaking, with a dark one */
