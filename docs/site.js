@@ -90,16 +90,19 @@
   });
   function layoutFan() { fanOrder.forEach(function (idx, pos) { var c = fcards[idx]; c.classList.remove("r0", "r1", "r2", "r3"); c.classList.add("r" + pos); }); }
   function sayFront() { var c = fcards[fanOrder[0]]; setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d"); }
-  /* the front card hops over the hand and lands at the back; everyone else steps forward */
+  /* the front card drops out of the hand through the slot at its base; the others step forward
+     while it slips back in behind them, so it changes layer only while out of sight */
   function fanNext() {
     var front = fcards[fanOrder[0]];
-    fanOrder.push(fanOrder.shift()); layoutFan();
-    fcards.forEach(function (c) { c.classList.remove("hop"); }); void front.offsetWidth; front.classList.add("hop");
-    sayFront();
+    front.classList.add("drop");
+    setTimeout(function () {
+      fanOrder.push(fanOrder.shift());
+      front.classList.add("snap", "below"); front.classList.remove("drop"); layoutFan(); void front.offsetWidth; front.classList.remove("snap", "below");
+      sayFront();
+    }, 320);
   }
   function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); sayFront(); runFan(); }
   function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio) fanNext(); }, 3800); }
-  fcards.forEach(function (c) { c.addEventListener("animationend", function (e) { if (e.target === c) c.classList.remove("hop"); }); });
   /* a hidden tab gets no frames, so the hand waits for it to come back */
   document.addEventListener("visibilitychange", function () { if (document.hidden) clearInterval(fanTimer); else runFan(); });
   layoutFan(); sayFront(); runFan();

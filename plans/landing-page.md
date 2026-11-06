@@ -1136,3 +1136,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - The lit word runs 0.1s ahead of the voice with a 60ms fade, so it reads with the voice rather than after it.
 - The eye measures once a frame and not at all while off screen (the pointer handler was forcing layout on every move).
 - Voices: Stern is Elise, Gen Z is Derek (fan and demo). The phone line plays Elise. The clone card has Derek saying "And that's the session. Good work today." All four clips came from the app's own generated set on this machine.
+
+- Part 28, take two: the hop still swapped layers in plain view. Now the front card drops out of the hand through a slot at its base (the fan box clips its bottom edge only), the others step forward, and it rises back in behind them. The layer swap happens while it is out of sight.
