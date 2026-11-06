@@ -478,8 +478,13 @@ impl SessionManager {
     pub fn set_session_exception(&mut self, rule: AppRule, allowed: bool, now: Duration) -> SessionSnapshot {
         let storage = self.storage.as_ref();
         if let Some(session) = self.current.as_mut() {
-            let had = session.exceptions.contains(&rule);
-            session.exceptions.retain(|exception| exception != &rule);
+            // The card's Allow once stores the rule as matched (lower case); the chip sends the
+            // rule as typed. The same rule either way, or the allowance could never be taken back.
+            let same = |exception: &AppRule| {
+                exception.target == rule.target && exception.value.trim().eq_ignore_ascii_case(rule.value.trim())
+            };
+            let had = session.exceptions.iter().any(same);
+            session.exceptions.retain(|exception| !same(exception));
             if allowed {
                 session.exceptions.push(rule.clone());
             }
@@ -3631,6 +3636,23 @@ mod tests {
         let started = manager.tick(seconds(9300)).current.unwrap().pomodoro.unwrap();
         assert_eq!(started.phase, "work");
         assert_eq!(started.round, 2);
+    }
+
+    #[test]
+    fn an_allowance_from_the_card_can_be_taken_back_from_the_chip() {
+        let mut manager = test_manager();
+        manager.start(input("A", Strictness::Strict), seconds(0));
+        manager.update_rules(vec![AppRule::app("Notepad")], seconds(0));
+        for t in 1..=40 {
+            record(&mut manager, sample("Notepad", "x", 0.0), seconds(t));
+        }
+        // The card's Allow once keeps the rule as it was matched.
+        let allowed = manager.allow_current_for_session(seconds(41));
+        assert_eq!(allowed.current.unwrap().exceptions.len(), 1);
+        // The chip sends the rule as the user typed it.
+        let back = manager.set_session_exception(AppRule::app("Notepad"), false, seconds(42));
+        assert!(back.current.unwrap().exceptions.is_empty());
+        assert_eq!(record(&mut manager, sample("Notepad", "x", 0.0), seconds(50)).current.unwrap().focus.unwrap().state, FocusState::Suspicious);
     }
 
     fn metric_total(metrics: &SessionMetrics) -> u64 {
