@@ -853,11 +853,11 @@ button.orb:active .orb-core {
   .intro h2 { font-size: clamp(1.6rem, 2.8vw, 2.2rem); }
   .intro p { margin: 0; font-size: 1.02rem; }
   .recbox .voices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .vrow { display: grid; grid-template-columns: auto 1fr; gap: 1px 8px; align-items: center; padding: 7px 10px 7px 6px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
-  .vrow .orb { grid-row: 1 / 3; width: 42px; height: 42px; }
+  .vrow { display: grid; grid-template-columns: auto 1fr; gap: 2px 9px; align-items: center; min-height: 82px; padding: 10px 10px 10px 8px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
+  .vrow .orb { grid-row: 1 / 3; width: 50px; height: 50px; }
   /* a play button on a plain card: the card's outer colour, ink for the icon, the theme's own border and shadow */
   .vrow .orb-core, .recbox .rec-orb .orb-core { background: var(--sv-panel); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
-  .vrow b { font-size: 0.92rem; font-weight: 700; }
+  .vrow b { font-size: 1.02rem; font-weight: 700; }
   .vrow .line { font-size: 0.76rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.18; color: var(--sv-ink); }
   /* captions: while a clip plays, the words of its line come up one by one, in time with the voice */
   .is-speaking .words .w { opacity: 0.35; transition: opacity 60ms ease; }
