@@ -629,8 +629,17 @@ h1 {
   gap: 12px;
 }
 
+/* Big buttons get a bigger face: a size up, bolder, and a shadow to match their weight. */
 .active-session-controls button {
   min-height: 64px;
+  box-shadow: 4px 4px 0 var(--sv-shadow-color);
+  font-size: var(--sv-type-3);
+  font-weight: 650;
+}
+
+.active-session-controls button:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
 }
 
 /* Home fills the window: the grid grows and the start button sits on the bottom edge. */
