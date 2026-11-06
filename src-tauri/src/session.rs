@@ -321,6 +321,7 @@ impl SessionManager {
             None => 0,
         };
         let mut session = Session::new(session_id, goal, duration_seconds, strictness, rules, exceptions, now);
+        session.persist_event(now, "start", input.source.as_deref(), self.storage.as_ref());
         for rule in session.exceptions.clone() {
             session.persist_event(now, "allowed", Some(&allowed_detail(&rule)), self.storage.as_ref());
         }
@@ -1600,6 +1601,10 @@ pub struct StartSessionInput {
     /// Rounds of work with breaks between them; the session is the rounds' work time.
     #[serde(default)]
     pub pomodoro: Option<PomodoroInput>,
+    /// What started it ("start screen", "Enter", "streak chip", "practice"): kept as the
+    /// session's first event, so a session nobody remembers starting can be traced.
+    #[serde(default)]
+    pub source: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq)]
@@ -2183,6 +2188,7 @@ mod tests {
                 strictness: Some(Strictness::Strict),
                 exceptions: Some(vec![AppRule::website("youtube.com")]),
                 pomodoro: None,
+                source: None,
             },
             seconds(0),
         );
@@ -3200,6 +3206,7 @@ mod tests {
             strictness: Some(strictness),
             exceptions: None,
             pomodoro: None,
+            source: None,
         }
     }
 

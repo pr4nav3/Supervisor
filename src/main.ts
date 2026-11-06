@@ -2695,7 +2695,7 @@ async function startPractice(): Promise<void> {
   }
   ruleEditor = null;
   const started = await invokeSnapshot("start_session", {
-    input: { goal: `Practice: open ${target}`, duration_minutes: 5, strictness: "strict", exceptions: [], pomodoro: null },
+    input: { source: "practice", goal: `Practice: open ${target}`, duration_minutes: 5, strictness: "strict", exceptions: [], pomodoro: null },
   });
   const current = snapshot?.current;
   if (!started || !current) {
@@ -5959,6 +5959,7 @@ function bindPreflight(root: ParentNode): void {
   root.querySelector<HTMLInputElement>("#preflight-goal")?.addEventListener("keydown", (event) => {
     if (event.key === "Enter" && !composing(event)) {
       event.preventDefault();
+      startSource = "Enter";
       void runAction("confirm-start-session");
     }
   });
@@ -6121,9 +6122,13 @@ function leaveVoiceScreen(): void {
   releaseVoiceWorker();
 }
 
-async function startSession(): Promise<boolean> {
+/** How the next start was asked for; the backend keeps it as the session's first event. */
+let startSource = "start screen";
+
+async function startSession(source: string): Promise<boolean> {
   return invokeSnapshot("start_session", {
     input: {
+      source,
       goal: draft.goal,
       duration_minutes: draft.duration_minutes,
       strictness: draft.strictness,
@@ -6388,7 +6393,9 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     }
     preflightOpen = false;
     ruleEditor = null;
-    if (!(await startSession())) {
+    const source = startSource;
+    startSource = "start screen";
+    if (!(await startSession(source))) {
       preflightOpen = true;
       render();
     }
