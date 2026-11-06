@@ -34,10 +34,18 @@ def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
     # The ring fills its box, as the neighbouring taskbar icons do; the smooth edge keeps it
     # from reading as a hard square.
     outer = big * 0.495
-    border = max(1.2 * SUPERSAMPLE, big * 0.06)
-    acid_r = big * 0.22
-    cobalt_r = big * 0.13
-    pupil_r = big * 0.055
+    if size < 64:
+        # Taskbar and title bar sizes: five concentric bands in 12 px of radius blur into mush,
+        # so the small icon is three bold shapes: a thick ring, a green disc, a blue dot.
+        border = max(2.5 * SUPERSAMPLE, big * 0.11)
+        acid_r = big * 0.27
+        cobalt_r = big * 0.14
+        pupil_r = 0.0
+    else:
+        border = big * 0.06
+        acid_r = big * 0.22
+        cobalt_r = big * 0.13
+        pupil_r = big * 0.055
 
     def sample(x: int, y: int) -> tuple[int, int, int, int]:
         dx = x + 0.5 - centre
@@ -100,6 +108,26 @@ def png_bytes(pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
     )
 
 
+def dib_bytes(pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
+    """A 32-bit bottom-up DIB with its AND mask: the plain ICO entry every Windows shell path
+    decodes without a PNG step. PNG entries are only safe at 256 px."""
+    height = len(pixels)
+    width = len(pixels[0])
+    header = struct.pack("<IiiHHIIiiII", 40, width, height * 2, 1, 32, 0, 0, 0, 0, 0, 0)
+    colour = b"".join(
+        b"".join(struct.pack("BBBB", b, g, r, a) for (r, g, b, a) in row) for row in reversed(pixels)
+    )
+    mask_row_bytes = ((width + 31) // 32) * 4
+    mask = b""
+    for row in reversed(pixels):
+        bits = 0
+        for x, (_, _, _, a) in enumerate(row):
+            if a == 0:
+                bits |= 1 << (mask_row_bytes * 8 - 1 - x)
+        mask += bits.to_bytes(mask_row_bytes, "big")
+    return header + colour + mask
+
+
 def ico_bytes(images: dict[int, bytes]) -> bytes:
     sizes = sorted(images)
     count = len(sizes)
@@ -122,11 +150,12 @@ def main() -> None:
 
     # Every size Windows asks for at the common scales, so the shell never stretches one:
     # 16/20/24 for title bars and taskbars, 32/40/48 at higher scales, 64 to 256 for Explorer.
-    pngs = {size: png_bytes(draw_icon(size)) for size in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)}
-    (icons / "32x32.png").write_bytes(pngs[32])
-    (icons / "128x128.png").write_bytes(pngs[128])
-    (icons / "icon.png").write_bytes(pngs[256])
-    (icons / "icon.ico").write_bytes(ico_bytes(pngs))
+    drawn = {size: draw_icon(size) for size in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)}
+    (icons / "32x32.png").write_bytes(png_bytes(drawn[32]))
+    (icons / "128x128.png").write_bytes(png_bytes(drawn[128]))
+    (icons / "icon.png").write_bytes(png_bytes(drawn[256]))
+    entries = {size: (png_bytes(pixels) if size >= 256 else dib_bytes(pixels)) for size, pixels in drawn.items()}
+    (icons / "icon.ico").write_bytes(ico_bytes(entries))
     print(f"wrote icons in {icons}")
 
 
