@@ -14,7 +14,7 @@ APP="Supervisor"
 # SUPERVISOR_INSTALL_BASE overrides where the zip and its .sha256 come from (local testing).
 BASE="${SUPERVISOR_INSTALL_BASE:-https://github.com/$REPO/releases/latest/download}"
 DEST="${SUPERVISOR_INSTALL_DIR:-/Applications}"
-# The one certificate every release is signed with (plans/distribution.md).
+# The one certificate every release is signed with (notes/plans/distribution.md).
 REQUIREMENT='identifier "app.supervisor.desktop" and certificate leaf = H"71098375bde8e53f630830c240148afff64e7500"'
 
 fail() { echo "Supervisor install failed: $1" >&2; exit 1; }

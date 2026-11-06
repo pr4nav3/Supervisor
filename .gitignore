@@ -28,3 +28,6 @@ p12-password.txt
 supervisor-signing/
 *.keychain-db
 *.pem
+
+# the private notes repo, cloned here
+notes/

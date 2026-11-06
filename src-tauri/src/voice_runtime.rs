@@ -465,7 +465,7 @@ fn select_runtime_asset(
 /// Where installed copies look for the voice runtime. A fixed GitHub Release (tag
 /// `voice-runtime`, marked pre-release so it never becomes "latest" for the app installer)
 /// holds this manifest and the zips it lists; publishing a new runtime replaces those assets,
-/// and no app build has to change. See plans/distribution.md.
+/// and no app build has to change. See notes/plans/distribution.md.
 const DEFAULT_MANIFEST_URL: &str =
     "https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/voice-runtime-manifest.json";
 

@@ -1,6 +1,6 @@
 //! macOS system calls, all through maintained bindings (objc2 family, libc, mach2).
 //! Type-checked from Windows with `cargo check --target aarch64-apple-darwin` in a scratch
-//! crate; see plans/mac-handoff.md for what still needs a real Mac.
+//! crate; see notes/plans/mac-handoff.md for what still needs a real Mac.
 
 use std::ffi::CString;
 use std::sync::OnceLock;

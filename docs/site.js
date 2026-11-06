@@ -1,4 +1,4 @@
-/* The live site's script. Edited by hand; plans/landing-mockups is history, not the source. */
+/* The live site's script. Edited by hand; notes/plans/landing-mockups is history, not the source. */
 (function () {
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
   var root = document.documentElement, $ = function (id) { return document.getElementById(id); };

@@ -32,7 +32,7 @@ APPLE_SIGNING_IDENTITY="$IDENTITY" npx tauri build --bundles app --config src-ta
 
 app="src-tauri/target/release/bundle/macos/Supervisor.app"
 codesign --verify --deep --strict -R="$REQUIREMENT" "$app" \
-  || { echo "the app is not signed with Supervisor's certificate (plans/distribution.md)" >&2; exit 1; }
+  || { echo "the app is not signed with Supervisor's certificate (notes/plans/distribution.md)" >&2; exit 1; }
 
 mkdir -p "$out"
 rm -f "$zip" "$zip.sha256"
