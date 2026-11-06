@@ -158,6 +158,8 @@ interface CurrentSession {
   /** Supervisor's own window is in front: `focus` is the place the user came from, its clock
    *  held, and this time counts as work. */
   supervisor_in_front: boolean;
+  /** The browser in front can't have its address read, so its sites count as work. */
+  unreadable_browser: string | null;
   /** Distractions allowed for this session. */
   exceptions: AppRule[];
   camera: CameraStatus;
@@ -1382,6 +1384,7 @@ function sessionViewKey(current: CurrentSession | null): string {
     current.snoozed_until_seconds ?? "",
     focus?.state ?? "",
     current.supervisor_in_front ? 1 : 0,
+    current.unreadable_browser ?? "",
     focus?.distracting ? 1 : 0,
     focus?.should_nudge ? 1 : 0,
     focus?.interrupt ? 1 : 0,
@@ -1649,6 +1652,7 @@ function renderSession(current: CurrentSession | null): string {
           <p class="eyebrow">Distractions</p>
           ${onBreak ? `<p class="session-break-note">Don't count during a break.</p>` : renderSessionDistractions(current.exceptions)}
           ${renderAccessNotice(true)}
+          ${renderUnreadableBrowserNotice(current.unreadable_browser)}
           <button type="button" data-action="open-session-rules">Edit distractions</button>
         </aside>
         </div>
@@ -2423,6 +2427,19 @@ function renderAccessNotice(short = false): string {
     <section class="notice notice-access">
       <span>${why} ${escapeHtml(accessibilityHowTo())}</span>
       <button class="small-button" type="button" data-action="onboard-accessibility">Open System Settings</button>
+    </section>
+  `;
+}
+
+/** A browser whose address bar can't be read (Vivaldi, Arc on Windows) counts as work, so a
+ *  website on the list is never caught there: the user has to know why. */
+function renderUnreadableBrowserNotice(browser: string | null): string {
+  if (!browser) {
+    return "";
+  }
+  return `
+    <section class="notice notice-access">
+      <span>Supervisor can't read the address bar in ${escapeHtml(browser)}, so its websites count as work and nothing on your list is caught there. Chrome, Edge, Brave and Firefox can be read.</span>
     </section>
   `;
 }

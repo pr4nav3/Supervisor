@@ -7108,7 +7108,8 @@ dt,
 }
 
 /* History storage trouble, or a Mac without Accessibility: the sentence and its button on one
-   row. In the running session's distractions card it sits between the chips and Edit. */
+   row. In the running session's distractions card it sits between the chips and Edit, as does
+   the notice for a browser whose address bar can't be read. */
 .notice-storage,
 .notice-access {
   display: flex;

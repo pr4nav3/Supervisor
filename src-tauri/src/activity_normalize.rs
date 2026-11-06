@@ -249,8 +249,13 @@ pub fn app_label(app_name: &str, description: Option<&str>) -> String {
     const TERMINALS: &[&str] = &[
         "cmd", "powershell", "pwsh", "windowsterminal", "wt", "conhost", "openconsole", "terminal",
     ];
-    if TERMINALS.contains(&exe_stem_lower(app_name).as_str()) {
+    let stem = exe_stem_lower(app_name);
+    if TERMINALS.contains(&stem.as_str()) {
         return "Terminal".to_string();
+    }
+    // Opera's program description is "Opera Internet Browser"; nobody calls it that.
+    if stem == "opera" {
+        return "Opera".to_string();
     }
     description
         .map(str::trim)
@@ -465,5 +470,6 @@ mod tests {
         assert_eq!(app_label("Code", Some("Visual Studio Code")), "Visual Studio Code");
         assert_eq!(app_label("cmd", Some("Windows Command Processor")), "Terminal");
         assert_eq!(app_label("Thorium", Some("  ")), "Thorium");
+        assert_eq!(app_label("opera.exe", Some("Opera Internet Browser")), "Opera");
     }
 }

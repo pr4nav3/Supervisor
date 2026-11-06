@@ -26,6 +26,10 @@ const CAMERA_STALE_AFTER: Duration = Duration::from_secs(3);
 pub const CAMERA_AWAY_AFTER: Duration = Duration::from_secs(60);
 /// A span state of its own, apart from the focus states: the phone outranks the window.
 const PHONE_STATE: &str = "phone";
+/// A browser whose address can't be read is named to the user after this long in front, and
+/// the notice goes after another app has been in front this long, so a quick switch doesn't
+/// flicker it.
+const UNREADABLE_BROWSER_AFTER: Duration = Duration::from_secs(20);
 
 pub struct SessionManager {
     settings: SessionSettings,
@@ -629,6 +633,21 @@ struct Session {
     capture_failing_since: Option<Duration>,
     camera: Camera,
     pomodoro: Option<Pomodoro>,
+    unreadable: UnreadableBrowser,
+}
+
+/// A browser in front whose address can't be read (Vivaldi, Arc on Windows): its sites all
+/// count as work, so the user is told rather than left wondering why nothing is caught.
+#[derive(Debug, Default)]
+struct UnreadableBrowser {
+    /// The browser being read as nothing, and since when without a break.
+    since: Option<(String, Duration)>,
+    /// The browser named to the user.
+    shown: Option<String>,
+    /// While `shown` is set and another app is in front: since when.
+    away_since: Option<Duration>,
+    /// Browsers already written to the event log this session.
+    logged: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -713,6 +732,7 @@ impl Session {
             capture_failing_since: None,
             camera: Camera::default(),
             pomodoro: None,
+            unreadable: UnreadableBrowser::default(),
         }
     }
 
@@ -908,6 +928,7 @@ impl Session {
             sample.app_key = Some(storage.app_key(&sample.app_identity, &sample.app_name, &sample.app_label));
         }
         let activity = self.resolver.resolve(&sample, now);
+        self.track_unreadable_browser(&sample, &activity, now);
         let mut display_activity = activity.clone();
         if let (ActivityKind::Website, Some(storage)) = (activity.kind, storage) {
             display_activity.label = storage.site_label(&activity.key);
@@ -1265,6 +1286,7 @@ impl Session {
             evidence: self.evidence.clone(),
             focus: self.latest_focus.clone(),
             supervisor_in_front: self.supervisor_state.is_some(),
+            unreadable_browser: self.unreadable.shown.clone(),
             exceptions: self.exceptions.clone(),
             camera: self.camera_status(now),
             pomodoro: self.pomodoro_status(now),
@@ -1431,6 +1453,47 @@ impl Session {
         }
 
         self.push_event(now, &label, &value);
+    }
+
+    /// Neither the address nor the title named the page: the browser can't be read here.
+    fn track_unreadable_browser(&mut self, sample: &ActivitySample, activity: &Activity, now: Duration) {
+        let label = &sample.app_label;
+        let address_read = sample.browser.as_ref().is_some_and(|read| read.address.is_some());
+        let unreadable = activity.kind == ActivityKind::OtherWebsites
+            && activity.source == Source::None
+            && sample.browser.is_some()
+            && !address_read;
+        let state = &mut self.unreadable;
+        if unreadable {
+            let since = match &state.since {
+                Some((browser, at)) if browser == label => *at,
+                _ => now,
+            };
+            state.since = Some((label.clone(), since));
+            if now.saturating_sub(since) >= UNREADABLE_BROWSER_AFTER && state.shown.as_ref() != Some(label) {
+                state.shown = Some(label.clone());
+                if !state.logged.contains(label) {
+                    state.logged.push(label.clone());
+                    self.push_event(now, &format!("Can't read {label}'s address bar"), "BROWSER");
+                }
+            }
+        } else {
+            state.since = None;
+        }
+
+        let state = &mut self.unreadable;
+        if state.shown.as_ref() == Some(label) {
+            state.away_since = None;
+            if address_read {
+                state.shown = None;
+            }
+        } else if state.shown.is_some() {
+            let away = *state.away_since.get_or_insert(now);
+            if now.saturating_sub(away) >= UNREADABLE_BROWSER_AFTER {
+                state.shown = None;
+                state.away_since = None;
+            }
+        }
     }
 
     fn push_event(&mut self, now: Duration, label: &str, value: &str) {
@@ -1743,6 +1806,9 @@ pub struct CurrentSession {
     /// Supervisor's own window is in front: `focus` is the place the user came from, with
     /// its clock held, and this time counts as work.
     pub supervisor_in_front: bool,
+    /// The browser in front can't have its address read, so its sites count as work: its
+    /// name, for the notice that says so.
+    pub unreadable_browser: Option<String>,
     /// Distractions allowed for this session.
     pub exceptions: Vec<AppRule>,
     pub camera: CameraStatus,
@@ -3384,6 +3450,37 @@ mod tests {
             }),
             ..sample("chrome", address, idle_seconds)
         }
+    }
+
+    #[test]
+    fn a_browser_that_cannot_be_read_is_named_after_20_seconds() {
+        let mut manager = test_manager();
+        manager.start(input("Focus", Strictness::Normal), seconds(0));
+        let unread = ActivitySample {
+            window_title: None,
+            app_label: "Vivaldi".to_string(),
+            browser: Some(crate::activity::BrowserRead { address: None, editing: false }),
+            ..sample("vivaldi", "", 0.0)
+        };
+        let named = |snapshot: SessionSnapshot| snapshot.current.unwrap().unreadable_browser;
+        for t in 0..20 {
+            assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))), None, "at {t} s");
+        }
+        for t in 20..25 {
+            assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))).as_deref(), Some("Vivaldi"));
+        }
+        let current = manager.snapshot(seconds(24)).current.unwrap();
+        let logged = current.evidence.iter().filter(|event| event.label == "Can't read Vivaldi's address bar");
+        assert_eq!(logged.count(), 1);
+
+        let read = ActivitySample {
+            browser: Some(crate::activity::BrowserRead {
+                address: Some("youtube.com".to_string()),
+                editing: false,
+            }),
+            ..unread
+        };
+        assert_eq!(named(record(&mut manager, read, seconds(25))), None);
     }
 
     #[test]

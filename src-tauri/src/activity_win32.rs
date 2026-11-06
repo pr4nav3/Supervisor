@@ -100,13 +100,12 @@ pub fn capture_current(
         return Err("no foreground window".to_string());
     }
 
-    if is_cloaked(hwnd) || unsafe { IsIconic(hwnd) }.as_bool() {
-        return Err("foreground window is not usable".to_string());
-    }
-
-    if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
-        return Err("foreground window is not visible".to_string());
-    }
+    // A foreground window nobody can see (cloaked while a packaged app switches, minimized
+    // with its button, or hidden: Arc's sign-in does this) is like the desktop: the window
+    // the user came from keeps the time, instead of writing the minutes off as unknown.
+    let unseen = is_cloaked(hwnd)
+        || unsafe { IsIconic(hwnd) }.as_bool()
+        || !unsafe { IsWindowVisible(hwnd) }.as_bool();
 
     let window_class = class_name(hwnd);
     let raw_title = read_wide_string(|buffer| unsafe { GetWindowTextW(hwnd, buffer) });
@@ -139,7 +138,7 @@ pub fn capture_current(
         display_off,
     });
 
-    let shell_surface = match disposition {
+    let shell_surface = unseen || match disposition {
         ForegroundDisposition::NoSample => {
             return Err("foreground surface is not classifiable".to_string());
         }
