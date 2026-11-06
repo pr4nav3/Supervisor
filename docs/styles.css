@@ -707,9 +707,11 @@ button.orb:active .orb-core {
   @media (hover: hover) { .fcard:hover { --lift: -12px; box-shadow: 6px 6px 0 var(--sv-shadow-color); } }
   /* the front card drops half a card below the hand, in view the whole way, then slides up into the back slot */
   .fcard.drop { --lift: 290px; --r: -4deg; z-index: 5; transition: transform 360ms cubic-bezier(0.5, 0, 1, 1); }
-  .fcard.cream { background: var(--sv-panel); color: var(--sv-ink); } .fcard.yellow { background: var(--sv-yellow); } .fcard.coral { background: var(--sv-coral); } .fcard.green { background: var(--sv-green); }
+  .fcard.cream { --card: var(--sv-panel); background: var(--card); color: var(--sv-ink); } .fcard.yellow { --card: var(--sv-yellow); background: var(--card); } .fcard.coral { --card: var(--sv-coral); background: var(--card); } .fcard.green { --card: var(--sv-green); background: var(--card); }
   .fcard .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
-  .fcard .tag .p { opacity: 1; padding: 5px 10px; border: 2px solid currentColor; border-radius: 6px; font: 750 0.95rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; }
+  /* the personality: a solid ink chip with the card's own colour for its text, so it is the first thing read */
+  .fcard .tag .p { opacity: 1; padding: 7px 12px; border: 2px solid #141410; border-radius: 6px; background: #141410; color: var(--card); font: 750 1.1rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; }
+  .fcard.cream .tag .p { border-color: var(--sv-ink); background: var(--sv-ink); color: var(--sv-panel); }
   .fcard .quote { align-self: center; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.08; }
   .fcard .foot { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
   .fcard .foot .wave { grid-column: 2; height: 30px; }
@@ -719,6 +721,9 @@ button.orb:active .orb-core {
   .fcard.cream .orb-core { background: var(--sv-soft-white); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
   /* while speaking, every orb is green with dark ink, the plain-card ones included */
   .fcard.cream.is-speaking .orb-core, .vrow.is-speaking .orb-core { background: var(--sv-green); color: #141410; }
+  /* in the dark theme the orbs on the coloured cards go dark too, with a light glyph; green while speaking, with a dark one */
+  [data-theme="dark"] .fcard:not(.cream) .orb-core { background: #141410; color: #fff8e9; }
+  [data-theme="dark"] .fcard:not(.cream).is-speaking .orb-core { background: var(--sv-green); color: #141410; }
   /* ---- 2 · the demo ---- */
   .scene { position: relative; height: 420vh; }
   /* the bar is fixed over the top 72px (plus its 18px soft edge), so the screen's content is

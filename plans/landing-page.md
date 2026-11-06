@@ -1146,3 +1146,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - Part 28, take five: the drop through the slot stays. The slot moved 120px down, under the back card, which hangs 106px below the fan box and was getting its corner cut; the drop is 580px over 360ms so the card still clears it.
 
 - Part 28, take six: no slot. The card stays in view the whole way; it drops half a card (290px) below the hand, goes behind at the bottom where it is furthest from the others, and slides from there into the back slot in one motion. Tested at the user's request; the swap is in view now.
+
+- Part 29: in the dark theme the orbs on the coloured fan cards go dark with a light glyph (green with a dark glyph while speaking); the cream card keeps its theme orb. The personality chip is solid ink with the card's own colour for its text, at 1.1rem, so it is the first thing read on each card.
