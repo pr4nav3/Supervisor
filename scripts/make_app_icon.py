@@ -31,8 +31,9 @@ def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
     alpha rather than a staircase: at 16 and 32 px the ring still reads as round."""
     big = size * SUPERSAMPLE
     centre = big / 2
-    # Leave a 1px transparent margin so the ICO doesn't look like a hard square in the tray.
-    outer = big * 0.46
+    # The ring fills its box, as the neighbouring taskbar icons do; the smooth edge keeps it
+    # from reading as a hard square.
+    outer = big * 0.495
     border = max(1.2 * SUPERSAMPLE, big * 0.06)
     acid_r = big * 0.22
     cobalt_r = big * 0.13
@@ -119,7 +120,9 @@ def main() -> None:
     icons = repo / "src-tauri" / "icons"
     icons.mkdir(parents=True, exist_ok=True)
 
-    pngs = {size: png_bytes(draw_icon(size)) for size in (16, 32, 48, 128, 256)}
+    # Every size Windows asks for at the common scales, so the shell never stretches one:
+    # 16/20/24 for title bars and taskbars, 32/40/48 at higher scales, 64 to 256 for Explorer.
+    pngs = {size: png_bytes(draw_icon(size)) for size in (16, 20, 24, 32, 40, 48, 64, 96, 128, 256)}
     (icons / "32x32.png").write_bytes(pngs[32])
     (icons / "128x128.png").write_bytes(pngs[128])
     (icons / "icon.png").write_bytes(pngs[256])
