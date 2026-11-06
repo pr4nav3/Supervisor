@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the Supervisor window/tray icons for Windows tauri-build: a smooth-edged ring."""
+"""Generate the app icons (src-tauri/icons): the site's eye, redrawn bolder below 64 px.
+
+Each size is drawn at 8x and averaged down, so edges are smooth. The ICO holds every size
+Windows asks for, as plain bitmaps below 256 px.
+"""
 
 from __future__ import annotations
 
@@ -10,7 +14,7 @@ from pathlib import Path
 
 INK = (16, 16, 16, 255)
 PAPER = (244, 234, 215, 255)
-ACID = (183, 255, 60, 255)
+ACID = (168, 235, 55, 255)
 COBALT = (50, 103, 255, 255)
 CLEAR = (0, 0, 0, 0)
 
@@ -31,21 +35,23 @@ def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
     alpha rather than a staircase: at 16 and 32 px the ring still reads as round."""
     big = size * SUPERSAMPLE
     centre = big / 2
-    # The ring fills its box, as the neighbouring taskbar icons do; the smooth edge keeps it
-    # from reading as a hard square.
-    outer = big * 0.495
     if size < 64:
-        # Taskbar and title bar sizes: five concentric bands in 12 px of radius blur into mush,
-        # so the small icon is three bold shapes: a thick ring, a green disc, a blue dot.
-        border = max(2.5 * SUPERSAMPLE, big * 0.11)
-        acid_r = big * 0.27
-        cobalt_r = big * 0.14
-        pupil_r = 0.0
-    else:
+        # Taskbar, title bar, small dock: the site's eye with its inner bands grown so they
+        # stay apart at 24 px, a small pupil (a full one's soft rim would cover the two pixels
+        # of blue around it), and drawn to the box's edge so it sits at its neighbours' size.
+        outer = big * 0.5
         border = big * 0.06
-        acid_r = big * 0.22
-        cobalt_r = big * 0.13
-        pupil_r = big * 0.055
+        acid_r = big * 0.29
+        cobalt_r = big * 0.195
+        pupil_r = big * 0.06
+    else:
+        # Explorer, the installer, a large dock: the site's eye exactly (website/assets/eye.svg,
+        # a 128 box: ring to 58.88, paper to 51.2, green to 28.16, blue to 16.64, pupil to 7.04).
+        outer = big * (58.88 / 128)
+        border = big * ((58.88 - 51.2) / 128)
+        acid_r = big * (28.16 / 128)
+        cobalt_r = big * (16.64 / 128)
+        pupil_r = big * (7.04 / 128)
 
     def sample(x: int, y: int) -> tuple[int, int, int, int]:
         dx = x + 0.5 - centre
