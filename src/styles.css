@@ -4046,12 +4046,34 @@ button.overlay-more.is-open::before {
   text-transform: uppercase;
 }
 
-/* The voice that spoke, and the task: light paper in both themes, like the app's other
-   coloured cards, so the ink text reads on the coral. */
+/* The voice that spoke, and the task: paper on the coral in the light theme; in the dark
+   theme the panel grey, with the play button a shade lighter, as on the Session done card. */
 .interrupt-voice,
 .interrupt-task {
   background: #fff4cf;
   color: var(--sv-colored-ink);
+}
+
+[data-theme="dark"] .interrupt-voice,
+[data-theme="dark"] .interrupt-task,
+[data-theme="dark"] .interrupt-actions button:not(.primary) {
+  background: var(--panel);
+  color: var(--ink);
+}
+
+/* Scoped to the slab so the slab's own ink rule (`.state-slab :is(p, ...)`) doesn't win. */
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-who {
+  color: var(--muted);
+}
+
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-line,
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-task :is(strong, span) {
+  color: var(--ink);
+}
+
+[data-theme="dark"] .voice-orb-core {
+  background: #62615b;
+  color: var(--ink);
 }
 
 .interrupt-voice {
@@ -4081,7 +4103,7 @@ button.overlay-more.is-open::before {
 .interrupt-alert .interrupt-voice-line {
   margin: 3px 0 0;
   font-size: 1rem;
-  font-weight: 650;
+  font-weight: 500;
   line-height: 1.3;
 }
 
@@ -6365,10 +6387,6 @@ button.history-item {
   color: var(--ink);
 }
 
-[data-theme="dark"] .session-over-card .interrupt-voice {
-  background: var(--panel);
-}
-
 .session-over-card .state-slab.interrupt-alert .interrupt-voice-who {
   color: var(--muted);
 }
@@ -6380,10 +6398,6 @@ button.history-item {
 .session-over-card .voice-orb-core {
   background: var(--white-soft);
   color: var(--ink);
-}
-
-[data-theme="dark"] .session-over-card .voice-orb-core {
-  background: #62615b;
 }
 
 /* While the line plays the orb is green here too, as on every other card. */
