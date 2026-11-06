@@ -1128,3 +1128,11 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - A features grid of twelve cards, a comparison table, a FAQ accordion of fifteen entries.
 - Any third-party script: analytics, fonts, widgets. The site's own rules are the app's.
 - Numbers that are not true yet.
+
+## Part 28: a smoother hand, honest orbs
+
+- The front card no longer fades out and reappears at the back: it hops over the hand (a `translate` keyframe, z-index flipping at the top of the arc) while the others slide forward, on their own compositor layers (`will-change: transform`).
+- The silent cycle only shows the line. The green orb, the bouncing bars and the lit words mean sound now, and they come only with a click.
+- The lit word runs 0.1s ahead of the voice with a 60ms fade, so it reads with the voice rather than after it.
+- The eye measures once a frame and not at all while off screen (the pointer handler was forcing layout on every move).
+- Voices: Stern is Elise, Gen Z is Derek (fan and demo). The phone line plays Elise. The clone card has Derek saying "And that's the session. Good work today." All four clips came from the app's own generated set on this machine.

@@ -697,13 +697,13 @@ button.orb:active .orb-core {
 
   /* the fan: the four personalities as a hand of cards; the front one speaks, then goes to the back */
   .fan { position: relative; justify-self: end; width: min(520px, 100%); height: 430px; }
-  .fcard { position: absolute; left: 40px; bottom: 36px; width: 270px; height: 330px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 18px 18px 14px; border: var(--border); border-radius: 7px; box-shadow: 4px 4px 0 var(--sv-shadow-color); color: #141410; cursor: pointer; transform-origin: 50% 120%; transform: rotate(var(--r, 0deg)) translate(var(--x, 0px), calc(var(--y, 0px) + var(--lift, 0px))); transition: transform 560ms var(--ease-out), opacity 280ms ease, box-shadow 120ms ease-out; }
+  .fcard { position: absolute; left: 40px; bottom: 36px; width: 270px; height: 330px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 18px 18px 14px; border: var(--border); border-radius: 7px; box-shadow: 4px 4px 0 var(--sv-shadow-color); color: #141410; cursor: pointer; transform-origin: 50% 120%; transform: rotate(var(--r, 0deg)) translate(var(--x, 0px), calc(var(--y, 0px) + var(--lift, 0px))); transition: transform 560ms var(--ease-out), box-shadow 120ms ease-out; will-change: transform; }
   .fcard.r0 { --r: 0deg; --x: 0px; --y: 0px; z-index: 4; }
   .fcard.r1 { --r: 9deg; --x: 34px; --y: 4px; z-index: 3; }
   .fcard.r2 { --r: 18deg; --x: 68px; --y: 14px; z-index: 2; }
   .fcard.r3 { --r: 27deg; --x: 102px; --y: 30px; z-index: 1; }
-  .fcard.away { transform: rotate(-8deg) translate(-30px, -90px); opacity: 0; transition: transform 280ms ease-in, opacity 220ms ease; }
-  .fcard.snap { transition: none; }
+  .fcard.hop { animation: hop 560ms var(--ease-out); }
+  @keyframes hop { 0%, 42% { z-index: 5; } 43%, 100% { z-index: 0; } 50% { translate: 0 -70px; } }
   @media (hover: hover) { .fcard:hover { --lift: -12px; box-shadow: 6px 6px 0 var(--sv-shadow-color); } }
   .fcard.cream { background: var(--sv-panel); color: var(--sv-ink); } .fcard.yellow { background: var(--sv-yellow); } .fcard.coral { background: var(--sv-coral); } .fcard.green { background: var(--sv-green); }
   .fcard .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
@@ -819,7 +819,7 @@ button.orb:active .orb-core {
   .vrow b { font-size: 1rem; font-weight: 700; }
   .vrow .line { font-size: 0.88rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; color: var(--sv-ink); }
   /* captions: while a clip plays, the words of its line come up one by one, in time with the voice */
-  .is-speaking .words .w { opacity: 0.35; transition: opacity 120ms ease; }
+  .is-speaking .words .w { opacity: 0.35; transition: opacity 60ms ease; }
   .is-speaking .words .w.on { opacity: 1; }
   @media (hover: hover) { .vrow:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
   .vrow:active { transform: translate(2px, 2px); box-shadow: none; }

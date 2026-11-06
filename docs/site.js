@@ -23,9 +23,9 @@
     el.innerHTML = out;
   }
   var CLIPS = {
-    genz: "assets/voice/elise-genz-bro-lock-in.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3", caught: "assets/voice/elise-genz-caught-in-4k.mp3",
-    gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3",
-    genz2: "assets/voice/elise-genz-bro-lock-in.mp3", stern2: "assets/voice/derek-stern-wasting-time.mp3"
+    genz: "assets/voice/derek-genz-bro-lock-in.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3", phone: "assets/voice/elise-gentle-phone-check-after.mp3",
+    caught: "assets/voice/elise-genz-caught-in-4k.mp3", session: "assets/voice/derek-gentle-session-good-work.mp3",
+    gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3", stern2: "assets/voice/elise-stern-wasting-time.mp3"
   };
   var audio = null, speaking = [];
   function stop() {
@@ -38,7 +38,7 @@
     var words = row.querySelectorAll(".words .w");
     (function tick() {
       if (audio !== a) return;
-      if (a.duration) { var k = Math.ceil(a.currentTime / a.duration * words.length); words.forEach(function (w, i) { w.classList.toggle("on", i < k); }); }
+      if (a.duration) { var k = Math.ceil((a.currentTime + 0.1) / a.duration * words.length); words.forEach(function (w, i) { w.classList.toggle("on", i < k); }); }
       if (!a.ended) setTimeout(tick, 40); /* a timer, not a frame: it keeps time in a background tab too */
     })();
   }
@@ -61,9 +61,13 @@
     eye.addEventListener("click", function () { wink(eye); });
   });
   /* looking where the pointer is isn't motion for its own sake, so it stays on under "reduce motion" too */
-  addEventListener("pointermove", function (e) { lookAt(e.clientX, e.clientY); }, { passive: true });
+  var px = 0, py = 0, lookFrame = 0;
+  addEventListener("pointermove", function (e) { px = e.clientX; py = e.clientY; if (!lookFrame) lookFrame = requestAnimationFrame(function () { lookFrame = 0; lookAt(px, py); }); }, { passive: true });
+  if ("IntersectionObserver" in window) new IntersectionObserver(function (es) { es.forEach(function (e) { e.target._seen = e.isIntersecting; }); }).observe(eyes[0]);
+  else eyes[0]._seen = true;
   function lookAt(x, y) {
     eyes.forEach(function (eye) {
+      if (!eye._seen) return;
       var r = eye.getBoundingClientRect(); if (!r.width) return;
       var dx = x - (r.left + r.width / 2), dy = y - (r.top + r.height / 2);
       var d = Math.hypot(dx, dy) || 1, m = Math.min(d / 40, 1) * 18;
@@ -85,25 +89,20 @@
     c.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); c.click(); } });
   });
   function layoutFan() { fanOrder.forEach(function (idx, pos) { var c = fcards[idx]; c.classList.remove("r0", "r1", "r2", "r3"); c.classList.add("r" + pos); }); }
-  function speakFront() {
-    var c = fcards[fanOrder[0]];
-    setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d");
-    if (audio) return;
-    c.classList.add("is-speaking"); setTimeout(function () { if (!audio) c.classList.remove("is-speaking"); }, 1800);
-  }
-  /* the front card lifts away and lands at the back; everyone else steps forward */
+  function sayFront() { var c = fcards[fanOrder[0]]; setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d"); }
+  /* the front card hops over the hand and lands at the back; everyone else steps forward */
   function fanNext() {
     var front = fcards[fanOrder[0]];
-    front.classList.add("away");
-    setTimeout(function () {
-      fanOrder.push(fanOrder.shift());
-      front.classList.add("snap"); front.classList.remove("away"); layoutFan(); void front.offsetWidth; front.classList.remove("snap");
-      speakFront();
-    }, 300);
+    fanOrder.push(fanOrder.shift()); layoutFan();
+    fcards.forEach(function (c) { c.classList.remove("hop"); }); void front.offsetWidth; front.classList.add("hop");
+    sayFront();
   }
-  function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); speakFront(); runFan(); }
+  function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); sayFront(); runFan(); }
   function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio) fanNext(); }, 3800); }
-  layoutFan(); speakFront(); runFan();
+  fcards.forEach(function (c) { c.addEventListener("animationend", function (e) { if (e.target === c) c.classList.remove("hop"); }); });
+  /* a hidden tab gets no frames, so the hand waits for it to come back */
+  document.addEventListener("visibilitychange", function () { if (document.hidden) clearInterval(fanTimer); else runFan(); });
+  layoutFan(); sayFront(); runFan();
 
   /* ---- 2 · the demo ---- */
   var secs = 29 * 60 + 58;
@@ -113,7 +112,7 @@
     $("clock").textContent = t; $("clock2").textContent = t;
     $("c-bar").style.width = Math.round((1 - secs / (45 * 60)) * 100) + "%";
   }, 1000);
-  var TABS = { yt: { title: "You opened YouTube.", who: "Elise said", line: "Bro, lock in.", clip: "genz" },
+  var TABS = { yt: { title: "You opened YouTube.", who: "Derek said", line: "Bro, lock in.", clip: "genz" },
                rd: { title: "You opened Reddit.", who: "Derek said", line: "That isn't the work. Close it.", clip: "stern" } };
   var ORDER = ["session", "caught", "phone", "done"];
   var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab")), views = Array.prototype.slice.call(document.querySelectorAll(".view"));
@@ -170,7 +169,7 @@
     }
     if (next === "phone") {
       $("kicker").textContent = "Phone in view"; $("c-title").textContent = "Your phone is out."; $("c-who").textContent = "Elise said";
-      $("c-voice").classList.add("muted");
+      $("c-voice").classList.remove("muted");
       setWords($("c-line"), "“Put the phone down for a bit, you can check it after.”");
       card.className = "card on-color phone"; face("caught"); stop();
     }
@@ -197,6 +196,7 @@
   $("back").addEventListener("click", function () { userTab = null; apply(scrollState()); });
   $("allow").addEventListener("click", function () { userTab = null; apply(scrollState()); });
   $("c-orb").addEventListener("click", function () {
+    if (state === "phone") return play("phone", [$("c-voice")]);
     var key = tabs.filter(function (t) { return t.classList.contains("front"); })[0].dataset.tab;
     if (TABS[key]) play(TABS[key].clip, [$("c-voice")]);
   });
