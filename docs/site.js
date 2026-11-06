@@ -23,17 +23,31 @@
     el.innerHTML = out;
   }
   var CLIPS = {
-    genz: "assets/voice/elise-genz-bro-lock-in.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3",
+    genz: "assets/voice/elise-genz-bro-lock-in.mp3", stern: "assets/voice/derek-stern-not-the-work.mp3", caught: "assets/voice/elise-genz-caught-in-4k.mp3",
     gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3",
     genz2: "assets/voice/elise-genz-bro-lock-in.mp3", stern2: "assets/voice/derek-stern-wasting-time.mp3"
   };
   var audio = null, speaking = [];
-  function stop() { if (audio) audio.pause(); speaking.forEach(function (r) { r.classList.remove("is-speaking"); }); audio = null; speaking = []; }
+  function stop() {
+    if (audio) audio.pause();
+    speaking.forEach(function (r) { r.classList.remove("is-speaking"); r.querySelectorAll(".words .w").forEach(function (w) { w.classList.remove("on"); }); });
+    audio = null; speaking = [];
+  }
+  /* captions: the words of the line that is playing light up as the clip runs, spread evenly over its length */
+  function caption(a, row) {
+    var words = row.querySelectorAll(".words .w");
+    (function tick() {
+      if (audio !== a) return;
+      if (a.duration) { var k = Math.ceil(a.currentTime / a.duration * words.length); words.forEach(function (w, i) { w.classList.toggle("on", i < k); }); }
+      if (!a.ended) setTimeout(tick, 40); /* a timer, not a frame: it keeps time in a background tab too */
+    })();
+  }
   function play(key, rows) {
     if (!CLIPS[key]) return;
     if (speaking.length && speaking[0] === rows[0]) return stop();
     stop();
     audio = new Audio(CLIPS[key]); speaking = rows; rows.forEach(function (r) { r.classList.add("is-speaking"); });
+    if (!reduce) caption(audio, rows[0]);
     var done = function () { if (speaking[0] === rows[0]) stop(); };
     audio.addEventListener("ended", done); audio.addEventListener("error", done);
     audio.play().catch(done);
@@ -225,6 +239,7 @@
     })();
   }
   if (reduce) { recbox.classList.add("ready"); for (var rb = 0; rb < recBars; rb++) addBar(rb); $("rec-t").textContent = "0:20"; $("rec-state").textContent = "Ready to speak"; }
+  document.querySelectorAll(".vrow .words").forEach(function (el) { setWords(el, el.textContent); el.classList.remove("developing"); });
   document.querySelectorAll(".vrow").forEach(function (r) {
     r.addEventListener("click", function () { play(r.dataset.clip, [r]); });
     r.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); r.click(); } });

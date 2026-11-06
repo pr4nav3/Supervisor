@@ -816,7 +816,10 @@ button.orb:active .orb-core {
   /* a play button on a plain card: the card's outer colour, ink for the icon, the theme's own border and shadow */
   .vrow .orb-core, .recbox .rec-orb .orb-core { background: var(--sv-panel); color: var(--sv-ink); border: var(--border); box-shadow: 3px 3px 0 var(--sv-shadow-color); }
   .vrow b { font-size: 1rem; font-weight: 700; }
-  .vrow span { font: 400 0.66rem/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--sv-muted); }
+  .vrow .line { font-size: 0.88rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; color: var(--sv-ink); }
+  /* captions: while a clip plays, the words of its line come up one by one, in time with the voice */
+  .is-speaking .words .w { opacity: 0.35; transition: opacity 120ms ease; }
+  .is-speaking .words .w.on { opacity: 1; }
   @media (hover: hover) { .vrow:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
   .vrow:active { transform: translate(2px, 2px); box-shadow: none; }
   /* the recording: twenty seconds of anyone, drawn in as it happens, then the four ways they can talk */

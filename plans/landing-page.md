@@ -42,7 +42,7 @@ really uses), `AGENTS.md` (the words users see) and the app as it runs today.
 | "V1 · October 2026", "October 2026" in the header, both download buttons, the title tag | It is November and nothing shipped | Replace with a real state (see Part 3) |
 | "Early builds are unsigned, Windows will warn you" | Mac builds are signed with the Supervisor Dev certificate and install by one `curl` line; Windows is undecided and will show SmartScreen | Tell each OS its own truth |
 | "Runs on CPU" chip | True, and the GPU is optional; the voice engine is 2 GB | Keep |
-| "Read the source" → github.com/pr4nav3/stealth-startup | The repo is public (the Mac installer depends on it) | Keep; link to the release page too |
+| "Read the source" → github.com/pr4nav3/Supervisor | The repo is public (the Mac installer depends on it) | Keep; link to the release page too |
 | Nothing about Pomodoro, the streak calendar, the day card, the report, the Getting started practice | All shipped since the page was written | Part 3 decides what earns a place |
 
 ### Structure that is off-system
