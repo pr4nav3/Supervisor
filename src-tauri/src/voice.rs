@@ -2867,6 +2867,15 @@ fn seed_starter_profiles(root: &Path, app: Option<&AppHandle>) {
         if !dest.exists() && fs::copy(src, &dest).is_err() {
             continue;
         }
+        // The voice's hello, played from its card. Not a line, so it lives beside the recording
+        // rather than among the clips, and a newer bundled take replaces it.
+        if let Some(intro) = starter_resource(&format!("{id}-intro.wav"), app) {
+            let dest = dir.join("intro.wav");
+            let same = fs::metadata(&dest).and_then(|have| fs::metadata(&intro).map(|want| have.len() == want.len()));
+            if !same.unwrap_or(false) {
+                let _ = fs::copy(&intro, &dest);
+            }
+        }
         seed_starter_clips(&dir, id, app);
         // A rename and a picked personality are the user's; only a missing name is filled in.
         let existing = read_profile_metadata(&dir);

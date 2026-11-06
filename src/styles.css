@@ -1341,8 +1341,19 @@ button.share-card:active {
   text-transform: uppercase;
 }
 
+/* The first run's few cards share the panel's width, so the one that speaks takes its room from
+   the others and nothing scrolls out of sight. */
 .first-run-voices {
   padding-bottom: 6px;
+}
+
+.first-run-voices .voice-card {
+  flex: 1 1 0;
+  min-width: 150px;
+}
+
+.first-run-voices .voice-card.is-speaking {
+  flex: 0 0 auto;
 }
 
 .first-run-actions {
@@ -3533,6 +3544,34 @@ button.personality-more:active {
 .voice-card-foot button.voice-play svg {
   width: 9px;
   height: 9px;
+}
+
+/* While the voice says hello, the card widens to carry the words beside the play button; the
+   row keeps its height, so the other cards stay where they are. */
+.voice-card .voice-card-line {
+  display: none;
+  min-width: 0;
+  padding: 5px 8px;
+  border: var(--border);
+  border-radius: 6px;
+  /* A tint of the card's own ink, so the words read on the plain card and on the selected
+     green one in both themes. */
+  background: color-mix(in srgb, currentColor 9%, transparent);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-transform: none;
+  white-space: nowrap;
+}
+
+.voice-card.is-speaking {
+  width: auto;
+  max-width: 440px;
+}
+
+.voice-card.is-speaking .voice-card-line {
+  display: block;
 }
 
 /* Edit voice, as the personality cards' ⋯. */

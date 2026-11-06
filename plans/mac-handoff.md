@@ -65,6 +65,10 @@ to check on the Mac too:
   engine zip.
 - **Webcam page with the switch off** opens without starting the camera.
 - **A listed site in Brave with the sidebar open**: the site is named within a few seconds.
+- **Derek's and Elise's hello** (2026-11-06): play on their cards, in Settings › Voice and in
+  the first run's voice step, says a short hello (bundled `voices/<name>-intro.wav`, copied to
+  the profile folder as `intro.wav` at startup) with the words in a box beside the button
+  while it plays. Not the long cloning recording any more.
 
 Not changed, needs one test: **a full-screen Brave** (green button or a full-screen video).
 The overlay is a plain NSWindow at floating level with `CanJoinAllSpaces | FullScreenAuxiliary`;

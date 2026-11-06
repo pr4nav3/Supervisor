@@ -637,6 +637,13 @@ const noneVoice: VoiceOption = {
 
 const STARTER_PROFILE_IDS = ["derek", "elise"] as const;
 
+/** Each starter voice says hello in its own words. The audio sits next to its lines; the text
+ *  shows on the card while it plays, so the line can be read as well as heard. */
+const STARTER_INTROS: Record<string, string> = {
+  derek: "Hey, I'm Derek. Good to meet you.",
+  elise: "Hi, I'm Elise. Nice to meet you.",
+};
+
 function starterVoiceOptions(): VoiceOption[] {
   return [
     starterVoiceCard("starter-male", "derek", "Derek", "Starter voice. Its lines come ready."),
@@ -3336,6 +3343,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
     `;
   }
   const preview = previewClipForVoice(voice);
+  const line = voice.source === "starter" ? STARTER_INTROS[voice.profile?.profile_id ?? ""] ?? "" : "";
   return `
     <article ${card}>
       <div class="voice-card-top">
@@ -3348,6 +3356,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
         <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview?.path ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.2v9.6L11 6z" fill="currentColor"/></svg>${MINI_ORB}
         </button>
+        ${line ? `<span class="voice-card-line" aria-live="polite">${escapeHtml(line)}</span>` : ""}
         ${editable ? `<button class="voice-card-more" type="button" data-action="voice-info" data-voice-id="${attr(voice.id)}" aria-label="Edit ${attr(voice.name)}" aria-haspopup="dialog">⋯</button>` : ""}
       </div>
     </article>
@@ -4165,7 +4174,7 @@ function renderVoiceInfoModal(): string {
           </label>
         </form>
         <div>
-          <p class="eyebrow">Recording</p>
+          <p class="eyebrow">${profileId ? "Recording" : "Hello"}</p>
           <div class="voice-info-transport">
             <button class="voice-preview-play" type="button" data-action="toggle-voice-preview" ${clip ? "" : "disabled"} aria-label="Play">
               <span class="voice-preview-icon" aria-hidden="true"></span>
@@ -8616,6 +8625,10 @@ function selectedNudgeClip(nudgeCount: number, phone = false): VoiceClipSummary 
 }
 
 function previewClipForVoice(voice: VoiceOption): VoiceClipSummary | null {
+  if (voice.source === "starter" && voice.profile) {
+    const path = `${voice.profile.profile_dir}/intro.wav`;
+    return { clip_id: "intro", phrase_id: "", file_name: "intro.wav", path, bytes: 44 };
+  }
   const reference = voice.profile?.reference_path;
   if (reference) {
     return {
@@ -8704,6 +8717,21 @@ function paintPlayingClip(root: ParentNode = document): void {
     const on = playingClipPath !== null && button.dataset.clipPath === playingClipPath;
     button.classList.toggle("is-playing", on);
     button.setAttribute("aria-pressed", String(on));
+    const card = button.closest(".voice-card");
+    if (!card) {
+      return;
+    }
+    if (on) {
+      card.classList.add("is-speaking");
+      card.scrollIntoView({ block: "nearest", inline: "nearest" });
+    } else if (card.classList.contains("is-speaking")) {
+      // The words stay a moment after the voice stops, long enough to finish reading them.
+      window.setTimeout(() => {
+        if (playingClipPath !== button.dataset.clipPath) {
+          card.classList.remove("is-speaking");
+        }
+      }, 900);
+    }
   });
 }
 
