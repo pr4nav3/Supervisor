@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Personality chip</title>
+<style>
+  :root { --canvas: #f4ead7; --panel: #fff4cf; --soft: #fff7df; --ink: #101010; --muted: #5d564a; --green: #a8eb37; --yellow: #ffcf31; --coral: #ff684f; --line: #101010; --shadow: #101010; --grid: rgba(16,16,16,.07); --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; --sans: Inter, system-ui, sans-serif; }
+  [data-theme="dark"] { --canvas: #40403c; --panel: #353530; --soft: #4c4b46; --ink: #fff8e9; --muted: #ddd5c5; --line: #151512; --shadow: #0b0b09; --grid: rgba(255,248,233,.06); }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: var(--sans); color: var(--ink); background-color: var(--canvas); background-image: linear-gradient(to right, var(--grid) 1px, transparent 1px), linear-gradient(to bottom, var(--grid) 1px, transparent 1px); background-size: 18px 18px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 32px 24px 80px; display: grid; gap: 36px; }
+  .top { display: flex; justify-content: space-between; align-items: center; }
+  h1 { margin: 0; font-size: 1.5rem; letter-spacing: -0.03em; }
+  #theme { font: 600 0.72rem/1 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; padding: 10px 14px; border: 2px solid var(--line); border-radius: 6px; background: var(--soft); color: var(--ink); box-shadow: 2px 2px 0 var(--shadow); cursor: pointer; }
+  section { display: grid; gap: 12px; }
+  section h2 { margin: 0; font-size: 1.05rem; letter-spacing: -0.02em; }
+  section p { margin: 0; max-width: 70ch; font-size: 0.95rem; line-height: 1.5; color: var(--muted); }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; }
+  .card { height: 300px; display: grid; grid-template-rows: auto 1fr auto; gap: 12px; padding: 18px 18px 14px; border: 2px solid var(--line); border-radius: 7px; box-shadow: 4px 4px 0 var(--shadow); color: #141410; }
+  .card.cream { background: var(--panel); color: var(--ink); } .card.yellow { background: var(--yellow); } .card.coral { background: var(--coral); } .card.green { background: var(--green); }
+  .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
+  .p { opacity: 1; text-transform: none; letter-spacing: -0.01em; }
+  .quote { align-self: center; margin: 0; font-size: 1.35rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.08; }
+  .foot { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px; }
+  .orb { width: 36px; height: 36px; display: grid; place-items: center; border: 2px solid var(--line); border-radius: 50%; background: var(--soft); color: var(--ink); box-shadow: 3px 3px 0 var(--shadow); }
+  .card:not(.cream) .orb { border-color: #101010; background: #fff7df; color: #141410; box-shadow: 3px 3px 0 rgba(17,16,14,.68); }
+  .orb svg { width: 12px; }
+  .wave { display: flex; align-items: center; gap: 2px; height: 30px; }
+  .wave i { flex: 1; height: calc(var(--h) * 1%); background: currentColor; opacity: 0.45; border-radius: 1px; }
+
+  /* 0 · today: the outline pill, 0.95rem */
+  .v0 .p { padding: 5px 10px; border: 2px solid currentColor; border-radius: 6px; font: 750 0.95rem/1 var(--sans); }
+  /* A · the same pill, bigger, with the control's hard shadow: it reads as a thing, not a label */
+  .vA .p { padding: 8px 14px; border: 2px solid currentColor; border-radius: 6px; font: 750 1.2rem/1 var(--sans); box-shadow: 2px 2px 0 currentColor; }
+  /* B · a chip in the inner colour, like the orb: the button-on-a-card rule */
+  .vB .p { padding: 8px 14px; border: 2px solid var(--line); border-radius: 6px; font: 750 1.2rem/1 var(--sans); background: var(--soft); color: var(--ink); box-shadow: 3px 3px 0 var(--shadow); }
+  .vB .card:not(.cream) .p { border-color: #101010; background: #fff7df; color: #141410; box-shadow: 3px 3px 0 rgba(17,16,14,.68); }
+  /* C · the personality is the headline; the line sits under it */
+  .vC .tag { display: grid; gap: 2px; opacity: 1; }
+  .vC .p { font: 750 2rem/1 var(--sans); letter-spacing: -0.04em; }
+  .vC .who { font: 400 0.68rem/1.2 var(--mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
+  .vC .quote { font-size: 1.15rem; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; align-self: end; }
+  /* D · a bold mono label, the system's own label style, one size up */
+  .vD .tag { opacity: 1; }
+  .vD .p { font: 700 1rem/1 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; }
+  .vD .who { opacity: 0.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><h1>The personality on the fan cards</h1><button id="theme" type="button">Dark</button></div>
+  <section class="v0"><h2>Today</h2><p>The outline pill at 0.95rem. Quiet next to the quote.</p><div class="row"></div></section>
+  <section class="vA"><h2>A · Bigger pill, with the hard shadow</h2><p>Same pill, 1.2rem, and the 2px hard shadow every control has. Still ink on the card's colour, so nothing in the theme changes. The shadow lifts it off the card the way the orb is lifted.</p><div class="row"></div></section>
+  <section class="vB"><h2>B · Inner-colour chip, like the orb</h2><p>The button-on-a-card rule: a chip in the inner colour with ink text and the orb's shadow. The card's two controls now match, chip and orb, and the chip is the brightest thing on a coloured card. Follows the theme in both modes.</p><div class="row"></div></section>
+  <section class="vC"><h2>C · The personality is the headline</h2><p>Mom at 2rem, the speaker in mono under it, the line smaller beneath. The fan reads as four personalities first and four lines second, which is what it is.</p><div class="row"></div></section>
+  <section class="vD"><h2>D · Bold mono label</h2><p>The site's own label style, one size up and bold: MOM, the way THE REMINDER and DOWNLOAD read on the cards below. No chip at all. The most consistent, the least loud.</p><div class="row"></div></section>
+</div>
+<script>
+(function () {
+  var CARDS = [["cream", "Gentle", "Derek", "Come on back, you were doing well."], ["yellow", "Mom", "Elise", "Close it, or you're grounded. Don't test me."], ["coral", "Gen Z", "Derek", "Bro, lock in."], ["green", "Stern", "Elise", "You're wasting your own time. Back to it."]];
+  function bars(i) { var out = ""; for (var k = 0; k < 40; k++) out += '<i style="--h:' + (18 + Math.round(70 * Math.abs(Math.sin(k / 40 * Math.PI)) * (0.45 + 0.55 * ((k * 37 + i * 11) % 100) / 100))) + '"></i>'; return out; }
+  document.querySelectorAll(".row").forEach(function (row) {
+    row.innerHTML = CARDS.map(function (c, i) {
+      return '<div class="card ' + c[0] + '"><div class="tag"><span class="p">' + c[1] + '</span><span class="who">' + c[2] + '</span></div><p class="quote">“' + c[3] + '”</p><div class="foot"><span class="orb"><svg viewBox="0 0 12 12"><path d="M2.5 1v10L11 6z" fill="currentColor"/></svg></span><div class="wave">' + bars(i) + '</div></div></div>';
+    }).join("");
+  });
+  var root = document.documentElement, btn = document.getElementById("theme");
+  function label() { btn.textContent = root.getAttribute("data-theme") === "dark" ? "Light" : "Dark"; }
+  if (location.search.indexOf("dark") > -1) root.setAttribute("data-theme", "dark");
+  btn.addEventListener("click", function () { if (root.getAttribute("data-theme") === "dark") root.removeAttribute("data-theme"); else root.setAttribute("data-theme", "dark"); label(); });
+  label();
+})();
+</script>
+</body>
+</html>

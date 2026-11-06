@@ -1148,3 +1148,5 @@ Mom) and a phone line would complete the voice section and the phone catch.
 - Part 28, take six: no slot. The card stays in view the whole way; it drops half a card (290px) below the hand, goes behind at the bottom where it is furthest from the others, and slides from there into the back slot in one motion. Tested at the user's request; the swap is in view now.
 
 - Part 29: in the dark theme the orbs on the coloured fan cards go dark with a light glyph (green with a dark glyph while speaking); the cream card keeps its theme orb. The personality chip is solid ink with the card's own colour for its text, at 1.1rem, so it is the first thing read on each card.
+
+- Part 29, take two: the personality chip follows the button-on-a-card rule instead of inverting: inner colour, ink text, the orb's shadow, 1.2rem; in the dark theme it goes dark with the orb. Four treatments compared in `landing-mockups/personality-chip.html` (B chosen).
