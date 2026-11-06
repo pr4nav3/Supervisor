@@ -265,6 +265,17 @@
      next one has covered it; the voice starts talking when its card is in */
   var sheets = Array.prototype.slice.call(document.querySelectorAll(".deal")), first = document.querySelector(".first");
   /* room under the stack so the page ends with the last row parked at its sticky top */
+  /* the hand leans to the right; if the lean would reach past the first screen's edge, the whole
+     hand slides left by that much, so no card is ever cut off */
+  var fanBox = $("fan");
+  function fitFan() {
+    if (!fanBox || innerWidth <= 920) { if (fanBox) fanBox.style.transform = ""; return; }
+    fanBox.style.transform = "";
+    var edge = document.querySelector(".first").getBoundingClientRect().right - 8, right = 0;
+    fcards.forEach(function (c) { right = Math.max(right, c.getBoundingClientRect().right); });
+    if (right > edge) fanBox.style.transform = "translateX(" + Math.round(edge - right) + "px)";
+  }
+  fitFan(); addEventListener("resize", fitFan); if (document.fonts) document.fonts.ready.then(fitFan);
   function tail() {
     var last = sheets[sheets.length - 1], foot = document.querySelector("footer").offsetHeight;
     /* each row parks centred in the window (with the footer's height counted in, so the last
