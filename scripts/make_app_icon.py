@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate placeholder Supervisor window/tray icons for Windows tauri-build."""
+"""Generate the Supervisor window/tray icons for Windows tauri-build: a smooth-edged ring."""
 
 from __future__ import annotations
 
@@ -23,33 +23,56 @@ def mix(c0: tuple[int, int, int, int], c1: tuple[int, int, int, int], t: float) 
     return tuple(lerp(a, b, t) for a, b in zip(c0, c1))  # type: ignore[return-value]
 
 
-def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
-    pixels = [[CLEAR for _ in range(size)] for _ in range(size)]
-    cx = cy = (size - 1) / 2
-    # Leave a 1px transparent margin so the ICO doesn't look like a hard square in the tray.
-    outer = size * 0.46
-    border = max(1.2, size * 0.06)
-    acid_r = size * 0.22
-    cobalt_r = size * 0.13
-    pupil_r = size * 0.055
+SUPERSAMPLE = 8
 
-    for y in range(size):
-        for x in range(size):
-            dx = x - cx
-            dy = y - cy
-            dist = (dx * dx + dy * dy) ** 0.5
-            if dist > outer:
-                continue
-            if dist > outer - border:
-                pixels[y][x] = INK
-            elif dist > acid_r:
-                pixels[y][x] = PAPER
-            elif dist > cobalt_r:
-                pixels[y][x] = ACID
-            elif dist > pupil_r:
-                pixels[y][x] = COBALT
+
+def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
+    """Each pixel averages an 8x8 grid of samples, so the circle's edge is a smooth gradient of
+    alpha rather than a staircase: at 16 and 32 px the ring still reads as round."""
+    big = size * SUPERSAMPLE
+    centre = big / 2
+    # Leave a 1px transparent margin so the ICO doesn't look like a hard square in the tray.
+    outer = big * 0.46
+    border = max(1.2 * SUPERSAMPLE, big * 0.06)
+    acid_r = big * 0.22
+    cobalt_r = big * 0.13
+    pupil_r = big * 0.055
+
+    def sample(x: int, y: int) -> tuple[int, int, int, int]:
+        dx = x + 0.5 - centre
+        dy = y + 0.5 - centre
+        dist = (dx * dx + dy * dy) ** 0.5
+        if dist > outer:
+            return CLEAR
+        if dist > outer - border:
+            return INK
+        if dist > acid_r:
+            return PAPER
+        if dist > cobalt_r:
+            return ACID
+        if dist > pupil_r:
+            return COBALT
+        return INK
+
+    pixels = []
+    n = SUPERSAMPLE * SUPERSAMPLE
+    for py in range(size):
+        row = []
+        for px in range(size):
+            r = g = b = a = 0
+            for sy in range(SUPERSAMPLE):
+                for sx in range(SUPERSAMPLE):
+                    sr, sg, sb, sa = sample(px * SUPERSAMPLE + sx, py * SUPERSAMPLE + sy)
+                    # Colour weighted by coverage, so edge pixels don't darken toward black.
+                    r += sr * sa
+                    g += sg * sa
+                    b += sb * sa
+                    a += sa
+            if a == 0:
+                row.append(CLEAR)
             else:
-                pixels[y][x] = INK
+                row.append((round(r / a), round(g / a), round(b / a), round(a / n)))
+        pixels.append(row)
     return pixels
 
 
