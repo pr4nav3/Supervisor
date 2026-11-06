@@ -20,7 +20,7 @@ Everything runs on your computer. No account, no servers, nothing uploaded. Down
 | `voice_worker/` | The voice engine: a Python worker the app runs out of process |
 | `webcam_bakeoff/` | The webcam worker and its model setup |
 | `scripts/` | Build, release and install scripts; `starter_lines.json` is the set of built-in lines |
-| `docs/` | The website at supervisorfocus.com, served by GitHub Pages. Not documentation. |
+| `website/` | The website at supervisorfocus.com, deployed to GitHub Pages by `.github/workflows/pages.yml` |
 
 ## Developing
 
