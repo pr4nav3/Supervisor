@@ -43,7 +43,18 @@
   --sv-shadow-color: #0b0b09;
   --sv-soft-white: #4c4b46;
   --sv-grid-line: rgba(255, 255, 255, 0.12);
+  /* the theme's own values, resolved here so a coloured surface (which resets the tokens) can still reach them */
+  --sv-theme-soft-white: var(--sv-soft-white);
+  --sv-theme-ink: var(--sv-ink);
+  --sv-theme-border: var(--sv-border);
+  --sv-theme-shadow: var(--sv-shadow-color);
 }
+/* in the dark theme the demo's plain buttons and its play orb go dark with the page; the card they sit on stays coloured */
+[data-theme="dark"] .on-color .btn:not(.primary):not(.danger):not(.yellow), [data-theme="dark"] .on-color .orb-core { background: var(--sv-theme-soft-white); color: var(--sv-theme-ink); border-color: var(--sv-theme-border); box-shadow: 2px 2px 0 var(--sv-theme-shadow); }
+[data-theme="dark"] .on-color .orb-core { box-shadow: 3px 3px 0 var(--sv-theme-shadow); }
+[data-theme="dark"] .on-color .btn:not(.primary):not(.danger):not(.yellow):hover { box-shadow: 3px 3px 0 var(--sv-theme-shadow); }
+[data-theme="dark"] .on-color .btn:active { box-shadow: none; }
+[data-theme="dark"] .on-color .is-speaking .orb-core { background: var(--sv-green); color: #141410; }
 
 * {
   box-sizing: border-box;
