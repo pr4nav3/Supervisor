@@ -633,7 +633,7 @@ h1 {
 .active-session-controls button {
   min-height: 64px;
   box-shadow: 4px 4px 0 var(--sv-shadow-color);
-  font-size: var(--sv-type-3);
+  font-size: 1rem;
   font-weight: 650;
 }
 
