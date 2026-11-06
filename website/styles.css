@@ -57,10 +57,11 @@
   --sv-theme-border: var(--sv-border);
   --sv-theme-shadow: var(--sv-shadow-color);
 }
-/* the plain button on a coloured card is the inner card colour in both themes, for contrast; the green one stays green */
-.on-color .btn:not(.primary):not(.danger):not(.yellow) { background: var(--sv-theme-soft-white); color: var(--sv-theme-ink); border-color: var(--sv-theme-border); box-shadow: 2px 2px 0 var(--sv-theme-shadow); }
-.on-color .btn:not(.primary):not(.danger):not(.yellow):hover { box-shadow: 3px 3px 0 var(--sv-theme-shadow); }
-.on-color .btn:active { box-shadow: none; }
+/* the plain button under a popup sits in the frame, not on the card: the inner card colour in light, the outer card grey in dark */
+[data-theme="dark"] .win .btn:not(.primary) { background: var(--sv-panel); }
+/* the rows on a popup card (the task bar, the report's tiles) stay light paper in light and take the outer card grey in dark */
+[data-theme="dark"] .on-color .task, [data-theme="dark"] .on-color .tile { background: var(--sv-theme-panel); color: var(--sv-theme-ink); }
+[data-theme="dark"] .on-color .task span, [data-theme="dark"] .on-color .tile span { color: var(--sv-theme-muted); }
 
 * {
   box-sizing: border-box;
@@ -424,13 +425,10 @@ a {
   background: var(--sv-theme-panel);
 }
 .voice .orb-core {
-  background: var(--sv-theme-soft-white);
+  background: var(--sv-theme-soft-white); /* cream in light, the inner card grey in dark */
   color: var(--sv-theme-ink);
   border-color: var(--sv-theme-border);
   box-shadow: 3px 3px 0 var(--sv-theme-shadow);
-}
-[data-theme="dark"] .voice .orb-core {
-  background: #62615b;
 }
 .voice.is-speaking .orb-core {
   background: var(--sv-green);
@@ -713,7 +711,7 @@ button.orb:active .orb-core {
   .face .tile { padding: 8px 8px; }
   @media (hover: hover) { .face .tile:hover { transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--sv-shadow-color); } }
   /* the status window's frame, for the card that has buttons under it */
-  .win { display: grid; gap: 8px; padding: 8px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
+  .win { display: grid; gap: 8px; padding: 8px; border: var(--border); border-radius: 7px; background-color: var(--sv-canvas); background-image: linear-gradient(var(--sv-grid-line) 1px, transparent 1px), linear-gradient(90deg, var(--sv-grid-line) 1px, transparent 1px); background-size: 18px 18px; box-shadow: 4px 4px 0 var(--sv-shadow-color); }
   .win .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .win .actions[hidden] { display: none; }
   .win .actions .btn { min-height: 34px; font-size: 0.68rem; }
@@ -744,7 +742,8 @@ button.orb:active .orb-core {
   /* the front card drops half a card below the hand, in view the whole way, then slides up into the back slot */
   .fcard.drop { --lift: 290px; --r: -4deg; z-index: 5; transition: transform 360ms cubic-bezier(0.5, 0, 1, 1); }
   .fcard.cream { background: var(--sv-panel); color: var(--sv-ink); } .fcard.yellow { background: var(--sv-yellow); } .fcard.coral { background: var(--sv-coral); } .fcard.green { background: var(--sv-green); }
-  .fcard .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; opacity: 0.8; }
+  .fcard .tag { display: flex; justify-content: space-between; align-items: center; font: 400 0.68rem/1.2 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; }
+  .fcard .tag > span:not(.p) { opacity: 0.8; }
   /* the personality: a chip in the inner colour with ink text and the orb's shadow, the button-on-a-card rule; it matches the orb in every theme */
   .fcard .tag .p { opacity: 1; padding: 8px 14px; border: var(--border); border-radius: 6px; background: var(--sv-panel); color: var(--sv-ink); box-shadow: 3px 3px 0 var(--sv-shadow-color); font: 750 1.2rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; }
   .fcard .quote { align-self: center; font-size: 1.6rem; font-weight: 750; letter-spacing: -0.03em; line-height: 1.08; }
@@ -853,7 +852,7 @@ button.orb:active .orb-core {
   .intro .eyebrow, .intro .muted { color: #5d564a; }
   .intro h2 { font-size: clamp(1.6rem, 2.8vw, 2.2rem); }
   .intro p { margin: 0; font-size: 1.02rem; }
-  .recbox .voices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .recbox .voices { display: grid; gap: 10px; }
   .vrow { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; padding: 8px 14px 8px 8px; border: var(--border); border-radius: 7px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
   .vrow .orb { grid-row: 1 / 3; }
   /* a play button on a plain card: the card's outer colour, ink for the icon, the theme's own border and shadow */
@@ -978,7 +977,6 @@ button.orb:active .orb-core {
     .get-grid { grid-template-columns: minmax(0, 1fr); }
     footer .card-line { flex-wrap: wrap; }
     .voice-sheet .pane, .get-grid { padding: 20px; }
-    .voices { grid-template-columns: 1fr; }
   }
   @media (prefers-reduced-motion: reduce) {
     .deck .catch.land { animation: none; }
