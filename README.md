@@ -4,8 +4,6 @@ The focus app that talks back. Start a session, and when you open a distraction 
 
 Everything runs on your computer. No account, no servers, nothing uploaded. Download it at [supervisorfocus.com](https://supervisorfocus.com). Free, for macOS and Windows.
 
-<img src=".github/readme/reminder.png" width="480" alt="The reminder card: You opened YouTube. Derek said: Hey, that's not what we're working on. Buttons: Allow once, Back to my task.">
-
 ## How it works
 
 - Supervisor watches which app and window is in front and, in a browser, which site is open. It takes no screenshots and reads nothing on screen. You keep a list of distractions.
