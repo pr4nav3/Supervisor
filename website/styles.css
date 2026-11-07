@@ -703,6 +703,7 @@ button.orb:active .orb-core {
   footer .card-line { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
   footer .who { display: flex; align-items: center; gap: 12px; }
   footer .who b { font-size: 1.15rem; font-weight: 750; letter-spacing: -0.02em; line-height: 1.1; }
+  footer .links { display: flex; flex-wrap: wrap; gap: 8px; }
   footer .btn { min-height: 38px; padding: 0 14px; font-size: 0.7rem; gap: 8px; }
   footer .btn svg { width: 14px; height: 14px; }
   @media (max-width: 920px) {
