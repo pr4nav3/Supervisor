@@ -50,7 +50,7 @@ Issues and pull requests are welcome. Two things to know before you open one:
 - `AGENTS.md` holds the project's conventions: local-first, no new dependency without a reason, and plain words in anything a user sees. Say "line", not "clip"; "reminder", not "nudge"; "personality", not "tone".
 - Keep commits small, with a short message that says what changed in plain language.
 
-Found a security or privacy problem? Email tkotalwar@wisc.edu rather than opening a public issue.
+Found a security or privacy problem? Email karthik.pranav88@gmail.com rather than opening a public issue.
 
 ## Licence
 
