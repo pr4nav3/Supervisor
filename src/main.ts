@@ -758,6 +758,8 @@ let overlayMoreOpen = false;
 let distractionDismissedFor = "";
 let distractionLatchKey = "";
 let distractionLatchLabel = "";
+/** The rule the card is for, so Allow once allows it even after a switch to another window. */
+let distractionLatchRule: AppRule | null = null;
 let overlayPlacement = "corner";
 let lastOverlayFit = "";
 const OVERLAY_CORNER_WIDTH = 228;
@@ -2289,6 +2291,7 @@ function updateDistractionLatch(current: CurrentSession | null): void {
       }
       distractionLatchKey = key;
       distractionLatchLabel = distractionLabel(current);
+      distractionLatchRule = focus.matched_rule;
     }
     return;
   }
@@ -6276,12 +6279,15 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "allow-session") {
     const live = snapshot?.current;
+    // The card's own distraction, which may no longer be the one in front.
+    const name = distractionLatchLabel || live?.focus?.activity.label || "This window";
+    const rule = distractionLatchRule;
     distractionDismissedFor = distractionLatchKey || (live ? distractionIdentity(live) : "");
     distractionLatchKey = "";
     distractionLatchLabel = "";
+    distractionLatchRule = null;
     overlayMoreOpen = false;
-    const name = live?.focus?.activity.label || "This window";
-    if (await invokeSnapshot("allow_current_for_session")) {
+    if (await invokeSnapshot("allow_current_for_session", { rule })) {
       showFeedback(`${name} is allowed for this session`);
     }
     return;

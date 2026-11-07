@@ -465,8 +465,17 @@ impl SessionManager {
         self.snapshot(now)
     }
 
-    /// The window in front stops counting as a distraction until the session ends.
-    pub fn allow_current_for_session(&mut self, now: Duration) -> SessionSnapshot {
+    /// The card's Allow once: its own distraction (`rule`) stops counting until the session
+    /// ends, even when another window is in front by now. With no rule, the window in front.
+    pub fn allow_current_for_session(&mut self, rule: Option<AppRule>, now: Duration) -> SessionSnapshot {
+        if let Some(rule) = rule {
+            let in_front = self.current.as_ref()
+                .and_then(|session| session.latest_focus.as_ref())
+                .is_some_and(|focus| rule.matches(&focus.activity));
+            if !in_front {
+                return self.set_session_exception(rule, true, now);
+            }
+        }
         if let Some(session) = self.current.as_mut() {
             session.allow_current(now, self.storage.as_ref());
         }
@@ -1069,7 +1078,7 @@ impl Session {
             return;
         };
         let detail = allowed_detail(&rule);
-        if !self.exceptions.contains(&rule) {
+        if !self.exceptions.iter().any(|exception| exception.target == rule.target && exception.value.eq_ignore_ascii_case(&rule.value)) {
             self.exceptions.push(rule);
         }
         self.remark_current(&focus, None, now, storage, "Allowed this session", "allowed", Some(&detail));
@@ -2742,7 +2751,7 @@ mod tests {
                     11 => {
                         match next(2) {
                             0 => manager.flag_current(t),
-                            _ => manager.allow_current_for_session(t),
+                            _ => manager.allow_current_for_session(None, t),
                         };
                     }
                     12 => {
@@ -2981,7 +2990,7 @@ mod tests {
         let mut manager = test_manager();
         manager.start(input("Focus", Strictness::Strict), seconds(0));
         record(&mut manager, site("youtube.com/watch", 0.0), seconds(0));
-        let allowed = manager.allow_current_for_session(seconds(1));
+        let allowed = manager.allow_current_for_session(None, seconds(1));
         assert_eq!(allowed.current.as_ref().unwrap().focus.as_ref().unwrap().state, FocusState::Focused);
         assert_eq!(allowed.current.unwrap().exceptions, vec![AppRule::website("youtube.com")]);
 
@@ -3084,7 +3093,7 @@ mod tests {
             seconds(1),
             &supervisor,
         );
-        manager.allow_current_for_session(seconds(2));
+        manager.allow_current_for_session(None, seconds(2));
         let snapshot = record(
             &mut manager,
             site("youtube.com/watch", 0.0),
@@ -3661,12 +3670,36 @@ mod tests {
             record(&mut manager, sample("Notepad", "x", 0.0), seconds(t));
         }
         // The card's Allow once keeps the rule as it was matched.
-        let allowed = manager.allow_current_for_session(seconds(41));
+        let allowed = manager.allow_current_for_session(None, seconds(41));
         assert_eq!(allowed.current.unwrap().exceptions.len(), 1);
         // The chip sends the rule as the user typed it.
         let back = manager.set_session_exception(AppRule::app("Notepad"), false, seconds(42));
         assert!(back.current.unwrap().exceptions.is_empty());
         assert_eq!(record(&mut manager, sample("Notepad", "x", 0.0), seconds(50)).current.unwrap().focus.unwrap().state, FocusState::Suspicious);
+    }
+
+    #[test]
+    fn allow_once_allows_the_cards_distraction_not_the_window_in_front() {
+        let mut manager = test_manager();
+        manager.start(input("A", Strictness::Strict), seconds(0));
+        manager.update_rules(vec![AppRule::app("TextEdit"), AppRule::website("youtube.com")], seconds(0));
+        for t in 1..=40 {
+            record(&mut manager, sample("TextEdit", "x", 0.0), seconds(t));
+        }
+        // The card is for TextEdit; by the click, YouTube is in front.
+        record(&mut manager, site("youtube.com/watch", 0.0), seconds(41));
+        let allowed = manager.allow_current_for_session(Some(AppRule::app("TextEdit")), seconds(42));
+        let current = allowed.current.unwrap();
+        let id = current.id;
+        assert_eq!(current.exceptions, vec![AppRule::app("TextEdit")]);
+        assert!(current.focus.unwrap().distracting);
+        assert!(!record(&mut manager, sample("TextEdit", "x", 0.0), seconds(50)).current.unwrap().focus.unwrap().distracting);
+
+        // Still in front: the same as before, judged again at once.
+        let allowed = manager.allow_current_for_session(Some(AppRule::app("TextEdit")), seconds(51));
+        assert_eq!(allowed.current.unwrap().exceptions.len(), 1);
+        manager.stop(seconds(60));
+        assert!(manager.session_report(id).unwrap().events.iter().any(|event| event.kind == "allowed"));
     }
 
     fn metric_total(metrics: &SessionMetrics) -> u64 {

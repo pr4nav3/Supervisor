@@ -191,10 +191,10 @@ async fn flag_current_distracting(app: AppHandle, state: State<'_, AppState>) ->
 }
 
 #[tauri::command]
-async fn allow_current_for_session(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
+async fn allow_current_for_session(rule: Option<focus::AppRule>, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
     let mut sessions = lock_sessions(&state)?;
     let now = state.started_at.elapsed();
-    Ok(sessions.allow_current_for_session(now))
+    Ok(sessions.allow_current_for_session(rule, now))
 }
 
 #[tauri::command]
