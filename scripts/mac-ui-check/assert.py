@@ -20,9 +20,9 @@ for s in states:
     shell = s["sizes"].get(".overlay-shell")
     if shell and shell[1] > h:
         problems.append(f"{name}: overlay card {shell[1]}px taller than the {h}px window")
-    # Home is sized to fit its window exactly; any scroll is a layout bug. Below 900 px wide
-    # it stacks into one column (in every engine) and scrolls by design.
-    if name.startswith("home") and w >= 900 and s["docH"] > h:
+    # Home is sized to fit its window exactly; any scroll is a layout bug. At 900 px wide and
+    # below it stacks into one column (in every engine) and scrolls by design.
+    if name.startswith("home") and w > 900 and s["docH"] > h:
         problems.append(f"{name}: Home scrolls ({s['docH']}px in {h}px)")
     for clip in s.get("clipped", []):
         problems.append(f"{name}: text cut off: {clip}")
