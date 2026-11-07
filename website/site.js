@@ -1,6 +1,8 @@
 /* The live site's script. Edited by hand; notes/plans/landing-mockups is history, not the source. */
 (function () {
   var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  /* under 920px the page is one column and the cards after the demo scroll by, not stack */
+  var narrow = matchMedia("(max-width: 920px)");
   var root = document.documentElement, $ = function (id) { return document.getElementById(id); };
   /* the theme: the button says what it switches to, and the choice is remembered */
   function isDark() { return root.getAttribute("data-theme") === "dark"; }
@@ -76,6 +78,7 @@
   }
   /* ---- the fan: the front card says its line, then goes to the back of the hand ---- */
   var FANL = { Gentle: "Come on back, you were doing well.", Mom: "Close it, or you're grounded. Don't test me.", "Gen Z": "Bro, lock in.", Stern: "You're wasting your own time. Back to it." };
+  var first = document.querySelector(".first");
   var fcards = Array.prototype.slice.call(document.querySelectorAll(".fcard")), fanOrder = [0, 1, 2, 3], fanTimer = null;
   fcards.forEach(function (c, i) {
     drawWave(c.querySelector(".wave"), c.dataset.tone); c.classList.add("in");
@@ -103,7 +106,7 @@
     }, 360);
   }
   function fanTo(i) { clearInterval(fanTimer); while (fanOrder[0] !== i) { fanOrder.push(fanOrder.shift()); } layoutFan(); sayFront(); runFan(); }
-  function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio) fanNext(); }, 3800); }
+  function runFan() { clearInterval(fanTimer); if (!reduce) fanTimer = setInterval(function () { if (!audio && first.classList.contains("in")) fanNext(); }, 3800); }
   /* a hidden tab gets no frames, so the hand waits for it to come back */
   document.addEventListener("visibilitychange", function () { if (document.hidden) clearInterval(fanTimer); else runFan(); });
   layoutFan(); sayFront(); runFan();
@@ -142,8 +145,16 @@
     corner.style.transition = "none"; corner.style.transform = "";
     var r = corner.getBoundingClientRect();
     void corner.offsetWidth; corner.style.transition = keep;
-    var dx = (scr.left + scr.width / 2) - (r.left + r.width / 2);
-    var dy = (scr.top + scr.height / 2) - (r.top + r.height / 2);
+    var cx = scr.left + scr.width / 2, cy = scr.top + scr.height / 2;
+    var cam = $("cam");
+    if (cam.classList.contains("on")) {
+      /* the webcam's resting place, from layout, since it may still be sliding in */
+      var d = $("desk").getBoundingClientRect(), camTop = d.top + cam.offsetTop, camRight = d.left + cam.offsetLeft + cam.offsetWidth;
+      var hits = cy + r.height / 2 > camTop && cx - r.width / 2 < camRight;
+      if (hits) cy = camTop - scr.top >= r.height + 16 ? scr.top + (camTop - scr.top) / 2 : scr.top + 8 + r.height / 2;
+    }
+    var dx = cx - (r.left + r.width / 2);
+    var dy = cy - (r.top + r.height / 2);
     corner.style.transform = "translate(" + Math.round(dx) + "px," + Math.round(dy) + "px)";
   }
   function currentFace() { return state === "done" ? "done" : "caught"; }
@@ -215,7 +226,6 @@
     if (next !== state) { userTab = null; apply(next); }
     arrivals();
   }
-  addEventListener("scroll", onScroll, { passive: true });
 
   /* ---- 3 · the voice: the recording fills, the voice is built, the four ways to talk arrive; then again ---- */
   var recbox = $("recbox"), tape = $("tape"), recT = null, recBars = 40;
@@ -249,14 +259,15 @@
   /* each install line has its own Copy */
   document.querySelectorAll("[data-copy]").forEach(function (b) {
     b.addEventListener("click", function () {
-      var text = $(b.dataset.copy).textContent;
-      (navigator.clipboard ? navigator.clipboard.writeText(text) : Promise.reject()).then(function () { b.textContent = "Copied"; setTimeout(function () { b.textContent = "Copy"; }, 1600); }, function () { b.textContent = "Select and copy"; });
+      var code = $(b.dataset.copy), say = function (t) { b.textContent = t; setTimeout(function () { b.textContent = "Copy"; }, 1600); };
+      /* when the browser won't write to the clipboard, the line is selected so it can be copied by hand */
+      (navigator.clipboard ? navigator.clipboard.writeText(code.textContent) : Promise.reject()).then(function () { say("Copied"); }, function () { getSelection().selectAllChildren(code); say("Selected"); });
     });
   });
 
   /* the stacked cards: contents rise once as a card arrives; a card loses its shadow once the
      next one has covered it; the voice starts talking when its card is in */
-  var sheets = Array.prototype.slice.call(document.querySelectorAll(".deal")), first = document.querySelector(".first");
+  var sheets = Array.prototype.slice.call(document.querySelectorAll(".deal"));
   /* room under the stack so the page ends with the last row parked at its sticky top */
   /* the hand leans to the right; if the lean would reach past the first screen's edge, the whole
      hand slides left by that much, so no card is ever cut off */
@@ -282,7 +293,7 @@
     /* whatever is left under the group once the last row parks at its top; when the row is
        clamped to the bar that is less than the room above it, and the page must end there, not
        push the row up under the bar */
-    document.querySelector("footer").style.marginBottom = Math.max(24, innerHeight - top(last) - last.offsetHeight - foot) + "px";
+    document.querySelector("footer").style.marginBottom = (narrow.matches ? 24 : Math.max(24, innerHeight - top(last) - last.offsetHeight - foot)) + "px";
   }
   tail(); addEventListener("resize", tail); document.querySelectorAll(".os .vcard").forEach(function (b) { b.addEventListener("click", function () { setTimeout(tail, 0); }); });
   /* a card is "in" while any of it is on screen, so its arrival replays on the way back up */
@@ -290,7 +301,9 @@
   var bar = document.querySelector("header");
   var h1 = document.querySelector(".hero h1");
   function alignBar() { bar.style.setProperty("--sy", (-(scrollY % 18)) + "px"); bar.classList.toggle("tagged", h1.getBoundingClientRect().bottom < 72); }
-  addEventListener("scroll", alignBar, { passive: true }); alignBar();
+  var scrollFrame = 0;
+  addEventListener("scroll", function () { if (!scrollFrame) scrollFrame = requestAnimationFrame(function () { scrollFrame = 0; onScroll(); alignBar(); }); }, { passive: true });
+  alignBar();
   function arrivals() {
     sheets.forEach(function (el, i) {
       var r = el.getBoundingClientRect(), was = el.classList.contains("in");
@@ -302,7 +315,7 @@
       /* covered once the next row has slid over it, or once the end of the stack has pushed it
          up past its parking spot (a tall row under a short last one) */
       var next = sheets[i + 1], park = parseFloat(el.style.getPropertyValue("--top")) || 0;
-      el.classList.toggle("covered", !!next && (next.getBoundingClientRect().top <= r.top + r.height / 2 || (park && r.top < park - 2)));
+      el.classList.toggle("covered", !narrow.matches && !!next && (next.getBoundingClientRect().top <= r.top + r.height / 2 || (park && r.top < park - 2)));
     });
     var hero = first.querySelector(".hero").getBoundingClientRect();
     first.classList.toggle("in", hero.bottom > 0);
