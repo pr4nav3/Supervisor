@@ -1281,22 +1281,14 @@ fn automation_snapshot(label: String, path: String, height: Option<f64>, app: Ap
 
 /// A hidden app (Cmd-H, or another app's Hide Others) shows none of its windows: `show` and
 /// `set_focus` do nothing until it is unhidden. Without activating it, so nobody loses the
-/// keyboard to a card. Nothing to do on other systems. Done at once when already on the main
-/// thread (sync commands such as the card's `set_status_window_size` run there): queued, it
-/// would only run after the `show` that follows, which a hidden app ignores.
+/// keyboard to a card. Nothing to do on other systems.
 fn unhide_app(app: &tauri::AppHandle) {
     #[cfg(target_os = "macos")]
-    {
-        fn unhide(mtm: objc2::MainThreadMarker) {
+    let _ = app.run_on_main_thread(|| {
+        if let Some(mtm) = objc2::MainThreadMarker::new() {
             objc2_app_kit::NSApplication::sharedApplication(mtm).unhideWithoutActivation();
         }
-        match objc2::MainThreadMarker::new() {
-            Some(mtm) => unhide(mtm),
-            None => {
-                let _ = app.run_on_main_thread(|| objc2::MainThreadMarker::new().map_or((), unhide));
-            }
-        }
-    }
+    });
     #[cfg(not(target_os = "macos"))]
     let _ = app;
 }
