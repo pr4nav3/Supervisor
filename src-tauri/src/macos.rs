@@ -210,18 +210,21 @@ pub fn process_ram_bytes(pid: u32) -> Option<u64> {
 /// Free space as Finder counts it: purgeable space (local snapshots, cached iCloud files)
 /// included, since macOS frees it as a download needs it. statvfs leaves it out.
 pub fn available_disk_bytes(path: &std::path::Path) -> Option<u64> {
+    important_usage_bytes(path).or_else(|| statvfs_available_bytes(path))
+}
+
+fn important_usage_bytes(path: &std::path::Path) -> Option<u64> {
     use objc2_foundation::{NSNumber, NSString, NSURL, NSURLVolumeAvailableCapacityForImportantUsageKey};
 
     let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
     let mut value = None;
     let key = unsafe { NSURLVolumeAvailableCapacityForImportantUsageKey };
-    let important = unsafe { url.getResourceValue_forKey_error(&mut value, key) }
+    unsafe { url.getResourceValue_forKey_error(&mut value, key) }
         .ok()
         .and(value)
         .and_then(|value| value.downcast::<NSNumber>().ok())
         .and_then(|number| u64::try_from(number.longLongValue()).ok())
-        .filter(|bytes| *bytes > 0);
-    important.or_else(|| statvfs_available_bytes(path))
+        .filter(|bytes| *bytes > 0)
 }
 
 fn statvfs_available_bytes(path: &std::path::Path) -> Option<u64> {
@@ -317,6 +320,7 @@ mod tests {
     #[test]
     fn free_space_counts_what_finder_counts() {
         let dir = std::env::temp_dir();
+        assert!(super::important_usage_bytes(&dir).is_some(), "Finder's count was not read");
         let finder = super::available_disk_bytes(&dir).expect("free space");
         let strict = super::statvfs_available_bytes(&dir).expect("statvfs");
         // Purgeable space only adds; allow for files written between the two reads.
