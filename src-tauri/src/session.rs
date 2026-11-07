@@ -1461,7 +1461,12 @@ impl Session {
     }
 
     /// Neither the address nor the title named the page: the browser can't be read here.
+    /// Never on macOS: Accessibility reads every listed browser's address there, and while
+    /// it is missing the Accessibility notice already says why websites aren't caught.
     fn track_unreadable_browser(&mut self, sample: &ActivitySample, activity: &Activity, now: Duration) {
+        if cfg!(target_os = "macos") {
+            return;
+        }
         let label = &sample.app_label;
         let address_read = sample.browser.as_ref().is_some_and(|read| read.address.is_some());
         let unreadable = activity.kind == ActivityKind::OtherWebsites
@@ -3458,7 +3463,7 @@ mod tests {
     }
 
     #[test]
-    fn a_browser_that_cannot_be_read_is_named_after_20_seconds() {
+    fn a_browser_that_cannot_be_read_is_named_after_20_seconds_except_on_a_mac() {
         let mut manager = test_manager();
         manager.start(input("Focus", Strictness::Normal), seconds(0));
         let unread = ActivitySample {
@@ -3468,6 +3473,15 @@ mod tests {
             ..sample("vivaldi", "", 0.0)
         };
         let named = |snapshot: SessionSnapshot| snapshot.current.unwrap().unreadable_browser;
+        if cfg!(target_os = "macos") {
+            // No address on a Mac means no Accessibility, which has its own notice.
+            for t in 0..30 {
+                assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))), None, "at {t} s");
+            }
+            let current = manager.snapshot(seconds(29)).current.unwrap();
+            assert!(!current.evidence.iter().any(|event| event.value == "BROWSER"));
+            return;
+        }
         for t in 0..20 {
             assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))), None, "at {t} s");
         }
