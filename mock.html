@@ -139,6 +139,9 @@
         list_cameras: () => q.get("cams") === "0" ? [] : ["Integrated Camera", "Phone Link"],
         get_voice_model_download: () => { if (!dl.started) return {phase:"idle", downloaded_bytes:0, total_bytes:0, current_file:null, elapsed_seconds:0, eta_seconds:null, message:"No model download is running.", up_to_date:false, model: handlers.get_voice_backend_status().model, runtime: handlers.get_voice_backend_status().runtime}; dl.polls += 1; const done = dl.polls >= 3; return {phase: done ? "complete" : "checking", downloaded_bytes: done ? 3e9 : dl.polls * 1e9, total_bytes: 3e9, current_file: null, elapsed_seconds: dl.polls, eta_seconds: null, message: done ? "Everything is already up to date." : "Checking the installed model and runtime.", up_to_date: done, model: handlers.get_voice_backend_status().model, runtime: handlers.get_voice_backend_status().runtime}; },
         start_voice_model_download: () => { dl.polls = 0; dl.started = true; return {phase:"checking", downloaded_bytes:0, total_bytes:3e9, current_file:null, elapsed_seconds:0, eta_seconds:null, message:"Checking the installed model and runtime.", up_to_date:false, model: handlers.get_voice_backend_status().model, runtime: handlers.get_voice_backend_status().runtime}; },
+        app_version: () => "1.0.0-mock",
+        // Report a problem: the mock keeps the address it would have opened.
+        open_problem_form: a => { window.__problemFormUrl = a.url; return null; },
         "plugin:event|listen": a => { (listeners[a.event] ||= []).push(a.handler); return 1; },
         "plugin:event|unlisten": () => null,
         // The card's orb asks the main window to stop or replay; here the mock answers for it.

@@ -2926,6 +2926,32 @@ function renderPomodoroField(): string {
   `;
 }
 
+/** Report a problem: the form, with the details a report needs already in its last box.
+ *  Everything in it is on screen in the browser before anything is sent. */
+const PROBLEM_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSdFLtxXlAqQrppIOcciOPrVoa8T7u0MYt-1i2qRd9feXOybVA/viewform";
+const PROBLEM_FORM_DETAILS_FIELD = "entry.320512626";
+
+async function openProblemForm(): Promise<void> {
+  const version = await invoke<string>("app_version").catch(() => "?");
+  const voice = selectedVoice();
+  const details = [
+    `Supervisor ${version}`,
+    `System: ${navigator.userAgent.match(/\(([^)]*)\)/)?.[1] ?? navigator.platform}`,
+    `Voice: ${voice.id === "none" ? "none" : `${voice.name}, ${toneLabel(voiceTone(voice))}`}`,
+    `Voice engine: ${voiceBackend ? (voiceBackend.runtime.installed && voiceBackend.model.installed ? "installed" : "not installed") : "not checked"}`,
+    `Webcam: ${settings.webcam_enabled ? "on" : "off"}`,
+    `Theme: ${theme}`,
+    `Last error shown: ${lastError || "none"}`,
+  ].join("\n");
+  const url = `${PROBLEM_FORM}?usp=pp_url&${PROBLEM_FORM_DETAILS_FIELD}=${encodeURIComponent(details)}`;
+  try {
+    await invoke("open_problem_form", { url });
+  } catch (error) {
+    lastError = errorText(error);
+    render();
+  }
+}
+
 function renderSettings(): string {
   if (settingsView === "voice") {
     return renderVoiceSettings();
@@ -2985,6 +3011,10 @@ function renderSettings(): string {
         <div class="settings-data-row">
           <span class="explain">Sessions and history stay on this computer. Nothing is uploaded.</span>
           <button class="danger" type="button" data-action="ask-delete-all">Delete all history</button>
+        </div>
+        <div class="settings-data-row">
+          <span class="explain">Something broke? Tell us. The form opens in your browser with the app's details filled in.</span>
+          <button type="button" data-action="report-problem">Report a problem</button>
         </div>
       </section>
     </section>
@@ -6579,6 +6609,11 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
       historyConfirm = { kind: "delete-session", id };
       paintModalLayer();
     }
+    return;
+  }
+
+  if (action === "report-problem") {
+    await openProblemForm();
     return;
   }
 

@@ -1989,6 +1989,12 @@ dt {
   gap: 12px;
 }
 
+.settings-data-row + .settings-data-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1.5px solid color-mix(in srgb, var(--sv-ink) 18%, transparent);
+}
+
 .setting-row {
   display: grid;
   grid-template-columns: minmax(110px, 0.7fr) minmax(0, 1fr);

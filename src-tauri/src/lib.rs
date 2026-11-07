@@ -327,6 +327,43 @@ fn open_accessibility_settings() -> Result<(), String> {
         .map_err(|error| error.to_string())
 }
 
+/// Where Report a problem goes: the form, prefilled by the page with the app's details.
+const PROBLEM_FORM: &str = "https://docs.google.com/forms/d/e/1FAIpQLSdFLtxXlAqQrppIOcciOPrVoa8T7u0MYt-1i2qRd9feXOybVA/viewform";
+
+/// Opens the problem form in the default browser. Only that address: the page builds the
+/// query, and nothing else may be handed to the shell.
+#[tauri::command]
+fn open_problem_form(url: String) -> Result<(), String> {
+    if !url.starts_with(PROBLEM_FORM) || url.contains(|c: char| c.is_whitespace() || c == '"') {
+        return Err("That is not the problem form.".to_string());
+    }
+    #[cfg(target_os = "macos")]
+    let mut command = {
+        let mut command = std::process::Command::new("open");
+        command.arg(&url);
+        command
+    };
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        // `start` is a cmd built-in; the empty first argument is the window title it expects.
+        let mut command = std::process::Command::new("cmd");
+        command.args(["/C", "start", "", &url]);
+        command
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let mut command = {
+        let mut command = std::process::Command::new("xdg-open");
+        command.arg(&url);
+        command
+    };
+    command.status().map(drop).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn app_version(app: AppHandle) -> String {
+    app.package_info().version.to_string()
+}
+
 #[tauri::command]
 fn get_rules(state: State<'_, AppState>) -> Result<Vec<focus::AppRule>, String> {
     Ok(lock_sessions(&state)?.rules())
@@ -842,6 +879,8 @@ pub fn run() {
             get_settings,
             get_capture_access,
             open_accessibility_settings,
+            open_problem_form,
+            app_version,
             get_rules,
             resolve_rule_input,
             get_site_names,
