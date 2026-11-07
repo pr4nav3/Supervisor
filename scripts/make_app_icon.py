@@ -30,10 +30,10 @@ def mix(c0: tuple[int, int, int, int], c1: tuple[int, int, int, int], t: float) 
 SUPERSAMPLE = 8
 
 
-def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
+def draw_icon(size: int, supersample: int = SUPERSAMPLE) -> list[list[tuple[int, int, int, int]]]:
     """Each pixel averages an 8x8 grid of samples, so the circle's edge is a smooth gradient of
     alpha rather than a staircase: at 16 and 32 px the ring still reads as round."""
-    big = size * SUPERSAMPLE
+    big = size * supersample
     centre = big / 2
     if size < 64:
         # Taskbar, title bar, small dock: the site's eye with its inner bands grown so they
@@ -70,14 +70,14 @@ def draw_icon(size: int) -> list[list[tuple[int, int, int, int]]]:
         return INK
 
     pixels = []
-    n = SUPERSAMPLE * SUPERSAMPLE
+    n = supersample * supersample
     for py in range(size):
         row = []
         for px in range(size):
             r = g = b = a = 0
-            for sy in range(SUPERSAMPLE):
-                for sx in range(SUPERSAMPLE):
-                    sr, sg, sb, sa = sample(px * SUPERSAMPLE + sx, py * SUPERSAMPLE + sy)
+            for sy in range(supersample):
+                for sx in range(supersample):
+                    sr, sg, sb, sa = sample(px * supersample + sx, py * supersample + sy)
                     # Colour weighted by coverage, so edge pixels don't darken toward black.
                     r += sr * sa
                     g += sg * sa
@@ -160,6 +160,10 @@ def main() -> None:
     (icons / "32x32.png").write_bytes(png_bytes(drawn[32]))
     (icons / "128x128.png").write_bytes(png_bytes(drawn[128]))
     (icons / "icon.png").write_bytes(png_bytes(drawn[256]))
+    # The Mac's Dock and Finder on a Retina screen: Tauri builds icon.icns from these (the
+    # @2x one is 1024 px). Fewer samples per pixel keep the edge as smooth at these sizes.
+    (icons / "512x512.png").write_bytes(png_bytes(draw_icon(512, 4)))
+    (icons / "512x512@2x.png").write_bytes(png_bytes(draw_icon(1024, 2)))
     entries = {size: (png_bytes(pixels) if size >= 256 else dib_bytes(pixels)) for size, pixels in drawn.items()}
     (icons / "icon.ico").write_bytes(ico_bytes(entries))
     print(f"wrote icons in {icons}")
