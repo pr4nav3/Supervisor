@@ -841,7 +841,7 @@ pub fn run() {
             // lose the running session's last seconds; the ticker turns it into a quit.
             #[cfg(unix)]
             unsafe {
-                libc::signal(libc::SIGTERM, terminate_requested as libc::sighandler_t);
+                libc::signal(libc::SIGTERM, terminate_requested as *const () as libc::sighandler_t);
             }
             setup_tray(app)?;
             #[cfg(target_os = "macos")]
