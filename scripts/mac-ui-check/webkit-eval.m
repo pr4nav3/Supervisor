@@ -2,6 +2,7 @@
 //   clang -fobjc-arc -framework Cocoa -framework WebKit -o webkit-eval webkit-eval.m
 //   webkit-eval <url> <width> <height> <script.js>
 // The script's last expression is returned (wrap in an async IIFE and return a promise if needed).
+// It sees the size as STATE_WIDTH and STATE_HEIGHT.
 // Objective-C rather than Swift: clang always matches its SDK, while the Command Line Tools'
 // swiftc can refuse the SDK's Swift modules after a partial update ("not supported by the
 // compiler"), which took this check down on one Mac.
@@ -16,6 +17,7 @@ static void finish(NSString *line, int code) {
 
 @interface Delegate : NSObject <WKNavigationDelegate>
 @property(strong) NSString *script;
+@property double width, height;
 @end
 
 @implementation Delegate
@@ -28,7 +30,7 @@ static void finish(NSString *line, int code) {
 - (void)webView:(WKWebView *)web didFinishNavigation:(WKNavigation *)navigation {
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(1.2 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         [web callAsyncJavaScript:self.script
-                       arguments:@{}
+                       arguments:@{@"STATE_WIDTH": @(self.width), @"STATE_HEIGHT": @(self.height)}
                          inFrame:nil
                   inContentWorld:WKContentWorld.pageWorld
                completionHandler:^(id result, NSError *error) {
@@ -64,13 +66,15 @@ int main(int argc, const char *argv[]) {
         // On screen, not just created: a window WebKit thinks is hidden pauses requestAnimationFrame.
         [window orderFront:nil];
 
-        // Never hang a CI job: give up after two minutes, and on any failed page load.
-        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(120 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
-            finish(@"timeout: no result in 120 s", 1);
+        // Never hang a CI job: give up after five minutes, and on any failed page load.
+        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(300 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+            finish(@"timeout: no result in 300 s", 1);
         });
 
         Delegate *delegate = [Delegate new];
         delegate.script = script;
+        delegate.width = width;
+        delegate.height = height;
         web.navigationDelegate = delegate;
         [web loadRequest:[NSURLRequest requestWithURL:[NSURL URLWithString:url]]];
         [app run];

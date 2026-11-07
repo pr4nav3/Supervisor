@@ -15,8 +15,13 @@ if ! curl -sf -o /dev/null http://127.0.0.1:1420/scripts/mac-ui-check/mock.html;
   STARTED=1
   for i in $(seq 1 150); do curl -sf -o /dev/null http://127.0.0.1:1420/scripts/mac-ui-check/mock.html && break; sleep 0.2; done
 fi
-"$OUT/webkit-eval" "http://127.0.0.1:1420/scripts/mac-ui-check/mock.html" 920 760 "$HERE/states.js" > "$OUT/raw.txt" \
-  || { cat "$OUT/raw.txt" >&2; exit 1; }
-tail -1 "$OUT/raw.txt" > "$OUT/states.json"
+# The default window, then the smallest: 800x560 less the 28 px title bar a Mac draws inside it.
+FAILED=0
+for SIZE in 920x760 800x532; do
+  "$OUT/webkit-eval" "http://127.0.0.1:1420/scripts/mac-ui-check/mock.html" "${SIZE%x*}" "${SIZE#*x}" "$HERE/states.js" > "$OUT/raw-$SIZE.txt" \
+    || { cat "$OUT/raw-$SIZE.txt" >&2; FAILED=1; continue; }
+  tail -1 "$OUT/raw-$SIZE.txt" > "$OUT/states-$SIZE.json"
+  python3 "$HERE/assert.py" "$OUT/states-$SIZE.json" || FAILED=1
+done
 [ "$STARTED" = 1 ] && pkill -f "vite --host 127.0.0.1 --port 1420" || true
-python3 "$HERE/assert.py" "$OUT/states.json"
+exit $FAILED

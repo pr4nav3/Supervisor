@@ -57,9 +57,20 @@ const STATES = [
   ["overlay-corner-break", M + "?view=overlay&live=1&pomo=break", (d) => click(d, '[data-action="dismiss-moment"]'), 228, 400],
   ["overlay-interrupt-voice", M + "?view=overlay&live=1&drift=1&voice=1&speak_ms=60000", () => sleep(1500), 420, 600],
   ["overlay-phone-voice", M + "?view=overlay&live=1&phone=1&voice=1&speak_ms=60000", () => sleep(1500), 420, 600],
+  // Screens since the 2026-10-31 Mac pass. "dark=1" turns the app's dark theme on first.
+  ["preflight-slider", M, async (d) => { click(d, '[data-action="open-preflight"]'); await sleep(300); const r = d.querySelector('.preflight-panel input[type="range"]'); r.value = r.max; r.dispatchEvent(new Event("input", { bubbles: true })); }],
+  ["live-mac", M + "?live=1&mac=1", null],
+  ["live-unreadable", M + "?live=1&unreadable=1", null],
+  ["live-dark", M + "?live=1&drift=1&dark=1", null],
+  ["overlay-interrupt-voice-dark", M + "?view=overlay&live=1&drift=1&voice=1&speak_ms=60000&dark=1", () => sleep(1500), 420, 600],
+  ["overlay-corner-dark", M + "?view=overlay&live=1&dark=1", null, 228, 400],
+  ["settings-dark", M + "?done=1&dark=1", (d) => tab(d, "settings")],
+  ["voice-hello", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); click(d, '[data-action="open-voice-settings"]'); await sleep(800); d.querySelector(".voice-card:has(.voice-card-line)").classList.add("is-speaking"); }],
+  ["first-run-voice-hello", M + "?empty=1&done=1", async (d) => { click(d, '[data-action="onboard-show"]'); await sleep(800); d.querySelector(".first-run-voices .voice-card:has(.voice-card-line)").classList.add("is-speaking"); }],
 ];
 const results = [];
 for (const [name, url, setup, w, h] of STATES) {
+  if (url.includes("dark=1")) localStorage.setItem("supervisor-theme", "dark"); else localStorage.removeItem("supervisor-theme");
   const frame = document.createElement("iframe");
   frame.style.cssText = `position:fixed;left:0;top:0;width:${w || W}px;height:${h || H}px;border:0;z-index:9999;background:#fff`;
   document.body.appendChild(frame);
@@ -76,7 +87,17 @@ for (const [name, url, setup, w, h] of STATES) {
       const el = d.querySelector(sel); if (el) { const r = el.getBoundingClientRect(); sizes[sel] = [Math.round(r.width), Math.round(r.height)]; }
     }
     const w2 = frame.contentWindow;
-    results.push({ name, viewport: [w2.innerWidth, w2.innerHeight], docH: d.documentElement.scrollHeight, hOverflow: d.documentElement.scrollWidth > w2.innerWidth, modals: d.querySelectorAll(".modal-panel").length, sizes });
+    // Text cut off by its own box: wider than it can show, and not an intended ellipsis.
+    const clipped = [];
+    for (const el of d.querySelectorAll("button, .sofar-tiles *, .voice-card *, .interrupt-alert *, .share-card *, .report-slab *, .settings-page *, .preflight-panel *, .active-session-controls *")) {
+      const cs = w2.getComputedStyle(el);
+      if (!el.offsetParent || cs.textOverflow === "ellipsis" || !/hidden|clip/.test(cs.overflowX + cs.overflowY)) continue;
+      if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) clipped.push(`${el.tagName.toLowerCase()}.${[...el.classList].join(".")} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
+    }
+    // A sticky Start button still in the window.
+    const start = d.querySelector(".preflight-start");
+    const startBottom = start ? Math.round(start.getBoundingClientRect().bottom) : null;
+    results.push({ name, viewport: [w2.innerWidth, w2.innerHeight], docH: d.documentElement.scrollHeight, hOverflow: d.documentElement.scrollWidth > w2.innerWidth, modals: d.querySelectorAll(".modal-panel").length, sizes, clipped, startBottom });
   } catch (e) { results.push({ name, error: String(e) }); }
   frame.remove();
 }

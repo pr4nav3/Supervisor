@@ -20,11 +20,16 @@ for s in states:
     shell = s["sizes"].get(".overlay-shell")
     if shell and shell[1] > h:
         problems.append(f"{name}: overlay card {shell[1]}px taller than the {h}px window")
-    # Home is sized to fit its window exactly; any scroll is a layout bug.
-    if name.startswith("home") and s["docH"] > h:
+    # Home is sized to fit its window exactly; any scroll is a layout bug. Below 900 px wide
+    # it stacks into one column (in every engine) and scrolls by design.
+    if name.startswith("home") and w >= 900 and s["docH"] > h:
         problems.append(f"{name}: Home scrolls ({s['docH']}px in {h}px)")
-print(f"{len(states)} states laid out in WebKit")
+    for clip in s.get("clipped", []):
+        problems.append(f"{name}: text cut off: {clip}")
+    if s.get("startBottom") and s["startBottom"] > h:
+        problems.append(f"{name}: Start button below the window ({s['startBottom']}px in {h}px)")
+print(f"{len(states)} states laid out in WebKit at {states[0]['viewport'][0]}x{states[0]['viewport'][1]}")
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("ok: no overflow, every modal and overlay card fits, Home does not scroll")
+print("ok: no overflow or cut-off text, every modal and overlay card fits, Start is reachable, Home does not scroll")
