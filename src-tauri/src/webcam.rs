@@ -509,7 +509,7 @@ fn worker_command(_app: &AppHandle) -> Result<Command, String> {
         .join("..")
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let bakeoff = root.join("webcam_bakeoff");
+    let bakeoff = root.join("webcam_worker");
     let venv = root.join(".venv-webcam");
     let python = if cfg!(windows) {
         venv.join("Scripts").join("python.exe")
@@ -518,7 +518,7 @@ fn worker_command(_app: &AppHandle) -> Result<Command, String> {
     };
     if !python.is_file() {
         return Err(format!(
-            "Webcam dev venv missing at {}. See webcam_bakeoff/README.md.",
+            "Webcam dev venv missing at {}. See webcam_worker/README.md.",
             venv.display()
         ));
     }

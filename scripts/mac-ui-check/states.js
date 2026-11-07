@@ -2,7 +2,7 @@
 // WebKit (webkit-eval) and Chromium (browser pane); the outputs are diffed.
 const W = typeof STATE_WIDTH !== "undefined" ? STATE_WIDTH : 920;
 const H = typeof STATE_HEIGHT !== "undefined" ? STATE_HEIGHT : 760;
-const M = "http://127.0.0.1:1420/mock.html";
+const M = "http://127.0.0.1:1420/scripts/mac-ui-check/mock.html";
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const click = (d, sel) => { const el = d.querySelector(sel); if (!el) throw new Error("missing " + sel); el.click(); };
 const tab = (d, name) => click(d, `[data-tab="${name}"]`);

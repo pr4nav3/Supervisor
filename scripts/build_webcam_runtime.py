@@ -18,12 +18,12 @@ import sys
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO / "webcam_bakeoff"))
+sys.path.insert(0, str(REPO / "webcam_worker"))
 
 from download_models import REQUIRED, verify_models  # noqa: E402
 
 WORKER_NAME = "supervisor-webcam-worker"
-BAKEOFF = REPO / "webcam_bakeoff"
+BAKEOFF = REPO / "webcam_worker"
 STAGED = REPO / "build" / "webcam"
 
 

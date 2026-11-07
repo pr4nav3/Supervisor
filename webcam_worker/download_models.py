@@ -14,7 +14,7 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 FACE_MODEL = "face_detection_yunet_2023mar.onnx"
 DETECTOR = "yolo26s.onnx"
 
-# Shipped with the app, but not in git (webcam_bakeoff/.gitignore ignores models/). The YOLO file
+# Shipped with the app, but not in git (webcam_worker/.gitignore ignores models/). The YOLO file
 # is exported once with export_models.py and pinned here, so every build ships exactly the model
 # that was benchmarked. See README.md for where to get it.
 REQUIRED = {
