@@ -207,7 +207,24 @@ pub fn process_ram_bytes(pid: u32) -> Option<u64> {
     (status == 0).then_some(info.ri_phys_footprint)
 }
 
+/// Free space as Finder counts it: purgeable space (local snapshots, cached iCloud files)
+/// included, since macOS frees it as a download needs it. statvfs leaves it out.
 pub fn available_disk_bytes(path: &std::path::Path) -> Option<u64> {
+    use objc2_foundation::{NSNumber, NSString, NSURL, NSURLVolumeAvailableCapacityForImportantUsageKey};
+
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    let mut value = None;
+    let key = unsafe { NSURLVolumeAvailableCapacityForImportantUsageKey };
+    let important = unsafe { url.getResourceValue_forKey_error(&mut value, key) }
+        .ok()
+        .and(value)
+        .and_then(|value| value.downcast::<NSNumber>().ok())
+        .and_then(|number| u64::try_from(number.longLongValue()).ok())
+        .filter(|bytes| *bytes > 0);
+    important.or_else(|| statvfs_available_bytes(path))
+}
+
+fn statvfs_available_bytes(path: &std::path::Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
 
     let path = CString::new(path.as_os_str().as_bytes()).ok()?;
@@ -292,5 +309,17 @@ fn media_access(kind: &objc2_av_foundation::AVMediaType, denied: &str) -> Result
     match receiver.recv_timeout(std::time::Duration::from_secs(120)) {
         Ok(true) => Ok(()),
         _ => Err(denied.to_string()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn free_space_counts_what_finder_counts() {
+        let dir = std::env::temp_dir();
+        let finder = super::available_disk_bytes(&dir).expect("free space");
+        let strict = super::statvfs_available_bytes(&dir).expect("statvfs");
+        // Purgeable space only adds; allow for files written between the two reads.
+        assert!(finder + (64 << 20) >= strict, "{finder} < {strict}");
     }
 }
