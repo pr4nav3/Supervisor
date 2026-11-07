@@ -1,16 +1,23 @@
-# Supervisor Agent Rules
+# Working on Supervisor
 
-Ponytail applies on coding work: laziest solution that actually works, stdlib and native features first, no extra dependency unless this phase needs it, one runnable check for non-trivial logic. Off: "stop ponytail" / "normal mode".
+Rules for anyone, person or coding agent, changing this repo.
 
-Claude Code loads the ponytail skills from `.claude/skills/` (committed, so worktree sessions get them too). Cursor loads its own copy from the machine. Other tools only see this file. To update, re-copy `skills/*/SKILL.md` from the ponytail repo into `.claude/skills/`.
+## The app
 
-Supervisor-specific defaults:
+- Local-first. No telemetry, analytics, remote fonts or cloud processing. The only network calls are the ones the user asks for.
+- Prefer what the OS already knows (the front window, the app name, the browser's address) over screenshots, OCR or models.
+- Voice generation runs out of process. The main app plays cached audio only.
+- No new dependency unless the current work needs it.
+- Non-trivial logic gets one runnable check: a test, or a script that proves it.
 
-- Keep the app local-first: no telemetry, analytics, remote fonts, or cloud processing.
-- Prefer OS/window metadata before browser contents, screenshots, OCR, or AI.
-- Keep voice generation out of the main app process; focus mode should play cached audio only.
-- Add no new dependency unless the current phase needs it.
-- Leave one runnable check for non-trivial logic.
-- Words users see are plain, never internal names. Say line (not clip, phrase); reminder (not nudge); personality (not tone); Generate and Regenerate for making a line's audio; voice engine (not model pack, runtime, worker); recording (not reference); Allow once / Always allow (not exception, Not today, Never a distraction); start screen (not preflight). GPU and vision models stay as they are. Code identifiers keep their names.
+## Words users see
 
-Baseline branch: `app-v2-simplified-rules` (`main` is an ancestor; fast-forward it when ready). Notes live in the private repo pr4nav3/Supervisor-notes, cloned at `notes/` (ignored here; in a worktree, read `C:\Users\karth\Projects\Supervisor\notes`). Tracker: `notes/plans/STATUS.md`. Agent starter bugs: `notes/plans/known-issues.md`. Mac work: `notes/plans/mac-handoff.md`. Site notes: `notes/plans/landing-page.md`.
+Plain words, never internal names: line (not clip or phrase); reminder (not nudge); personality (not tone); Generate and Regenerate for making a line's audio; voice engine (not model pack, runtime or worker); recording (not reference); Allow once and Always allow (not exception, Not today or Never a distraction); start screen (not preflight). GPU and vision models keep their names. Code identifiers keep theirs.
+
+## Code
+
+The laziest solution that works: standard library and native features first, one line before fifty, nothing speculative. Commits are small, with a short message in plain language and no trailers.
+
+## Agents
+
+Skills for coding agents live in `.claude/skills/`. Project notes, the tracker and the mockups are in a private companion repo, cloned at `notes/` and ignored by git; its tracker is `notes/plans/STATUS.md`.
