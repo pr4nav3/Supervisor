@@ -161,7 +161,8 @@ def main() -> None:
     (icons / "128x128.png").write_bytes(png_bytes(drawn[128]))
     (icons / "icon.png").write_bytes(png_bytes(drawn[256]))
     # The Mac's Dock and Finder on a Retina screen: Tauri builds icon.icns from these (the
-    # @2x one is 1024 px). Fewer samples per pixel keep the edge as smooth at these sizes.
+    # @2x one is 1024 px). Fewer samples per pixel here only because pure Python
+    # is slow at 1024 px.
     (icons / "512x512.png").write_bytes(png_bytes(draw_icon(512, 4)))
     (icons / "512x512@2x.png").write_bytes(png_bytes(draw_icon(1024, 2)))
     entries = {size: (png_bytes(pixels) if size >= 256 else dib_bytes(pixels)) for size, pixels in drawn.items()}
