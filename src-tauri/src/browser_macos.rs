@@ -76,8 +76,9 @@ pub fn request_accessibility() -> bool {
 }
 
 struct Reader {
-    /// Child-index path from a browser's window to its web area, by process id.
-    paths: HashMap<u64, Vec<usize>>,
+    /// Child-index path from a browser's window to its web area, by process id, and when the
+    /// search found only a web area with no http(s) address (a New Tab or settings page).
+    paths: HashMap<u64, (Vec<usize>, Option<Instant>)>,
     /// Keyed by browser and window, so one unreadable window (a settings page, a Start Page
     /// with no web area) does not blank every other window of that browser.
     failed: HashMap<(u64, usize), Instant>,
@@ -138,12 +139,14 @@ impl Reader {
         let web_area = self
             .paths
             .get(&pid)
-            .and_then(|path| walk(&window, path))
-            .filter(|web_area| is_page_address(string_attr(web_area, "AXURL").as_deref()))
+            .and_then(|(path, no_page_at)| Some((walk(&window, path)?, *no_page_at)))
+            .filter(|(web_area, no_page_at)| trust_remembered(string_attr(web_area, "AXURL").as_deref(), *no_page_at))
+            .map(|(web_area, _)| web_area)
             .or_else(|| {
                 // Stale after a toolbar change, or never found: search this window again.
                 let (web_area, path) = find_web_area(&window)?;
-                self.paths.insert(pid, path);
+                let page = is_page_address(string_attr(&web_area, "AXURL").as_deref());
+                self.paths.insert(pid, (path, (!page).then(Instant::now)));
                 Some(web_area)
             });
         let Some(web_area) = web_area else {
@@ -259,6 +262,13 @@ fn find_web_area(window: &CFType) -> Option<(CFRetained<CFType>, Vec<usize>)> {
 }
 
 /// A page on the web, as against a browser's own panels (chrome://, devtools://, brave://).
+/// A remembered web area is used again if it shows a page, or, when the last search found no
+/// page at all (a New Tab), for a few seconds: not a full search every tick on such a page,
+/// and a side panel that took the place is still caught soon after.
+fn trust_remembered(address: Option<&str>, no_page_at: Option<Instant>) -> bool {
+    is_page_address(address) || no_page_at.is_some_and(|at| at.elapsed() < RETRY_AFTER)
+}
+
 fn is_page_address(address: Option<&str>) -> bool {
     address.is_some_and(|address| address.starts_with("http://") || address.starts_with("https://"))
 }
@@ -311,6 +321,17 @@ fn bool_attr(element: &CFType, name: &'static str) -> Option<bool> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_tab_is_not_searched_again_every_tick() {
+        let now = Some(Instant::now());
+        assert!(trust_remembered(Some("https://youtube.com/"), None));
+        assert!(!trust_remembered(Some("chrome-extension://sidebar/"), None));
+        assert!(trust_remembered(Some("chrome://newtab/"), now));
+        assert!(trust_remembered(None, now));
+        let long_ago = Instant::now().checked_sub(RETRY_AFTER + Duration::from_secs(1));
+        assert!(!trust_remembered(Some("chrome://newtab/"), long_ago));
+    }
 
     /// With Safari, Chrome, or Firefox open:
     /// `cargo test manual_read_browser_windows_macos -- --ignored --nocapture`
