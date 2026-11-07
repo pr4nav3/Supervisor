@@ -420,6 +420,8 @@ button.orb:active .orb-core {
   /* the headline's words, small and muted, arriving beside the wordmark once the headline itself has gone */
   header .tagline { font: 400 0.95rem/1 var(--font-sans); letter-spacing: -0.01em; text-transform: none; color: var(--sv-muted); white-space: nowrap; opacity: 0; transform: translateY(8px); transition: opacity 240ms ease, transform 320ms var(--ease-out); pointer-events: none; }
   header.tagged .tagline { opacity: 1; transform: none; }
+  /* centred on the wordmark's letters, not its line box: the small type sits a pixel high otherwise */
+  header .tagline { position: relative; top: 1px; }
   .first { padding-top: 90px; }
   .brand { display: flex; align-items: center; gap: 12px; font-size: 1.9rem; font-weight: 750; letter-spacing: -0.035em; text-decoration: none; }
   .brand img { width: 36px; height: 36px; }
