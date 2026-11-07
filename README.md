@@ -36,6 +36,8 @@ npm ci
 npm run dev
 ```
 
+On a Mac, `npm run dev` hands the Accessibility and Camera grants to the terminal, not the app. Run `sh scripts/make_mac_dev_cert.sh` once, then `npm run bundle:mac-dev` and `open src-tauri/target/debug/bundle/macos/Supervisor.app`.
+
 `npm run check` type-checks and builds the UI. `cargo test` in `src-tauri/` runs the Rust tests. CI runs both on macOS and Windows on every push.
 
 The two workers need their own Python environments and model files, which are not in git. Without them the app still runs; it just can't generate lines or watch the webcam.

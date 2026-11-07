@@ -12,13 +12,15 @@
     },
     {
       "name": "site",
-      "runtimeExecutable": "python",
+      "runtimeExecutable": "npx",
       "runtimeArgs": [
-        "-m",
-        "http.server",
+        "vite",
+        "website",
+        "--host",
+        "127.0.0.1",
+        "--port",
         "8765",
-        "--directory",
-        "website"
+        "--strictPort"
       ],
       "port": 8765
     }
