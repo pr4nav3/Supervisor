@@ -611,7 +611,7 @@ h1 {
   font-size: var(--sv-type-3);
 }
 
-/* The live session shows six distractions and a "…" for the rest: Edit distractions has them all. */
+/* The live session shows six distractions, plus any allowed once, and a "…" for the rest: Edit distractions has them all. */
 .session-rule-chips .session-rule-more {
   width: auto;
   max-width: none;

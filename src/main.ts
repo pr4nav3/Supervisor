@@ -1830,16 +1830,19 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   if (rules.length === 0) {
     return `<p class="session-rules-empty">Nothing on the list yet.</p>`;
   }
-  // Six fit the card; the rest are behind Edit distractions, and an allowed one is named below.
-  const chips = rules
-    .slice(0, 6)
-    .map((rule, index) => {
-      const allowed = exceptions.some((exception) => sameRule(exception, rule));
+  // Six fit the card; the rest are behind Edit distractions. An allowed one always shows, so
+  // its allowance can be taken back here.
+  const isAllowed = (rule: AppRule) => exceptions.some((exception) => sameRule(exception, rule));
+  const shown = rules.map((rule, index) => ({ rule, index })).filter(({ rule, index }) => index < 6 || isAllowed(rule));
+  const hidden = rules.length - shown.length;
+  const chips = shown
+    .map(({ rule, index }) => {
+      const allowed = isAllowed(rule);
       return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
     })
-    .concat(rules.length > 6 ? [`<span class="session-rule-more" aria-label="${rules.length - 6} more">…</span>`] : [])
+    .concat(hidden > 0 ? [`<span class="session-rule-more" aria-label="${hidden} more">…</span>`] : [])
     .join("");
-  const allowed = rules.filter((rule) => exceptions.some((exception) => sameRule(exception, rule))).map(ruleName);
+  const allowed = rules.filter(isAllowed).map(ruleName);
   return `
     <div class="chips session-rule-chips">${chips}</div>
     ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.join(", "))}</p>` : ""}
