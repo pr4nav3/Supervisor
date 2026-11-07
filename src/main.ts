@@ -282,6 +282,13 @@ interface TrendsData {
 
 type HistoryView = "list" | "report" | "trends";
 
+/** The app's eye, as on its icon and the site: each ring's radius as a share of the eye's
+ *  width, outside in. The header draws it as an SVG, the share cards on a canvas. */
+const EYE_RINGS: [number, string][] = [[0.46, "#101010"], [0.4, "#f4ead7"], [0.22, "#a8eb37"], [0.13, "#3267ff"], [0.055, "#101010"]];
+/** Where the name starts after the eye, in eye widths. */
+const EYE_GAP = 1.3125;
+const EYE_SVG = `<svg class="brand-eye" viewBox="0 0 1 1" aria-hidden="true">${EYE_RINGS.map(([r, color]) => `<circle cx="0.5" cy="0.5" r="${r}" fill="${color}"/>`).join("")}</svg>`;
+
 /** Trends need this many completed weeks before week-over-week lines mean anything. */
 const TRENDS_UNLOCK_WEEKS = 2;
 /** Bars per screen of Trends: about three months of weeks, or a year of months. */
@@ -1544,7 +1551,7 @@ function render(): void {
     <main class="app-shell">
       <header class="topbar">
         <div>
-          <h1>Supervisor</h1>
+          <h1 class="brand">${EYE_SVG}Supervisor</h1>
         </div>
         <div class="topbar-status">
           ${current ? `<button class="status-chip" type="button" data-tab="session">${escapeHtml(statusChip(current))}</button>` : renderStreakChip()}
@@ -10235,8 +10242,7 @@ async function copyCard(): Promise<void> {
 
   // The same header as the week and month cards: the wordmark, then the eyebrow over the date.
   ctx.fillStyle = palette.ink;
-  ctx.font = `750 24px ${CARD_SANS}`;
-  ctx.fillText("Supervisor", CARD_PAD, CARD_PAD);
+  drawWordmark(ctx, CARD_PAD, CARD_PAD, 24);
   ctx.textAlign = "right";
   ctx.fillStyle = palette.muted;
   ctx.font = `600 15px ${CARD_MONO}`;
@@ -10286,6 +10292,27 @@ const CARD_GREEN = "#a8eb37";
 const CARD_GREEN_INK = "#101010";
 const CARD_INSET = 18;
 
+/** The wordmark from (x, y), with textBaseline top and the ink already set: the eye, then the
+ *  name, with the eye's centre on the middle of the capitals. The eye is as wide as the font is
+ *  tall, as in the app's header. */
+function drawWordmark(ctx: CanvasRenderingContext2D, x: number, y: number, size: number): void {
+  // Measured twenty times larger: small sizes report whole pixels, which would put the eye off
+  // centre by a fraction of one.
+  ctx.font = `750 ${size * 20}px ${CARD_SANS}`;
+  const cap = ctx.measureText("H");
+  const mid = y + (cap.actualBoundingBoxDescent - cap.actualBoundingBoxAscent) / 40;
+  ctx.font = `750 ${size}px ${CARD_SANS}`;
+  const ink = ctx.fillStyle;
+  for (const [radius, color] of EYE_RINGS) {
+    ctx.beginPath();
+    ctx.arc(x + size / 2, mid, radius * size, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  ctx.fillStyle = ink;
+  ctx.fillText("Supervisor", x + size * EYE_GAP, y);
+}
+
 /** The header both share cards start with: the wordmark over the focused total on the left,
  *  the eyebrow over the period on the right, hanging from the same baseline. Returns the y
  *  where the body starts. */
@@ -10294,8 +10321,7 @@ function drawCardHeader(ctx: CanvasRenderingContext2D, eyebrow: string, period: 
   const width = CARD_WIDTH;
   ctx.textAlign = "left";
   ctx.fillStyle = palette.ink;
-  ctx.font = `750 24px ${CARD_SANS}`;
-  ctx.fillText("Supervisor", CARD_PAD, CARD_PAD);
+  drawWordmark(ctx, CARD_PAD, CARD_PAD, 24);
 
   const bigTop = CARD_PAD + 42;
   const bigSize = 40;

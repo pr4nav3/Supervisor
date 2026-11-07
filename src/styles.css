@@ -67,7 +67,7 @@
 
 @font-face {
   font-family: Inter;
-  src: url("../docs/assets/fonts/inter-variable.woff2") format("woff2");
+  src: url("../website/assets/fonts/inter-variable.woff2") format("woff2");
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -296,6 +296,19 @@ h1 {
   font-size: 2rem;
   font-weight: 650;
   line-height: 1;
+}
+
+/* The eye is as wide as the font is tall; its centre sits on the middle of the capitals. */
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 0.3125em;
+}
+
+.brand-eye {
+  flex: none;
+  width: 1em;
+  height: 1em;
 }
 
 .chips {
