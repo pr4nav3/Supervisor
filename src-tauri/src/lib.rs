@@ -365,9 +365,10 @@ fn app_version(app: AppHandle) -> String {
 }
 
 /// Report a problem's system line. The webview's user agent is frozen (every Mac says Intel
-/// 10.15.7), so the OS reports its own version.
+/// 10.15.7), so the OS reports its own version. Async, so the child process runs off the UI
+/// thread.
 #[tauri::command]
-fn system_line() -> String {
+async fn system_line() -> String {
     #[cfg(target_os = "macos")]
     let version = std::process::Command::new("sw_vers").arg("-productVersion").output().ok();
     #[cfg(target_os = "windows")]
@@ -383,10 +384,8 @@ fn system_line() -> String {
 }
 
 fn system_line_from(os: &str, version: &str, arch: &str) -> String {
-    let version = version.trim();
-    let version = version
-        .split_once("Version ")
-        .map_or(version, |(_, rest)| rest.trim_end_matches(']'));
+    // The last word works in any language: "[Version 10.0...]", "[version 10.0...]", "15.1".
+    let version = version.trim().trim_end_matches(']').split_whitespace().last().unwrap_or("");
     [os, version, arch].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" ")
 }
 
@@ -1919,8 +1918,12 @@ mod tests {
             system_line_from("windows", "\r\nMicrosoft Windows [Version 10.0.26100.2314]\r\n", "x86_64"),
             "windows 10.0.26100.2314 x86_64"
         );
+        assert_eq!(
+            system_line_from("windows", "\r\nMicrosoft Windows [version 10.0.19045.4529]\r\n", "x86_64"),
+            "windows 10.0.19045.4529 x86_64"
+        );
         assert_eq!(system_line_from("linux", "", "x86_64"), "linux x86_64");
-        assert!(super::system_line().starts_with(std::env::consts::OS));
+        assert!(tauri::async_runtime::block_on(super::system_line()).starts_with(std::env::consts::OS));
     }
 
     #[test]
