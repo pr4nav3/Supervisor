@@ -364,6 +364,32 @@ fn app_version(app: AppHandle) -> String {
     app.package_info().version.to_string()
 }
 
+/// Report a problem's system line. The webview's user agent is frozen (every Mac says Intel
+/// 10.15.7), so the OS reports its own version.
+#[tauri::command]
+fn system_line() -> String {
+    #[cfg(target_os = "macos")]
+    let version = std::process::Command::new("sw_vers").arg("-productVersion").output().ok();
+    #[cfg(target_os = "windows")]
+    let version = {
+        use std::os::windows::process::CommandExt;
+        // "Microsoft Windows [Version 10.0.26100.2314]"; no console window flashes up.
+        std::process::Command::new("cmd").args(["/C", "ver"]).creation_flags(0x0800_0000).output().ok()
+    };
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    let version: Option<std::process::Output> = None;
+    let version = version.map(|out| String::from_utf8_lossy(&out.stdout).into_owned()).unwrap_or_default();
+    system_line_from(std::env::consts::OS, &version, std::env::consts::ARCH)
+}
+
+fn system_line_from(os: &str, version: &str, arch: &str) -> String {
+    let version = version.trim();
+    let version = version
+        .split_once("Version ")
+        .map_or(version, |(_, rest)| rest.trim_end_matches(']'));
+    [os, version, arch].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" ")
+}
+
 #[tauri::command]
 fn get_rules(state: State<'_, AppState>) -> Result<Vec<focus::AppRule>, String> {
     Ok(lock_sessions(&state)?.rules())
@@ -881,6 +907,7 @@ pub fn run() {
             open_accessibility_settings,
             open_problem_form,
             app_version,
+            system_line,
             get_rules,
             resolve_rule_input,
             get_site_names,
@@ -1883,7 +1910,18 @@ fn with_sessions(
 
 #[cfg(test)]
 mod tests {
-    use super::counted_new_nudge;
+    use super::{counted_new_nudge, system_line_from};
+
+    #[test]
+    fn the_system_line_names_the_real_os_version() {
+        assert_eq!(system_line_from("macos", "15.1\n", "aarch64"), "macos 15.1 aarch64");
+        assert_eq!(
+            system_line_from("windows", "\r\nMicrosoft Windows [Version 10.0.26100.2314]\r\n", "x86_64"),
+            "windows 10.0.26100.2314 x86_64"
+        );
+        assert_eq!(system_line_from("linux", "", "x86_64"), "linux x86_64");
+        assert!(super::system_line().starts_with(std::env::consts::OS));
+    }
 
     #[test]
     fn each_nudge_is_announced_once_per_session() {

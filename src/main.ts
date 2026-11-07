@@ -2940,10 +2940,11 @@ const PROBLEM_FORM_DETAILS_FIELD = "entry.320512626";
 
 async function openProblemForm(): Promise<void> {
   const version = await invoke<string>("app_version").catch(() => "?");
+  const system = await invoke<string>("system_line").catch(() => "?");
   const voice = selectedVoice();
   const details = [
     `Supervisor ${version}`,
-    `System: ${navigator.userAgent.match(/\(([^)]*)\)/)?.[1] ?? navigator.platform}`,
+    `System: ${system}`,
     `Voice: ${voice.id === "none" ? "none" : `${voice.name}, ${toneLabel(voiceTone(voice))}`}`,
     `Voice engine: ${voiceBackend ? (voiceBackend.runtime.installed && voiceBackend.model.installed ? "installed" : "not installed") : "not checked"}`,
     `Webcam: ${settings.webcam_enabled ? "on" : "off"}`,
