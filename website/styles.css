@@ -697,11 +697,11 @@ button.orb:active .orb-core {
   .os { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
   .os .vcard { text-align: left; }
   .os .vcard.on { background: var(--sv-yellow); }
-  .way { display: grid; gap: 12px; padding: 18px 20px 20px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); grid-column: 1 / -1; }
+  .way { display: grid; gap: 12px; padding: 18px 20px 20px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 2px 2px 0 var(--sv-shadow-color); grid-column: 1 / -1; } /* a card inside a card: the smaller shadow, as in the app */
   .way[hidden] { display: none; }
   .way p { margin: 0; font-size: 0.98rem; }
   .cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border: var(--border); border-radius: 6px; padding: 6px 6px 6px 12px; background: var(--sv-soft-white); }
-  .cmd code { font: 400 0.7rem/1.5 var(--font-mono); white-space: nowrap; overflow-x: auto; }
+  .cmd code { font: 400 0.7rem/1.5 var(--font-mono); white-space: nowrap; overflow-x: auto; scrollbar-width: none; } /* the line still scrolls; Copy is the way to take it */
   .cmd .btn { min-height: 34px; font-size: 0.68rem; }
   /* the card ends with its credit line: who made it, and a way to write back */
   /* the last line: who, and a way to write back */
@@ -735,7 +735,8 @@ button.orb:active .orb-core {
     .docs .sheet { width: 88%; }
     .brand { font-size: 1.5rem; }
     header .tagline { display: none; }
-    .stack { row-gap: 18px; padding-top: 48px; }
+    /* sections stand apart; the two voice cards keep their own tight gap, so they read as one */
+    .stack { row-gap: 56px; padding-top: 56px; }
     .deal { position: static; grid-auto-flow: row; grid-auto-columns: auto; min-height: 0; }
     .get-grid { grid-template-columns: minmax(0, 1fr); }
     footer .card-line { flex-wrap: wrap; }
