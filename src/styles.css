@@ -623,8 +623,9 @@ h1 {
   color: var(--sv-ink);
   font-size: 1.7rem;
   font-weight: 700;
-  line-height: 0.6;
+  line-height: 1;
   letter-spacing: -0.06em;
+  transform: translateY(-0.18em);
 }
 
 .no-session-rules {
@@ -1366,7 +1367,8 @@ button.share-card:active {
 }
 
 .first-run-voices .voice-card.is-speaking {
-  flex: 0 0 auto;
+  flex: 1.6 1 0;
+  max-width: none;
 }
 
 .first-run-actions {
@@ -1581,7 +1583,7 @@ button[data-action="cancel-delete-voice"] {
 .webcam-frame-wrap {
   position: relative;
   overflow: hidden;
-  margin-top: 16px;
+  margin: 16px auto 0;
   aspect-ratio: 4 / 3;
   max-height: min(420px, 46vh);
   border: var(--border);
@@ -2708,7 +2710,8 @@ button.recap-app-row:active {
 }
 
 /* The panel scrolls when Distractions and Advanced are open in a short window; Start stays in
-   reach at its foot. A panel-coloured shadow fills the padding below it, so rows scrolling under never show there. */
+   reach at its foot. A panel-coloured band around it and below it fills the padding, so a row
+   scrolling under slides beneath a gap rather than into the button's edge. */
 .preflight-start {
   position: sticky;
   bottom: 0;
@@ -2716,7 +2719,7 @@ button.recap-app-row:active {
   width: 100%;
   min-height: 46px;
   margin-top: 14px;
-  box-shadow: var(--shadow-control), 0 24px 0 4px var(--panel);
+  box-shadow: var(--shadow-control), 0 0 0 10px var(--panel), 0 24px 0 10px var(--panel);
 }
 
 .clone-status p {
@@ -3418,7 +3421,8 @@ button.personality-more:active {
   font-size: 0.68rem;
 }
 
-/* Room for a card's lift and shadow: the row clips what falls outside it. */
+/* Room for a card's lift and shadow: the row clips what falls outside it. No scroll snapping:
+   WebKit re-snaps when a card widens for its hello and drifts the row sideways. */
 .voice-list {
   display: flex;
   align-items: stretch;
@@ -3426,7 +3430,6 @@ button.personality-more:active {
   overflow-x: auto;
   overflow-y: hidden;
   padding: 2px 4px 4px 2px;
-  scroll-snap-type: x proximity;
 }
 
 .voice-card {
@@ -3440,7 +3443,6 @@ button.personality-more:active {
   border-radius: var(--radius-card);
   padding: 10px;
   background: var(--white-soft);
-  scroll-snap-align: start;
 }
 
 .voice-card strong {
@@ -3565,8 +3567,8 @@ button.personality-more:active {
   height: 9px;
 }
 
-/* While the voice says hello, the card widens to carry the words beside the play button; the
-   row keeps its height, so the other cards stay where they are. */
+/* While the voice says hello, the card widens a little to carry the words beside the play
+   button, and the words wrap rather than push the row's other cards out of sight. */
 /* The box is the theme's panel in both themes, dark or cream, with the theme's ink on it, even
    on the selected green card: it is gone again the moment the voice stops. */
 .voice-card .voice-card-line,
@@ -3583,12 +3585,12 @@ button.personality-more:active {
   font-weight: 650;
   line-height: 1.2;
   text-transform: none;
-  white-space: nowrap;
+  flex: 1 1 auto;
 }
 
 .voice-card.is-speaking {
   width: auto;
-  max-width: 440px;
+  max-width: 300px;
 }
 
 .voice-card.is-speaking .voice-card-line {
@@ -4639,12 +4641,16 @@ button.wp-day.is-future:disabled {
   line-height: 0.9;
 }
 
-/* The figure gives way first, so the two tiles stay on its right and the note wraps. */
+/* The figure keeps its one line; when the panel is narrow the two tiles drop under it. */
 .week-hero-figure {
   display: grid;
   flex: 1 1 0;
-  min-width: 0;
+  min-width: min-content;
   gap: 6px;
+}
+
+.week-hero-value {
+  white-space: nowrap;
 }
 
 .week-hero-note {
@@ -7048,6 +7054,17 @@ dt,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+/* A label sitting in a centred row carries no margin of its own, or it rides off its
+   neighbour's centre line; the row takes the slab's spacing instead. */
+.eyebrow-row > .eyebrow,
+.rule-toolbar > .eyebrow {
+  margin: 0;
+}
+
+.state-slab .eyebrow-row {
+  margin: 12px 0 4px;
 }
 
 .round-dots {
