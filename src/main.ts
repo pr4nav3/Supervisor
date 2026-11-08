@@ -2282,12 +2282,11 @@ function updateDistractionLatch(current: CurrentSession | null): void {
   if (!focus) {
     return;
   }
+  // A dismissal ends once anything else is in front, card or not, so this one again gets its card.
+  if (distractionDismissedFor && distractionDismissedFor !== key) {
+    distractionDismissedFor = "";
+  }
   if (focus.interrupt) {
-    // A dismissal is for one distraction: another one, or this one again after a visit
-    // elsewhere, gets its card.
-    if (distractionDismissedFor && distractionDismissedFor !== key) {
-      distractionDismissedFor = "";
-    }
     if (distractionDismissedFor !== key) {
       if (distractionLatchKey !== key) {
         distractionLatchedAt = Date.now();
