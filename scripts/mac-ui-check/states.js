@@ -70,10 +70,21 @@ const STATES = [
   ["settings-dark", M + "?done=1&dark=1", (d) => tab(d, "settings")],
   ["voice-hello", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); click(d, '[data-action="open-voice-settings"]'); await sleep(800); d.querySelector(".voice-card:has(.voice-card-line)").classList.add("is-speaking"); }],
   ["first-run-voice-hello", M + "?empty=1&done=1", async (d) => { click(d, '[data-action="onboard-show"]'); await sleep(800); d.querySelector(".first-run-voices .voice-card:has(.voice-card-line)").classList.add("is-speaking"); }],
+  // Before the practice states: a practice left in storage ends the next session on load.
+  ["session-over", M + "?live=1&done=1", async (d) => { click(d, '[data-action="stop"]'); await sleep(1500); }],
+  // Getting started, every step through the practice.
+  ["first-run-catch", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } }],
+  ["first-run-practising", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } await sleep(300); click(d, '[data-action="first-run-practice"]'); await sleep(1000); }],
+  ["first-run-caught", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } await sleep(300); click(d, '[data-action="first-run-practice"]'); await sleep(8000); }],
 ];
+// mock.html?dark=1 as the outer page runs every state in the dark theme.
+const ALL_DARK = location.search.includes("dark=1");
+const snap = window.webkit?.messageHandlers?.snap;
 const results = [];
-for (const [name, url, setup, w, h] of STATES) {
-  if (url.includes("dark=1")) localStorage.setItem("supervisor-theme", "dark"); else localStorage.removeItem("supervisor-theme");
+// mock.html#only=a,b lays out just those states.
+const ONLY = new URLSearchParams(location.hash.slice(1)).get("only")?.split(",");
+for (const [name, url, setup, w, h] of STATES.filter(([n]) => !ONLY || ONLY.includes(n))) {
+  if (ALL_DARK || url.includes("dark=1")) localStorage.setItem("supervisor-theme", "dark"); else localStorage.removeItem("supervisor-theme");
   const frame = document.createElement("iframe");
   frame.style.cssText = `position:fixed;left:0;top:0;width:${w || W}px;height:${h || H}px;border:0;z-index:9999;background:#fff`;
   document.body.appendChild(frame);
@@ -97,10 +108,35 @@ for (const [name, url, setup, w, h] of STATES) {
       if (!el.offsetParent || cs.textOverflow === "ellipsis" || !/hidden|clip/.test(cs.overflowX + cs.overflowY)) continue;
       if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1) clipped.push(`${el.tagName.toLowerCase()}.${[...el.classList].join(".")} ${el.scrollWidth}x${el.scrollHeight} in ${el.clientWidth}x${el.clientHeight}`);
     }
+    // Items of a centred row whose vertical centres differ: one sits higher than its neighbour.
+    const misaligned = [];
+    const tag = (el) => `${el.tagName.toLowerCase()}${el.classList.length ? "." + [...el.classList].join(".") : ""}`;
+    for (const row of d.querySelectorAll("body *")) {
+      const cs = w2.getComputedStyle(row);
+      if (!row.offsetParent || !/flex|grid/.test(cs.display) || cs.alignItems !== "center" || (/flex/.test(cs.display) && !cs.flexDirection.startsWith("row"))) continue;
+      const items = [...row.children].filter((c) => { const k = w2.getComputedStyle(c); return c.offsetParent && !/absolute|fixed/.test(k.position) && k.alignSelf === "auto" && c.getBoundingClientRect().height > 0; })
+        .map((c) => ({ c, r: c.getBoundingClientRect() }));
+      for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
+        const a = items[i].r, b = items[j].r;
+        if (a.bottom <= b.top || b.bottom <= a.top) continue; // different lines of a wrapped row
+        const mid = (r) => (r.top + r.bottom) / 2;
+        if (Math.abs(mid(a) - mid(b)) > 1) misaligned.push(`${tag(row)}: ${tag(items[i].c)} and ${tag(items[j].c)} centres ${Math.abs(mid(a) - mid(b)).toFixed(1)}px apart`);
+      }
+    }
     // A sticky Start button still in the window.
     const start = d.querySelector(".preflight-start");
     const startBottom = start ? Math.round(start.getBoundingClientRect().bottom) : null;
-    results.push({ name, viewport: [w2.innerWidth, w2.innerHeight], docH: d.documentElement.scrollHeight, hOverflow: d.documentElement.scrollWidth > w2.innerWidth, modals: d.querySelectorAll(".modal-panel").length, sizes, clipped, startBottom });
+    if (snap) {
+      // Every screenful of a page taller than the window, top to bottom.
+      const theme = ALL_DARK || url.includes("dark=1") ? "dark" : "light";
+      const vh = w2.innerHeight, pages = Math.min(6, Math.ceil(d.documentElement.scrollHeight / vh));
+      for (let p = 0; p < pages; p++) {
+        w2.scrollTo(0, p * vh); await sleep(150);
+        await snap.postMessage({ name: `${name}${p ? `-p${p + 1}` : ""}-${W}x${H}-${theme}`, w: w || W, h: h || H });
+      }
+      w2.scrollTo(0, 0);
+    }
+    results.push({ name, viewport: [w2.innerWidth, w2.innerHeight], docH: d.documentElement.scrollHeight, hOverflow: d.documentElement.scrollWidth > w2.innerWidth, modals: d.querySelectorAll(".modal-panel").length, sizes, clipped, misaligned: [...new Set(misaligned)], startBottom });
   } catch (e) { results.push({ name, error: String(e) }); }
   frame.remove();
 }

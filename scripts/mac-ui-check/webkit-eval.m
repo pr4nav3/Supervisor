@@ -3,6 +3,8 @@
 //   webkit-eval <url> <width> <height> <script.js>
 // The script's last expression is returned (wrap in an async IIFE and return a promise if needed).
 // It sees the size as STATE_WIDTH and STATE_HEIGHT.
+// With SNAP_DIR set, the script can `await webkit.messageHandlers.snap.postMessage({name, w, h})`
+// to write the top-left w x h of the view to SNAP_DIR/<name>.png, for looking at by eye.
 // Objective-C rather than Swift: clang always matches its SDK, while the Command Line Tools'
 // swiftc can refuse the SDK's Swift modules after a partial update ("not supported by the
 // compiler"), which took this check down on one Mac.
@@ -14,6 +16,31 @@ static void finish(NSString *line, int code) {
     fflush(stdout);
     exit(code);
 }
+
+@interface Snapper : NSObject <WKScriptMessageHandlerWithReply>
+@property(weak) WKWebView *web;
+@property(strong) NSString *dir;
+@end
+
+@implementation Snapper
+- (void)userContentController:(WKUserContentController *)controller
+      didReceiveScriptMessage:(WKScriptMessage *)message
+                 replyHandler:(void (^)(id, NSString *))reply {
+    NSDictionary *body = message.body;
+    WKSnapshotConfiguration *config = [WKSnapshotConfiguration new];
+    config.rect = NSMakeRect(0, 0, [body[@"w"] doubleValue], [body[@"h"] doubleValue]);
+    [self.web takeSnapshotWithConfiguration:config completionHandler:^(NSImage *image, NSError *error) {
+        if (!image) {
+            reply(nil, error.description);
+            return;
+        }
+        NSBitmapImageRep *rep = [[NSBitmapImageRep alloc] initWithData:image.TIFFRepresentation];
+        NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG properties:@{}];
+        NSString *path = [self.dir stringByAppendingPathComponent:[body[@"name"] stringByAppendingString:@".png"]];
+        reply(@([png writeToFile:path atomically:YES]), nil);
+    }];
+}
+@end
 
 @interface Delegate : NSObject <WKNavigationDelegate>
 @property(strong) NSString *script;
@@ -57,7 +84,15 @@ int main(int argc, const char *argv[]) {
         }
 
         NSApplication *app = NSApplication.sharedApplication;
-        WKWebView *web = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, width, height)];
+        WKWebViewConfiguration *config = [WKWebViewConfiguration new];
+        WKWebView *web = [[WKWebView alloc] initWithFrame:NSMakeRect(0, 0, width, height) configuration:config];
+        Snapper *snapper = [Snapper new];
+        const char *snapDir = getenv("SNAP_DIR");
+        if (snapDir) {
+            snapper.web = web;
+            snapper.dir = @(snapDir);
+            [config.userContentController addScriptMessageHandlerWithReply:snapper contentWorld:WKContentWorld.pageWorld name:@"snap"];
+        }
         NSWindow *window = [[NSWindow alloc] initWithContentRect:web.frame
                                                        styleMask:NSWindowStyleMaskTitled
                                                          backing:NSBackingStoreBuffered

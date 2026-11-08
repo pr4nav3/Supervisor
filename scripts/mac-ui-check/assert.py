@@ -26,10 +26,12 @@ for s in states:
         problems.append(f"{name}: Home scrolls ({s['docH']}px in {h}px)")
     for clip in s.get("clipped", []):
         problems.append(f"{name}: text cut off: {clip}")
+    for row in s.get("misaligned", []):
+        problems.append(f"{name}: row out of line: {row}")
     if s.get("startBottom") and s["startBottom"] > h:
         problems.append(f"{name}: Start button below the window ({s['startBottom']}px in {h}px)")
 print(f"{len(states)} states laid out in WebKit at {states[0]['viewport'][0]}x{states[0]['viewport'][1]}")
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("ok: no overflow or cut-off text, every modal and overlay card fits, Start is reachable, Home does not scroll")
+print("ok: no overflow, cut-off text or row out of line, every modal and overlay card fits, Start is reachable, Home does not scroll")
