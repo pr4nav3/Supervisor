@@ -9,8 +9,10 @@
   function labelTheme() { $("theme").textContent = isDark() ? "Light" : "Dark"; }
   labelTheme();
   $("theme").addEventListener("click", function () {
+    root.classList.add("switching");
     if (isDark()) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", "dark");
     labelTheme();
+    void root.offsetWidth; root.classList.remove("switching");
     try { localStorage.setItem("supervisor-theme", isDark() ? "dark" : "light"); } catch (e) {}
   });
   function setWords(el, text) {
@@ -30,15 +32,18 @@
     gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3", stern2: "assets/voice/elise-stern-wasting-time.mp3"
   };
   var audio = null, speaking = [], wait = null;
-  /* laptop speakers sleep after a few seconds of quiet and fade back in, which swallowed the first
-     second of a line. The first press anywhere opens a sound output that plays an inaudible signal
-     while the page is in view, so the speakers stay awake; a line asked for before they have had a
-     moment to wake waits for it */
-  /* under a second: Safari lets a line start from a click only within a second of it */
-  var Ctx = window.AudioContext || window.webkitAudioContext, out = null, wokeAt = 0, WAKE = 900;
+  /* A new sound stream starts cold, and laptop speakers fade a cold start in, which swallowed the
+     first second of a line. So the first press anywhere opens one sound output that stays open with
+     an inaudible signal while the page is in view, and every line plays through it: nothing ever
+     starts cold again. A computer's very first line waits for its speakers to wake (under a second,
+     the longest Safari lets a line start after a click); a phone's never waits. */
+  var Ctx = window.AudioContext || window.webkitAudioContext, out = null, wokeAt = 0;
+  var WAKE = matchMedia("(pointer: fine)").matches ? 900 : 0;
   function wake() {
     if (!Ctx) return;
     if (!out) {
+      /* an iPhone plays the lines with its ring switch on silent too, as it would a video */
+      if (navigator.audioSession) navigator.audioSession.type = "playback";
       out = new Ctx(); wokeAt = performance.now();
       var hum = out.createConstantSource(); hum.offset.value = 0.0001; hum.connect(out.destination); hum.start();
     }
@@ -65,7 +70,8 @@
     if (!CLIPS[key]) return;
     if (speaking.length && speaking[0] === rows[0]) return stop();
     stop();
-    audio = new Audio(CLIPS[key]); speaking = rows; rows.forEach(function (r) { r.classList.add("is-speaking"); });
+    audio = new Audio(CLIPS[key]); speaking = rows;
+    if (out) { out.createMediaElementSource(audio).connect(out.destination); if (out.state !== "running") out.resume(); } rows.forEach(function (r) { r.classList.add("is-speaking"); });
     if (!reduce) caption(audio, rows[0]);
     var done = function () { if (speaking[0] === rows[0]) stop(); };
     audio.addEventListener("ended", done); audio.addEventListener("error", done);

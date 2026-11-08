@@ -69,7 +69,11 @@
 
 html {
   scroll-behavior: smooth;
+  /* no double-tap zoom, so a phone acts on a tap at once instead of waiting to see if a second one comes */
+  touch-action: manipulation;
 }
+/* a theme switch is instant: nothing fades from the old colours */
+.switching, .switching * { transition: none !important; }
 
 body {
   margin: 0;
@@ -640,7 +644,7 @@ button.orb:active .orb-core {
   .recbox { display: grid; align-content: center; gap: 14px; }
   .recbox .eyebrow { margin: 4px 0 -6px; }
   /* the chosen-computer cards on the download row */
-  .vcard { position: relative; display: grid; gap: 4px; padding: 12px 14px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out, background 160ms ease; }
+  .vcard { position: relative; display: grid; gap: 4px; padding: 12px 14px; border: var(--border); border-radius: 6px; background: var(--sv-soft-white); box-shadow: 2px 2px 0 var(--sv-shadow-color); cursor: pointer; text-align: left; font: inherit; color: var(--sv-ink); transition: transform 120ms ease-out, box-shadow 120ms ease-out; }
   .vcard b { font-size: 1.02rem; font-weight: 700; }
   .vcard span { font: 400 0.66rem/1.3 var(--font-mono); letter-spacing: 0.05em; text-transform: uppercase; color: var(--sv-muted); }
   .vcard.on { background: var(--sv-yellow); color: var(--sv-colored-ink); }
