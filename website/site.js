@@ -29,8 +29,25 @@
     caught: "assets/voice/elise-genz-caught-in-4k.mp3", session: "assets/voice/derek-gentle-session-good-work.mp3",
     gentle2: "assets/voice/derek-gentle-come-on-back.mp3", mom2: "assets/voice/elise-mom-grounded.mp3", stern2: "assets/voice/elise-stern-wasting-time.mp3"
   };
-  var audio = null, speaking = [];
+  var audio = null, speaking = [], wait = null;
+  /* laptop speakers sleep after a few seconds of quiet and fade back in, which swallowed the first
+     second of a line. The first press anywhere opens a sound output that plays an inaudible signal
+     while the page is in view, so the speakers stay awake; a line asked for before they have had a
+     moment to wake waits for it */
+  /* under a second: Safari lets a line start from a click only within a second of it */
+  var Ctx = window.AudioContext || window.webkitAudioContext, out = null, wokeAt = 0, WAKE = 900;
+  function wake() {
+    if (!Ctx) return;
+    if (!out) {
+      out = new Ctx(); wokeAt = performance.now();
+      var hum = out.createConstantSource(); hum.offset.value = 0.0001; hum.connect(out.destination); hum.start();
+    }
+    if (out.state === "suspended" && !document.hidden) { out.resume(); wokeAt = performance.now(); }
+  }
+  ["pointerdown", "keydown", "touchend", "click"].forEach(function (t) { addEventListener(t, wake, { capture: true, passive: true }); });
+  document.addEventListener("visibilitychange", function () { if (!out) return; if (document.hidden) out.suspend(); else wake(); });
   function stop() {
+    clearTimeout(wait);
     if (audio) audio.pause();
     speaking.forEach(function (r) { r.classList.remove("is-speaking"); r.querySelectorAll(".words .w").forEach(function (w) { w.classList.remove("on"); }); });
     audio = null; speaking = [];
@@ -52,7 +69,8 @@
     if (!reduce) caption(audio, rows[0]);
     var done = function () { if (speaking[0] === rows[0]) stop(); };
     audio.addEventListener("ended", done); audio.addEventListener("error", done);
-    audio.play().catch(done);
+    var a = audio, left = out ? WAKE - (performance.now() - wokeAt) : 0;
+    wait = setTimeout(function () { if (audio === a) a.play().catch(done); }, Math.max(0, left));
   }
 
   /* the eye on the promise card looks where the pointer is, within its socket */
