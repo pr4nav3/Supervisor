@@ -31,3 +31,6 @@ supervisor-signing/
 
 # the private notes repo, cloned here
 notes/
+
+# Claude Code per-machine permission rules
+.claude/settings.local.json

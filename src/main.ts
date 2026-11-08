@@ -460,6 +460,9 @@ interface VoiceOption {
   kind: string;
   detail: string;
   coverage: string;
+  /** Lines with audio, and lines in all, for the current personality. */
+  ready: number;
+  total: number;
   source: VoiceSource;
   selectable: boolean;
   profile: VoiceProfileSummary | null;
@@ -637,6 +640,8 @@ const noneVoice: VoiceOption = {
   kind: "",
   detail: "",
   coverage: "",
+  ready: 0,
+  total: 0,
   source: "none",
   selectable: true,
   profile: null,
@@ -668,6 +673,7 @@ function starterVoiceCard(id: string, profileId: string, name: string, detail: s
     kind: "Bundled",
     detail,
     coverage: `${ready}/${phrases.length} lines ready`,
+    ...ownLineCount(profile),
     source: "starter",
     selectable: profile ? profileToneReady(profile) : true,
     profile,
@@ -2906,6 +2912,7 @@ function renderPreflightModal(): string {
           </details>
         </div>
 
+        ${renderVoiceGapNotice(selectedVoice(), "start")}
         <button class="primary preflight-start" type="button" data-action="confirm-start-session">Start focus session</button>
       </section>
     </div>
@@ -3394,7 +3401,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
         ${voice.source === "starter" ? `<span class="voice-card-tag">Starter</span>` : ""}
       </div>
       <span class="voice-card-speaks">speaks like <b>${escapeHtml(toneLabel(voiceTone(voice)))}</b></span>
-      ${needsGeneration ? `<span class="voice-card-note">Lines not generated yet</span>` : ""}
+      ${voiceCardNote(voice)}
       <div class="voice-card-foot">
         <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview?.path ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.2v9.6L11 6z" fill="currentColor"/></svg>${MINI_ORB}
@@ -3561,7 +3568,7 @@ function memoryTileValue(): string {
 
 /** "Derek speaks like Mom": the personality cards, then that personality's lines by moment. */
 function renderVoiceLinesArea(): string {
-  return `${renderPersonalityPanel()}${renderVoiceClipsPanel()}`;
+  return `${renderVoiceGapNotice(clipsVoice(), "voice")}${renderPersonalityPanel()}${renderVoiceClipsPanel()}`;
 }
 
 function renderPersonalityPanel(): string {
@@ -6767,6 +6774,16 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
 
+  if (action === "open-voice-from-start") {
+    preflightOpen = false;
+    clipsVoiceId = draft.voiceId;
+    activeTab = "settings";
+    settingsView = "voice";
+    await refreshVoiceStatus(false);
+    render();
+    return;
+  }
+
   if (action === "generate-missing") {
     const voice = clipsVoice();
     const missing = tonePhrases(voiceTone(voice)).filter((phrase) => !clipForPhrase(voice, phrase));
@@ -9161,6 +9178,61 @@ function profileToneReady(profile: VoiceProfileSummary | null): boolean {
   return phrases.length > 0 && phrases.every((phrase) => clipForPhraseId(profile?.clips ?? [], phrase.id));
 }
 
+/** How many of the lines in the profile's own personality have audio, and how many there are. */
+function ownLineCount(profile: VoiceProfileSummary | null): { ready: number; total: number } {
+  const own = tonePhrases(profileTone(profile));
+  return { ready: own.filter((phrase) => clipForPhraseId(profile?.clips ?? [], phrase.id)).length, total: own.length };
+}
+
+/** The card's small print for a recorded voice whose lines are not all there yet. */
+function voiceCardNote(voice: VoiceOption): string {
+  if (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready >= voice.total) {
+    return "";
+  }
+  const words = voice.ready === 0 ? "Lines not generated yet" : `${voice.ready} of ${voice.total} lines ready`;
+  return `<span class="voice-card-note">${escapeHtml(words)}</span>`;
+}
+
+/** The moments a voice has no line for in its personality: it says nothing when they come. */
+function voiceSilentMoments(voice: VoiceOption): string[] {
+  return MOMENTS.filter((moment) => {
+    const phrases = momentPhrases(voiceTone(voice), moment.id);
+    return phrases.length > 0 && !phrases.some((phrase) => clipForPhrase(voice, phrase));
+  }).map((moment) => moment.label);
+}
+
+/** "a, b and c" */
+function listWords(words: string[]): string {
+  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
+/** A recorded voice with some lines but not all: it either can't be picked yet, or it will stay
+ *  silent at some moments. Said where the voice is chosen and where its lines are made, with the
+ *  way out, so nobody finds out in a session. Nothing while no line exists: the Generate button
+ *  already says it all then. */
+function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): string {
+  if (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready === 0 || voice.ready >= voice.total) {
+    return "";
+  }
+  let words: string;
+  if (!voice.selectable) {
+    const nudge = momentPhrases(voiceTone(voice), "nudge");
+    const done = nudge.filter((phrase) => clipForPhrase(voice, phrase)).length;
+    words = `${voice.name} can't be picked yet: ${done} of ${nudge.length} back to work lines are ready. Generate the rest to use this voice.`;
+  } else {
+    const silent = voiceSilentMoments(voice);
+    if (silent.length === 0) {
+      return "";
+    }
+    words = `${voice.name} has no lines for ${listWords(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
+  }
+  const action =
+    where === "voice"
+      ? `<button class="small-button" type="button" data-action="generate-missing" ${clipQueue?.phase === "working" ? "disabled" : ""}>Generate the missing lines</button>`
+      : `<button class="small-button" type="button" data-action="open-voice-from-start">Open voice settings</button>`;
+  return `<section class="notice notice-access notice-voice-gap"><span>${escapeHtml(words)}</span>${action}</section>`;
+}
+
 function availableVoices(): VoiceOption[] {
   const customVoices =
     voiceBackend?.profiles
@@ -9179,6 +9251,7 @@ function availableVoices(): VoiceOption[] {
             ? "Recorded. Generate its lines before using this voice."
             : "The recording is missing. Delete this voice or record it again.",
         coverage: `${ready}/${phrases.length} lines ready`,
+        ...ownLineCount(profile),
         source: "custom" as VoiceSource,
         selectable: profileToneReady(profile),
         profile,
