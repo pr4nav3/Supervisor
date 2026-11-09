@@ -106,6 +106,8 @@ interface NudgeVoice {
   speaking: boolean;
   voice: string;
   line: string;
+  /** The line's audio would not play; the card says so instead of staying silent. */
+  failed?: boolean;
 }
 
 interface SessionSettings {
@@ -880,8 +882,10 @@ const webcamSettings = {
 };
 let webcamFrame: WebcamFrame | null = null;
 let webcamError = "";
-/** The last camera error said as a toast, so a repeating one is said once. */
+/** The last camera error said as a toast, so a repeating one is said once until it clears. */
 let lastWebcamToast = "";
+/** When the session's camera last stopped sending pictures; 0 while it sends them. */
+let cameraDownSince = 0;
 /** The worker said the GPU could not run the models this run; the app runs them on the processor instead. */
 let webcamGpuFailed = false;
 const GPU_FALLBACK_COPY = "The GPU couldn't run the webcam models, so they're running on the processor instead.";
@@ -1432,6 +1436,7 @@ function viewKey(): string {
     // Other tabs show the session only in the status chip (painted in place) and the
     // permission notice, so a focus change doesn't rebuild History or Settings.
     appView === "overlay" || activeTab === "session" ? sessionViewKey(current) : permissionNotice(current),
+    current && cameraDown(current) ? 1 : 0,
     settings.status_window_on_top ? 1 : 0,
     settings.status_window_enabled ? 1 : 0,
     draft.voiceId,
@@ -1675,6 +1680,7 @@ function renderSession(current: CurrentSession | null): string {
           ${onBreak ? `<p class="session-break-note">Don't count during a break.</p>` : renderSessionDistractions(current.exceptions)}
           ${renderAccessNotice(true)}
           ${renderUnreadableBrowserNotice(current.unreadable_browser)}
+          ${cameraDown(current) ? `<section class="notice notice-access"><span>${escapeHtml(`${CAMERA_DOWN_COPY} ${webcamError}`.trim())}</span></section>` : ""}
           <button type="button" data-action="open-session-rules">Edit distractions</button>
         </aside>
         </div>
@@ -2036,7 +2042,7 @@ function renderOverlay(current: CurrentSession | null): string {
   return `
     <main class="overlay-shell">
       <section class="state-slab overlay-slab ${stateClass(current)}">
-        ${nudgesMuted ? `<span class="overlay-muted-tag" title="Reminders muted. Still tracking.">Muted</span>` : ""}
+        ${nudgesMuted ? `<span class="overlay-muted-tag" title="Reminders muted. Still tracking.">Muted</span>` : current && cameraDown(current) ? `<span class="overlay-muted-tag" title="${attr(CAMERA_DOWN_COPY)}">No camera</span>` : ""}
         <h2 aria-live="polite">${escapeHtml(stateTitle(current))}</h2>
         <p>${escapeHtml(current?.goal || stateCopy(current))}</p>
         ${current ? renderOverlayProgress(current) : ""}
@@ -2204,7 +2210,7 @@ function renderVoiceRow(voice: NudgeVoice): string {
         </span>
       </button>
       <div class="interrupt-voice-text">
-        <p class="interrupt-voice-who">${escapeHtml(voice.voice)} ${speaking ? "is speaking" : "said"}</p>
+        <p class="interrupt-voice-who">${escapeHtml(voice.voice)} ${voice.failed ? "couldn't play this line" : speaking ? "is speaking" : "said"}</p>
         <p class="interrupt-voice-line">“${escapeHtml(voice.line)}”</p>
       </div>
     </div>
@@ -2454,6 +2460,21 @@ function renderAccessNotice(short = false): string {
       <button class="small-button" type="button" data-action="onboard-accessibility">Open System Settings</button>
     </section>
   `;
+}
+
+const CAMERA_DOWN_COPY = "The camera isn't sending pictures, so your phone isn't being checked.";
+
+/** The session runs the camera and no picture has come for 30 s. The worker takes seconds to
+ *  start and restarts itself after a failure, so a shorter gap says nothing; a toast said once
+ *  is easy to miss, so this lasts as long as the camera is out. */
+function cameraDown(current: CurrentSession): boolean {
+  const wanted = settings.webcam_enabled && (current.status === "active" || current.status === "snoozed");
+  if (!wanted || current.camera.live) {
+    cameraDownSince = 0;
+    return false;
+  }
+  cameraDownSince ||= Date.now();
+  return Date.now() - cameraDownSince > 30_000;
 }
 
 /** A browser whose address bar can't be read (Vivaldi, Arc on Windows) counts as work, so a
@@ -3009,6 +3030,7 @@ function renderSettings(): string {
           <div class="voice-summary">
             <strong>${escapeHtml(selectedVoice().name)}</strong>
             <span class="explain">Record anyone's voice. It speaks up when you get distracted.</span>
+            ${quietVoice() ? `<span class="explain is-bad">${escapeHtml(quietVoiceText(quietVoice()!))}</span>` : ""}
             <button type="button" data-action="open-voice-settings">Customize</button>
           </div>
         </section>
@@ -3234,9 +3256,17 @@ function renderRulePreview(editor: RuleEditor): string {
   const site = preview.target === "website";
   // A site reads as the name typed beside it, or its address until there is one.
   const value = site ? editor.name.trim() || preview.value : appNames[preview.value.toLowerCase()] ?? preview.value;
+  // An app Supervisor hasn't seen is only caught by its exact name, and "Teams" isn't "Microsoft Teams".
+  const like = value.length >= 3 ? Object.values(appNames).find((name) => name.toLowerCase().includes(value.toLowerCase())) : undefined;
+  const unseen = site || appNames[preview.value.toLowerCase()]
+    ? ""
+    : like
+      ? `Did you mean ${like}? Type its full name.`
+      : `Not seen on this computer yet. It's caught only if the app's name is exactly ${value}.`;
   return `
     <span class="rule-kind">${site ? "Website" : "App"}</span>
     <strong class="rule-preview-value">${escapeHtml(value)}</strong>
+    ${unseen ? `<span class="rule-preview-note">${escapeHtml(unseen)}</span>` : ""}
   `;
 }
 
@@ -3824,7 +3854,7 @@ function renderLinePopup(): string {
           <button class="voice-preview-play" type="button" data-action="play-clip" data-clip-path="${attr(clip.path)}" aria-label="Play"><span class="voice-preview-icon" aria-hidden="true"></span>${MINI_ORB}</button>
           <canvas class="line-audio-wave" width="300" height="36" data-wave-path="${attr(clip.path)}" data-wave-bars="32"></canvas>
         </div>
-        <p class="line-audio-note">${changed ? "This is the old wording until you regenerate." : ""}</p>
+        <p class="line-audio-note">${changed ? "This audio says the old words. Saving removes it from every voice." : ""}</p>
       </div>`
     : "";
   return `
@@ -7367,6 +7397,9 @@ async function saveLine(regenerate: boolean): Promise<void> {
     render();
     return;
   }
+  if (existing && existing.text !== text) {
+    await dropLineAudio(id);
+  }
   phraseEditor = null;
   paintLines();
   if (regenerate) {
@@ -7380,6 +7413,21 @@ async function saveLine(regenerate: boolean): Promise<void> {
   const moved = existing && existing.text === text && existing.moment !== moment;
   const label = MOMENTS.find((item) => item.id === moment)?.label ?? "";
   showFeedback(moved ? `Moved to ${label}` : existing ? "Line saved" : "Line added");
+}
+
+/** A line's words changed: every voice's audio of it says the old ones, and a reminder would
+ *  play them under the new words on the card. Dropping it makes the row say Not generated, and
+ *  a voice left without lines is warned about like any quiet voice. */
+async function dropLineAudio(phraseId: string): Promise<void> {
+  for (const profile of [...(voiceBackend?.profiles ?? [])]) {
+    for (const clip of profile.clips.filter((item) => clipBelongsToPhrase(item, phraseId))) {
+      try {
+        upsertProfile(await invoke<VoiceProfileSummary>("delete_voice_clip", { input: { profile_id: profile.profile_id, clip_id: clip.clip_id } }));
+      } catch (error) {
+        voiceError = `Could not remove the old audio of this line: ${errorText(error)}`;
+      }
+    }
+  }
 }
 
 /** A new personality, empty or with a copy of another's lines, that the viewed voice takes on. */
@@ -7905,9 +7953,14 @@ async function setVoiceTone(voice: VoiceOption, tone: VoiceTone): Promise<void> 
     return;
   }
   try {
-    upsertProfile(await invoke<VoiceProfileSummary>("set_voice_tone", { profileId: profile.profile_id, tone }));
+    const saved = await invoke<VoiceProfileSummary>("set_voice_tone", { profileId: profile.profile_id, tone });
+    upsertProfile(saved);
     voiceError = "";
-    showFeedback(`${voice.name} speaks like ${toneLabel(tone)}`);
+    showFeedback(
+      profileToneReady(saved)
+        ? `${voice.name} speaks like ${toneLabel(tone)}`
+        : `${voice.name} speaks like ${toneLabel(tone)}. Generate the lines below to hear ${voice.name}.`,
+    );
   } catch (error) {
     voiceError = errorText(error);
   }
@@ -8260,6 +8313,7 @@ function applyWebcamFrame(frame: WebcamFrame): void {
     }
   } else {
     webcamError = "";
+    lastWebcamToast = "";
   }
   webcamFrame = frame;
   const alerting = webcamWouldAlert(frame);
@@ -8633,6 +8687,8 @@ async function playLine(clip: VoiceClipSummary | null): Promise<boolean> {
   if (!clip || recordingState === "recording") {
     return false;
   }
+  const phrase = effectivePhrases().find((item) => clipBelongsToPhrase(clip, item.id));
+  lastNudgeVoice = { voice: selectedVoice().name, line: phrase?.text ?? "" };
   try {
     nudgeAudio?.pause();
     // One voice at a time: a recording being listened back to stops for the line.
@@ -8642,8 +8698,6 @@ async function playLine(clip: VoiceClipSummary | null): Promise<boolean> {
     nudgeAudio = audio;
     audio.preload = "auto";
     audio.volume = await playVolume(url);
-    const phrase = effectivePhrases().find((item) => clipBelongsToPhrase(clip, item.id));
-    lastNudgeVoice = { voice: selectedVoice().name, line: phrase?.text ?? "" };
     // Only the current line reports; one replaced mid-word stays quiet.
     const ended = () => {
       if (nudgeAudio === audio) {
@@ -8657,7 +8711,13 @@ async function playLine(clip: VoiceClipSummary | null): Promise<boolean> {
     voiceError = "";
     return true;
   } catch (error) {
+    // A newer line or Stop cut this one off before it began: not a failure.
+    if (error instanceof DOMException && error.name === "AbortError") {
+      return false;
+    }
     voiceError = `Could not play the line: ${errorText(error)}`;
+    // Settings shows the error; during a session the card is where the user looks.
+    void emit("nudge-voice", { speaking: false, failed: true, ...lastNudgeVoice } satisfies NudgeVoice);
     render();
     return false;
   }
@@ -9184,8 +9244,12 @@ function ownLineCount(profile: VoiceProfileSummary | null): { ready: number; tot
   return { ready: own.filter((phrase) => clipForPhraseId(profile?.clips ?? [], phrase.id)).length, total: own.length };
 }
 
-/** The card's small print for a recorded voice whose lines are not all there yet. */
+/** The card's small print: "Quiet" for the chosen voice that can't speak, or how far a recorded
+ *  voice's lines are. */
 function voiceCardNote(voice: VoiceOption): string {
+  if (quietVoice()?.id === voice.id) {
+    return `<span class="voice-card-note">${escapeHtml(`Quiet: no ${toneLabel(voiceTone(voice))} lines`)}</span>`;
+  }
   if (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready >= voice.total) {
     return "";
   }
@@ -9206,16 +9270,39 @@ function listWords(words: string[]): string {
   return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
 }
 
-/** A recorded voice with some lines but not all: it either can't be picked yet, or it will stay
+/** The chosen voice, when it has no back to work line it can play: every reminder then stays
+ *  quiet (selectedNudgeClip finds nothing). Moving the voice to another personality, making or
+ *  deleting one, or adding or moving lines can all lead here, so the screens that name the voice
+ *  ask this rather than any one of those steps. Null when it can speak or the voices haven't loaded. */
+function quietVoice(): VoiceOption | null {
+  if (draft.voiceId === "none" || !voiceBackend) {
+    return null;
+  }
+  const voice = selectedVoice();
+  return momentPhrases(voiceTone(voice), "nudge").some((phrase) => clipForPhrase(voice, phrase)) ? null : voice;
+}
+
+function quietVoiceText(voice: VoiceOption): string {
+  const tone = toneLabel(voiceTone(voice));
+  return momentPhrases(voiceTone(voice), "nudge").length
+    ? `${voice.name} has no ${tone} lines generated yet, so reminders stay quiet.`
+    : `${tone} has no back to work lines, so ${voice.name} stays quiet when you get distracted.`;
+}
+
+/** A voice that would stay silent somewhere: the chosen voice with nothing to say when you get
+ *  distracted, or a recorded voice with some lines but not all, that can't be picked yet or stays
  *  silent at some moments. Said where the voice is chosen and where its lines are made, with the
- *  way out, so nobody finds out in a session. Nothing while no line exists: the Generate button
- *  already says it all then. */
+ *  way out, so nobody finds out in a session. A recorded voice with no lines at all and not chosen
+ *  gets nothing: the Generate button already says it all then. */
 function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): string {
-  if (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready === 0 || voice.ready >= voice.total) {
+  const quiet = quietVoice()?.id === voice.id;
+  if (!quiet && (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready === 0 || voice.ready >= voice.total)) {
     return "";
   }
   let words: string;
-  if (!voice.selectable) {
+  if (quiet) {
+    words = `${quietVoiceText(voice)} ${momentPhrases(voiceTone(voice), "nudge").length ? "Generate them" : "Add a back to work line"}, or pick another voice.`;
+  } else if (!voice.selectable) {
     const nudge = momentPhrases(voiceTone(voice), "nudge");
     const done = nudge.filter((phrase) => clipForPhrase(voice, phrase)).length;
     words = `${voice.name} can't be picked yet: ${done} of ${nudge.length} back to work lines are ready. Generate the rest to use this voice.`;
@@ -9227,9 +9314,11 @@ function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): str
     words = `${voice.name} has no lines for ${listWords(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
   }
   const action =
-    where === "voice"
-      ? `<button class="small-button" type="button" data-action="generate-missing" ${clipQueue?.phase === "working" ? "disabled" : ""}>Generate the missing lines</button>`
-      : `<button class="small-button" type="button" data-action="open-voice-from-start">Open voice settings</button>`;
+    where === "start"
+      ? `<button class="small-button" type="button" data-action="open-voice-from-start">Open voice settings</button>`
+      : voice.ready < voice.total
+        ? `<button class="small-button" type="button" data-action="generate-missing" ${clipQueue?.phase === "working" ? "disabled" : ""}>Generate the missing lines</button>`
+        : "";
   return `<section class="notice notice-access notice-voice-gap"><span>${escapeHtml(words)}</span>${action}</section>`;
 }
 

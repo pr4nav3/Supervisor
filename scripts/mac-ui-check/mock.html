@@ -57,7 +57,7 @@
         spans: q.get("legend") === "slivers" ? [[0,410,"focused","VS Code"],[410,6,"distracted","Discord"],[416,520,"focused","VS Code"],[936,12,"distracted","YouTube"],[948,8,"focused","VS Code"],[956,10,"phone","Phone or watch"],[966,290,"focused","Google Docs"],[1256,9,"distracted","Discord"],[1265,390,"focused","VS Code"],[1655,260,"distracted","YouTube"],[1915,240,"idle","Away"],[2155,480,"focused","Notes"],[2635,4,"distracted","Discord"],[2639,250,"focused","VS Code"],[2889,11,"distracted","YouTube"],[2900,100,"focused","VS Code"]].map(([o,sec,state,label])=>({started_offset_seconds:o,seconds:sec,app:label,kind:"app",activity_key:label,label,state})) : q.get("legend") === "all" ? [{started_offset_seconds:0,seconds:600,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"},{started_offset_seconds:600,seconds:180,app:"chrome",kind:"website",activity_key:"youtube.com",label:"YouTube",state:"distracted"},{started_offset_seconds:780,seconds:120,app:"phone",kind:"phone",activity_key:"phone",label:"Phone or watch",state:"phone"},{started_offset_seconds:900,seconds:200,app:"idle",kind:"idle",activity_key:"idle",label:"Away",state:"idle"},{started_offset_seconds:1200,seconds:s.duration_seconds-1200,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"}] : big ? [{started_offset_seconds:0,seconds:s.duration_seconds,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"}] : [{started_offset_seconds:0,seconds:600,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"},{started_offset_seconds:600,seconds:180,app:"chrome",kind:"website",activity_key:"youtube.com",label:"YouTube",state:"distracted"},{started_offset_seconds:780,seconds:900,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"},{started_offset_seconds:1680,seconds:120,app:"chrome",kind:"website",activity_key:"docs.google.com",label:"Google Docs",state:"focused"},{started_offset_seconds:1800,seconds:s.duration_seconds-1800,app:"Code",kind:"app",activity_key:"code",label:"VS Code",state:"focused"}],
         apps:[{group:"Work",kind:"app",key:"code",label:"VS Code",seconds:s.focus_seconds},{group:"Distractions",kind:"website",key:"youtube.com",label:"YouTube",seconds:s.distracted_seconds},{group:"Work",kind:"website",key:"docs.google.com",label:"Google Docs",seconds:Math.round(s.duration_seconds*0.1)}],
         events:[{at_offset_seconds:660,kind:"nudge",detail:null},{at_offset_seconds:720,kind:"nudge",detail:null}, ...(q.get("pomo") ? [{at_offset_seconds:0,kind:"pomodoro",detail:"25/5x4"},{at_offset_seconds:1500,kind:"round_over",detail:"1"}] : [])] });
-      const settings = {default_strictness:"normal", voice_profile:"starter-female", status_window_enabled:true, status_window_on_top:true, webcam_gpu:false, webcam_enabled:false, webcam_camera:0};
+      const settings = {default_strictness:"normal", voice_profile:"starter-female", status_window_enabled:true, status_window_on_top:true, webcam_gpu:false, webcam_enabled: q.get("webcam") === "1", webcam_camera:0};
       const rules = [{id:1,target:"app",value:"Slack",source:"user"},{id:2,target:"website",value:"youtube.com",source:"starter"}];
       if (q.get("many") === "1") rules.push(...["netflix.com","tiktok.com","instagram.com","reddit.com","twitter.com","news.ycombinator.com","twitch.tv","discord.com"].map((v,i)=>({id:10+i,target:"website",value:v,source:"starter"})), {id:50,target:"app",value:"Steam",source:"user"});
       const hist = empty ? [] : sessions;
@@ -70,6 +70,7 @@
         {profile_id:"elise",display_name:"Elise",profile_dir:"",reference_path:"c:/e.wav",reference_retained:true,tone:null,clips:[]},
         {profile_id:"mum",display_name:"Mum",profile_dir:"",reference_path:"c:/x.wav",reference_retained:true,tone: q.get("tone") || "mom",clips: q.get("clips") ? q.get("clips").split(",").map(clipFor) : []},
       ];
+      const starterLines = fetch("/scripts/starter_lines.json").then(r => r.json()).then(j => { for (const p of profiles.slice(0, 2)) p.clips = j.phrases.map(ph => clipFor(ph.id)); });
       if (q.get("dad") === "1") profiles.push({profile_id:"dad",display_name:"Dad",profile_dir:"",reference_path:"c:/y.wav",reference_retained:true,tone:"stern",clips:[]});
       let library = {custom_tones: q.get("tones") ? q.get("tones").split(",") : [], custom_phrases: q.get("tones") ? q.get("tones").split(",").map((t, i) => ({id: "custom-" + i, tone: t, moment: "nudge", text: "A line for " + t + "."})) : [], phrase_overrides: [], hidden_phrases: []};
       const summary = (p) => ({...p, clip_count: p.clips.length, clips: p.clips.map(c => ({...c}))});
@@ -110,6 +111,7 @@
         rename_voice_profile: a => { const p = profiles.find(x => x.profile_id === a.profileId); if (!p) throw "voice profile not found"; p.display_name = a.displayName; return summary(p); },
         set_voice_tone: a => { const p = profiles.find(x => x.profile_id === a.profileId); if (!p) throw "voice profile not found"; p.tone = a.tone; return summary(p); },
         generate_voice_clips: a => new Promise((res, rej) => setTimeout(() => { if (q.get("genfail") === "1") return rej("mock: the local worker could not generate this clip"); const p = profiles.find(x => x.profile_id === a.input.profile_id); for (const ph of a.input.phrases) { p.clips = p.clips.filter(c => c.phrase_id !== ph.id); p.clips.push(clipFor(ph.id)); } res(summary(p)); }, Number(q.get("gen_ms") || 1500))),
+        delete_voice_clip: a => { const p = profiles.find(x => x.profile_id === a.input.profile_id); p.clips = p.clips.filter(c => c.clip_id !== a.input.clip_id); return summary(p); },
         release_voice_worker: () => null,
         cancel_voice_generation: () => null,
         list_voice_profiles: () => profiles.map(summary),
@@ -156,7 +158,7 @@
         setTimeout(() => fire("nudge-voice", {speaking: false, ...said}), Number(q.get("speak_ms") || 4200));
       }
       window.__TAURI_INTERNALS__ = {
-        invoke: (cmd, args) => new Promise((res, rej) => { const h = handlers[cmd]; if (!h) return rej(`mock: no handler for ${cmd}`); try { res(h(args||{})); } catch (e) { rej(e); } }),
+        invoke: (cmd, args) => starterLines.then(() => new Promise((res, rej) => { const h = handlers[cmd]; if (!h) return rej(`mock: no handler for ${cmd}`); try { res(h(args||{})); } catch (e) { rej(e); } })),
         transformCallback: (cb) => { const id = Math.floor(Math.random()*1e9); window[`_${id}`] = cb; return id; },
         unregisterCallback: () => {},
         convertFileSrc: p => p,

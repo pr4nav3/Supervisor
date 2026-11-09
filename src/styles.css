@@ -3127,13 +3127,15 @@ button.personality-more:active {
 
 .line-state.is-bad,
 .clips-hint.is-bad,
-.field-help.is-bad {
+.field-help.is-bad,
+.explain.is-bad {
   color: #c63f27;
 }
 
 [data-theme="dark"] .line-state.is-bad,
 [data-theme="dark"] .clips-hint.is-bad,
-[data-theme="dark"] .field-help.is-bad {
+[data-theme="dark"] .field-help.is-bad,
+[data-theme="dark"] .explain.is-bad {
   color: var(--sv-coral);
 }
 
