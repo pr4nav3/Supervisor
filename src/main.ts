@@ -10678,25 +10678,12 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function attr(value: string): string {
-  return escapeHtml(value).replaceAll('"', "&quot;");
-}
+const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#039;";
-    }
-  });
+  return value.replace(/[&<>"']/g, (char) => ESCAPES[char]);
 }
+
+const attr = escapeHtml;
 
 void init();
