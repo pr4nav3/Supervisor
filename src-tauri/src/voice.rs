@@ -1,14 +1,13 @@
-use crate::voice_runtime::{self, DownloadStep};
+use crate::voice_runtime::{self, sha256_file, write_json, DownloadStep, DOWNLOAD_CANCELLED};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, Ordering},
     mpsc, Arc, Mutex,
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -34,7 +33,6 @@ const MAX_REFERENCE_AUDIO_BYTES: usize = 60 * 1024 * 1024;
 // under the floor there is too little voice to copy.
 const MAX_RECORDING_SECONDS: u32 = 60;
 const MIN_RECORDING_SECONDS: u32 = 5;
-const DOWNLOAD_CANCELLED: &str = "download cancelled";
 /// A check for updates with the engine installed that never reached the server.
 pub const UPDATE_CHECK_FAILED: &str = "Couldn't check for updates. Check your connection.";
 const MAX_VOICE_GENERATION: Duration = Duration::from_secs(30 * 60);
@@ -171,7 +169,6 @@ struct WorkerInner {
     /// A release asked for during a job: kill the worker once the job is done.
     release_after: AtomicBool,
     last_used: Mutex<Instant>,
-    generation: AtomicU64,
 }
 
 struct LiveWorker {
@@ -205,7 +202,7 @@ struct JobOutcome {
 
 #[derive(Serialize)]
 struct ServeRequest<'a> {
-    id: String,
+    id: &'a str,
     op: &'a str,
     reference: String,
     out_dir: String,
@@ -255,7 +252,6 @@ impl VoiceWorker {
                 stop_after: AtomicBool::new(false),
                 release_after: AtomicBool::new(false),
                 last_used: Mutex::new(Instant::now()),
-                generation: AtomicU64::new(0),
             }),
         }
     }
@@ -351,11 +347,10 @@ impl VoiceWorker {
             return Err("A line is already generating.".to_string());
         }
         self.inner.stop_after.store(false, Ordering::SeqCst);
-        let generation = self.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let started = Instant::now();
         // Cleared on every exit, a panic included; otherwise every later job says "already generating".
         let _busy = ClearOnDrop(&self.inner.busy);
-        let result = self.run_job_inner(root, reference, out_dir, phrases, generation, started);
+        let result = self.run_job_inner(root, reference, out_dir, phrases, started);
         if let Ok(mut used) = self.inner.last_used.lock() {
             *used = Instant::now();
         }
@@ -373,7 +368,6 @@ impl VoiceWorker {
         reference: &Path,
         out_dir: &Path,
         phrases: &[VoicePhraseInput],
-        generation: u64,
         started: Instant,
     ) -> Result<JobOutcome, String> {
         let mut live = self
@@ -399,7 +393,8 @@ impl VoiceWorker {
         }
         let worker = live.as_mut().ok_or_else(|| "The voice engine could not start.".to_string())?;
         let request = ServeRequest {
-            id: generation.to_string(),
+            // The worker only echoes it back; one job runs at a time.
+            id: "1",
             op: "generate",
             reference: reference.to_string_lossy().into_owned(),
             out_dir: out_dir.to_string_lossy().into_owned(),
@@ -439,9 +434,7 @@ impl VoiceWorker {
                 self.kill();
                 return Err("voice generation cancelled".to_string());
             }
-            if started.elapsed() >= MAX_VOICE_GENERATION
-                || self.inner.generation.load(Ordering::SeqCst) != generation
-            {
+            if started.elapsed() >= MAX_VOICE_GENERATION {
                 if let Some(killer) = &killer {
                     killer.terminate();
                 }
@@ -551,7 +544,7 @@ impl WorkerKiller {
 }
 
 fn spawn_serve_worker(root: &Path) -> Result<(LiveWorker, WorkerKiller), String> {
-    let mut command = voice_runtime::run_worker_command(root)?;
+    let mut command = voice_runtime::worker_command(root)?;
     command
         .arg("--serve")
         .arg("--model-dir")
@@ -848,8 +841,7 @@ pub fn start_model_download(
 
     // Hashing the installed model takes seconds, so it happens on the worker thread: this
     // returns at once in the Checking phase, and Downloading starts with the first fetch.
-    let runtime = voice_runtime::status(&root);
-    let required_bytes = required_model_bytes() + runtime.required_bytes.unwrap_or(0);
+    let required_bytes = pack_required_bytes(&root);
 
     let cancel = Arc::new(AtomicBool::new(false));
     {
@@ -884,9 +876,7 @@ pub fn start_model_download(
                         VoiceDownloadPhase::Checking | VoiceDownloadPhase::Downloading | VoiceDownloadPhase::Cancelling
                     ) {
                         download.downloaded_bytes = progress.downloaded_bytes;
-                        if let Some(total_bytes) = progress.total_bytes {
-                            download.total_bytes = total_bytes;
-                        }
+                        download.total_bytes = progress.total_bytes;
                         download.current_file = progress.current_file;
                         download.step = progress.step;
                     }
@@ -934,7 +924,12 @@ pub fn start_model_download(
 
 /// Weights and worker both in place: the only state the daily check has anything to update.
 pub fn engine_installed(app: &AppHandle) -> bool {
-    voice_root(app).is_ok_and(|root| model_status_for(&root, false).installed && voice_runtime::status(&root).installed)
+    voice_root(app).is_ok_and(|root| engine_installed_at(&root))
+}
+
+/// By size only: hashing 1.9 GB takes seconds. Install verifies.
+fn engine_installed_at(root: &Path) -> bool {
+    model_status(root).installed && voice_runtime::status(root).installed
 }
 
 const UPDATE_CHECK_FILE: &str = "last-update-check";
@@ -1337,8 +1332,7 @@ fn generate_clips_inner(
 ) -> Result<VoiceProfileSummary, String> {
     let profile_id = clean_id(&input.profile_id)?;
     let reference = supervisor_storage_file(root, &input.reference_audio_path, "recording")?;
-    // Size check only: hashing 1.9 GB here added ten seconds to every clip. Install verifies.
-    if !model_status_for(&root, false).installed || !voice_runtime::status(&root).installed {
+    if !engine_installed_at(root) {
         return Err("Download the voice engine before generating lines.".to_string());
     }
     ensure_generation_ram(worker.is_loaded())?;
@@ -1384,8 +1378,7 @@ fn generate_clips_inner(
 }
 
 fn status_for_root(root: &Path, worker_loaded: bool) -> VoiceBackendStatus {
-    // Size checks only. The Voice screen polls this, and hashing the model pack keeps the disk busy.
-    let model = model_status_for(root, false);
+    let model = model_status(root);
     let runtime = voice_runtime::status(root);
     VoiceBackendStatus {
         system: system_info(root, worker_loaded),
@@ -1395,29 +1388,24 @@ fn status_for_root(root: &Path, worker_loaded: bool) -> VoiceBackendStatus {
     }
 }
 
+/// Size checks only. The Voice screen polls this, and hashing the model pack keeps the disk busy.
 fn model_status(root: &Path) -> VoiceModelStatus {
-    model_status_for(root, true)
-}
-
-fn model_status_for(root: &Path, validate_hashes: bool) -> VoiceModelStatus {
     let dir = model_dir(root);
     VoiceModelStatus {
-        installed: MODEL_FILES.iter().all(|file| model_file_valid(&dir, file, validate_hashes)),
+        installed: MODEL_FILES.iter().all(|file| model_file_valid(&dir, file)),
         installed_bytes: dir_size(&dir).unwrap_or(0),
         required_bytes: required_model_bytes(),
     }
 }
 
-fn model_file_valid(dir: &Path, file: &ModelFile, validate_hash: bool) -> bool {
-    let path = dir.join(file.path);
-    fs::metadata(&path).is_ok_and(|metadata| metadata.is_file() && metadata.len() == file.bytes)
-        && (!validate_hash || sha256_file(&path).is_ok_and(|hash| hash == file.sha256))
+fn model_file_valid(dir: &Path, file: &ModelFile) -> bool {
+    fs::metadata(dir.join(file.path)).is_ok_and(|metadata| metadata.is_file() && metadata.len() == file.bytes)
 }
 
 #[derive(Clone, Debug)]
 struct VoiceDownloadProgress {
     downloaded_bytes: u64,
-    total_bytes: Option<u64>,
+    total_bytes: u64,
     current_file: Option<String>,
     step: DownloadStep,
 }
@@ -1470,7 +1458,7 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         up_to_date: state.phase == VoiceDownloadPhase::Complete && state.up_to_date,
         check_failed: state.phase == VoiceDownloadPhase::Error
             && state.error.as_deref() == Some(UPDATE_CHECK_FAILED),
-        model: model_status_for(root, false),
+        model: model_status(root),
         runtime: voice_runtime::status(root),
     }
 }
@@ -1485,7 +1473,7 @@ fn present_model_bytes(root: &Path) -> u64 {
     let dir = model_dir(root);
     MODEL_FILES
         .iter()
-        .filter(|file| model_file_valid(&dir, file, false))
+        .filter(|file| model_file_valid(&dir, file))
         .map(|file| file.bytes)
         .sum()
 }
@@ -1497,13 +1485,13 @@ fn download_pack_to_with_progress(
     mut progress: impl FnMut(VoiceDownloadProgress),
 ) -> Result<bool, String> {
     let model_start_bytes = present_model_bytes(root);
-    let was_installed = model_status_for(root, false).installed && voice_runtime::status(root).installed;
+    let was_installed = engine_installed_at(root);
     let mut fetched = false;
     let runtime = voice_runtime::install_runtime(root, Arc::clone(&cancel), |runtime_progress| {
         fetched |= runtime_progress.current_file.is_some();
         progress(VoiceDownloadProgress {
             downloaded_bytes: model_start_bytes + runtime_progress.downloaded_bytes,
-            total_bytes: Some(required_model_bytes() + runtime_progress.total_bytes),
+            total_bytes: required_model_bytes() + runtime_progress.total_bytes,
             current_file: runtime_progress.current_file,
             step: runtime_progress.step,
         });
@@ -1521,7 +1509,7 @@ fn download_pack_to_with_progress(
     let fetched_model = download_model_to_with_progress(root, cancel, |model_progress| {
         progress(VoiceDownloadProgress {
             downloaded_bytes: runtime_bytes + model_progress.downloaded_bytes,
-            total_bytes: Some(runtime_bytes + required_model_bytes()),
+            total_bytes: runtime_bytes + required_model_bytes(),
             current_file: model_progress.current_file,
             step: model_progress.step,
         })
@@ -1549,7 +1537,7 @@ fn download_model_files(
     // Only what is missing by size needs room; a resumed partial already has its share.
     let missing: u64 = files
         .iter()
-        .filter(|file| !model_file_valid(dir, file, false))
+        .filter(|file| !model_file_valid(dir, file))
         .map(|file| file.bytes)
         .sum();
     if missing > 0 {
@@ -1570,16 +1558,16 @@ fn download_model_files(
         if size_ok {
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: None,
                 step: DownloadStep::Checking,
             });
         }
-        if size_ok && sha256_file_until(&target, Some(&cancel))? == file.sha256 {
+        if size_ok && sha256_file(&target, &cancel)? == file.sha256 {
             completed_bytes += file.bytes;
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: None,
                 step: DownloadStep::Checking,
             });
@@ -1595,18 +1583,18 @@ fn download_model_files(
         voice_runtime::fetch_file(&client, &model_file_url(file.path), &tmp, file.bytes, &cancel, |bytes| {
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes + bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: Some(file.path.to_string()),
                 step: DownloadStep::Downloading,
             });
         })?;
         progress(VoiceDownloadProgress {
             downloaded_bytes: completed_bytes + file.bytes,
-            total_bytes: Some(total),
+            total_bytes: total,
             current_file: None,
             step: DownloadStep::Checking,
         });
-        let hash = sha256_file_until(&tmp, Some(&cancel))?;
+        let hash = sha256_file(&tmp, &cancel)?;
         if cancel.load(Ordering::SeqCst) {
             let _ = fs::remove_file(&tmp);
             return Err(DOWNLOAD_CANCELLED.to_string());
@@ -1622,7 +1610,7 @@ fn download_model_files(
         completed_bytes += file.bytes;
         progress(VoiceDownloadProgress {
             downloaded_bytes: completed_bytes,
-            total_bytes: Some(total),
+            total_bytes: total,
             current_file: None,
             step: DownloadStep::Checking,
         });
@@ -1793,11 +1781,6 @@ fn same_path(left: &Path, right: &Path) -> bool {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
-}
-
-fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
-    let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
-    fs::write(path, bytes).map_err(|error| error.to_string())
 }
 
 fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
@@ -2576,28 +2559,6 @@ fn available_ram_bytes() -> Option<u64> {
     None
 }
 
-fn sha256_file(path: &Path) -> Result<String, String> {
-    sha256_file_until(path, None)
-}
-
-/// A gigabyte takes seconds to hash, so a cancel must be able to interrupt it.
-fn sha256_file_until(path: &Path, cancel: Option<&AtomicBool>) -> Result<String, String> {
-    let mut file = File::open(path).map_err(|error| error.to_string())?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 1024 * 64];
-    loop {
-        if cancel.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
-            return Err(DOWNLOAD_CANCELLED.to_string());
-        }
-        let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
-}
-
 fn voice_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
@@ -2980,7 +2941,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let file = &MODEL_FILES[0];
         let path = dir.join(file.path);
-        File::create(&path).unwrap().set_len(file.bytes).unwrap();
+        fs::File::create(&path).unwrap().set_len(file.bytes).unwrap();
 
         let status = status_for_root(&root, false);
         assert_eq!(status.model.installed_bytes, file.bytes);
@@ -2999,7 +2960,7 @@ mod tests {
         let table = [ModelFile {
             path: "already-here.bin",
             bytes: fs::metadata(&path).unwrap().len(),
-            sha256: Box::leak(sha256_file(&path).unwrap().into_boxed_str()),
+            sha256: Box::leak(sha256_file(&path, &AtomicBool::new(false)).unwrap().into_boxed_str()),
         }];
 
         let mut reports = Vec::new();
@@ -3038,21 +2999,6 @@ mod tests {
         assert!(error.contains(" GB free and this disk has "), "{error}");
         assert!(!error.contains("bytes"), "{error}");
         assert!(ensure_free_space(&std::env::temp_dir(), 1).is_ok());
-    }
-
-    #[test]
-    fn fast_model_status_uses_size_without_hashing() {
-        let root = test_dir("fast-model-status");
-        let dir = model_dir(&root);
-        fs::create_dir_all(&dir).unwrap();
-        let file = &MODEL_FILES[0];
-        let path = dir.join(file.path);
-        File::create(&path).unwrap().set_len(file.bytes).unwrap();
-
-        assert!(model_file_valid(&dir, file, false));
-        assert!(!model_file_valid(&dir, file, true));
-
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
