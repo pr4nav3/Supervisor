@@ -339,52 +339,24 @@ interface RuleEditor {
 
 type RulePreview = { target: RuleTarget; value: string } | { error: string } | null;
 
-interface VoiceModelFileStatus {
-  path: string;
-  bytes: number;
-  sha256: string;
-  installed: boolean;
-  valid: boolean;
-}
-
 interface VoiceModelStatus {
-  id: string;
-  display_name: string;
-  repo: string;
-  revision: string;
-  install_dir: string;
   installed: boolean;
   installed_bytes: number;
   required_bytes: number;
-  recommended_free_bytes: number;
-  files: VoiceModelFileStatus[];
 }
 
 interface VoiceRuntimeStatus {
-  target: string;
-  install_dir: string;
   installed: boolean;
-  executable_path: string | null;
-  version: string | null;
-  worker_api: number | null;
   source: "release" | "dev_override" | "missing";
   required_bytes: number | null;
-  installed_bytes: number;
 }
 
 interface VoiceSystemInfo {
-  os: string;
-  arch: string;
-  cpu_threads: number;
   total_ram_bytes: number | null;
   available_ram_bytes: number | null;
-  min_required_ram_bytes: number;
   min_free_ram_bytes: number;
   last_peak_ram_bytes: number | null;
   has_enough_ram: boolean | null;
-  available_disk_bytes: number | null;
-  recommended_free_disk_bytes: number;
-  has_enough_disk: boolean | null;
 }
 
 interface VoiceClipSummary {
@@ -418,8 +390,6 @@ interface VoiceDownloadSnapshot {
   phase: VoiceDownloadPhase;
   downloaded_bytes: number;
   total_bytes: number;
-  current_file: string | null;
-  elapsed_seconds: number;
   eta_seconds: number | null;
   message: string;
   up_to_date: boolean;
@@ -501,7 +471,6 @@ interface VoiceRecordingSnapshot {
   bytes: number;
   duration_seconds: number;
   elapsed_seconds: number;
-  sample_rate: number | null;
   message: string;
 }
 

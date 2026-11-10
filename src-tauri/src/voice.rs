@@ -15,7 +15,6 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 const MODEL_ID: &str = "chatterbox-nano-minimal";
-const MODEL_DISPLAY_NAME: &str = "Chatterbox-Nano";
 const MODEL_REPO: &str = "ResembleAI/chatterbox-nano";
 const MODEL_REVISION: &str = "71ccd1d0081b430592cea481f4307e764e07bc64";
 const GIBIBYTE: u64 = 1024 * 1024 * 1024;
@@ -64,8 +63,6 @@ pub struct VoiceDownloadSnapshot {
     pub phase: VoiceDownloadPhase,
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
-    pub current_file: Option<String>,
-    pub elapsed_seconds: u64,
     pub eta_seconds: Option<u64>,
     pub message: String,
     /// Complete, and nothing needed fetching.
@@ -122,14 +119,12 @@ pub struct VoiceRecordingSnapshot {
     pub bytes: u64,
     pub duration_seconds: f64,
     pub elapsed_seconds: u64,
-    pub sample_rate: Option<u32>,
     pub message: String,
 }
 
 pub struct VoiceRecordingState {
     phase: VoiceRecordingPhase,
     started_at: Option<Instant>,
-    sample_rate: Option<u32>,
     command: Option<mpsc::Sender<RecordingCommand>>,
     last: Option<VoiceRecordingClip>,
     error: Option<String>,
@@ -140,7 +135,6 @@ impl Default for VoiceRecordingState {
         Self {
             phase: VoiceRecordingPhase::Idle,
             started_at: None,
-            sample_rate: None,
             command: None,
             last: None,
             error: None,
@@ -158,7 +152,6 @@ struct VoiceRecordingClip {
     path: PathBuf,
     bytes: u64,
     duration_seconds: f64,
-    sample_rate: u32,
 }
 
 #[derive(Clone)]
@@ -639,41 +632,18 @@ pub struct VoiceBackendStatus {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct VoiceModelStatus {
-    pub id: &'static str,
-    pub display_name: &'static str,
-    pub repo: &'static str,
-    pub revision: &'static str,
-    pub install_dir: String,
     pub installed: bool,
     pub installed_bytes: u64,
     pub required_bytes: u64,
-    pub recommended_free_bytes: u64,
-    pub files: Vec<VoiceModelFileStatus>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-pub struct VoiceModelFileStatus {
-    pub path: &'static str,
-    pub bytes: u64,
-    pub sha256: &'static str,
-    pub installed: bool,
-    pub valid: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct VoiceSystemInfo {
-    pub os: String,
-    pub arch: String,
-    pub cpu_threads: usize,
     pub total_ram_bytes: Option<u64>,
     pub available_ram_bytes: Option<u64>,
-    pub min_required_ram_bytes: u64,
     pub min_free_ram_bytes: u64,
     pub last_peak_ram_bytes: Option<u64>,
     pub has_enough_ram: Option<bool>,
-    pub available_disk_bytes: Option<u64>,
-    pub recommended_free_disk_bytes: u64,
-    pub has_enough_disk: Option<bool>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
@@ -1127,13 +1097,12 @@ pub fn start_recording(
     let (command_tx, command_rx) = mpsc::channel();
     let (ready_tx, ready_rx) = mpsc::channel();
     std::thread::spawn(move || run_recording_thread(command_rx, ready_tx));
-    let sample_rate = ready_rx
+    ready_rx
         .recv_timeout(Duration::from_secs(15))
         .map_err(|_| "Microphone did not become ready.".to_string())??;
 
     recording.phase = VoiceRecordingPhase::Recording;
     recording.started_at = Some(Instant::now());
-    recording.sample_rate = Some(sample_rate);
     recording.command = Some(command_tx);
     recording.error = None;
     Ok(recording_snapshot(&recording))
@@ -1179,7 +1148,6 @@ pub fn stop_recording(
         .lock()
         .map_err(|_| "voice recording state unavailable".to_string())?;
     recording.started_at = None;
-    recording.sample_rate = None;
     match clip {
         Ok(clip) => {
             if let Some(previous) = recording.last.take() {
@@ -1222,7 +1190,6 @@ pub fn clear_recording(
     }
     recording.phase = VoiceRecordingPhase::Idle;
     recording.started_at = None;
-    recording.sample_rate = None;
     recording.error = None;
     fs::create_dir_all(recordings_dir(&root)).map_err(|error| error.to_string())?;
     Ok(recording_snapshot(&recording))
@@ -1464,7 +1431,7 @@ fn status_for_root(root: &Path, worker_loaded: bool) -> VoiceBackendStatus {
     let model = model_status_for(root, false);
     let runtime = voice_runtime::status(root);
     VoiceBackendStatus {
-        system: system_info(root, model.recommended_free_bytes, worker_loaded),
+        system: system_info(root, worker_loaded),
         model,
         runtime,
         profiles: profile_summaries(root),
@@ -1477,47 +1444,17 @@ fn model_status(root: &Path) -> VoiceModelStatus {
 
 fn model_status_for(root: &Path, validate_hashes: bool) -> VoiceModelStatus {
     let dir = model_dir(root);
-    let files = MODEL_FILES
-        .iter()
-        .map(|file| model_file_status(&dir, file, validate_hashes))
-        .collect::<Vec<_>>();
-    let installed = files.iter().all(|file| file.valid);
-    let installed_bytes = dir_size(&dir).unwrap_or(0);
-    let required_bytes = required_model_bytes();
-
     VoiceModelStatus {
-        id: MODEL_ID,
-        display_name: MODEL_DISPLAY_NAME,
-        repo: MODEL_REPO,
-        revision: MODEL_REVISION,
-        install_dir: dir.to_string_lossy().into_owned(),
-        installed,
-        installed_bytes,
-        required_bytes,
-        recommended_free_bytes: required_bytes + EXTRA_DOWNLOAD_HEADROOM_BYTES,
-        files,
+        installed: MODEL_FILES.iter().all(|file| model_file_valid(&dir, file, validate_hashes)),
+        installed_bytes: dir_size(&dir).unwrap_or(0),
+        required_bytes: required_model_bytes(),
     }
 }
 
-fn model_file_status(dir: &Path, file: &ModelFile, validate_hash: bool) -> VoiceModelFileStatus {
+fn model_file_valid(dir: &Path, file: &ModelFile, validate_hash: bool) -> bool {
     let path = dir.join(file.path);
-    let installed = path.is_file();
-    let valid = installed
-        && fs::metadata(&path)
-            .map(|metadata| metadata.len() == file.bytes)
-            .unwrap_or(false)
-        && (!validate_hash
-            || sha256_file(&path)
-                .map(|hash| hash == file.sha256)
-                .unwrap_or(false));
-
-    VoiceModelFileStatus {
-        path: file.path,
-        bytes: file.bytes,
-        sha256: file.sha256,
-        installed,
-        valid,
-    }
+    fs::metadata(&path).is_ok_and(|metadata| metadata.is_file() && metadata.len() == file.bytes)
+        && (!validate_hash || sha256_file(&path).is_ok_and(|hash| hash == file.sha256))
 }
 
 #[derive(Clone, Debug)]
@@ -1549,8 +1486,6 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         phase: state.phase,
         downloaded_bytes: state.downloaded_bytes,
         total_bytes: state.total_bytes,
-        current_file: state.current_file.clone(),
-        elapsed_seconds,
         eta_seconds,
         message: match state.phase {
             VoiceDownloadPhase::Idle => "No download is running.".to_string(),
@@ -1588,7 +1523,7 @@ fn present_model_bytes(root: &Path) -> u64 {
     let dir = model_dir(root);
     MODEL_FILES
         .iter()
-        .filter(|file| model_file_status(&dir, file, false).valid)
+        .filter(|file| model_file_valid(&dir, file, false))
         .map(|file| file.bytes)
         .sum()
 }
@@ -1650,7 +1585,7 @@ fn download_model_files(
     // Only what is missing by size needs room; a resumed partial already has its share.
     let missing: u64 = files
         .iter()
-        .filter(|file| !model_file_status(dir, file, false).valid)
+        .filter(|file| !model_file_valid(dir, file, false))
         .map(|file| file.bytes)
         .sum();
     if missing > 0 {
@@ -1947,17 +1882,12 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
             .started_at
             .map(|started_at| started_at.elapsed().as_secs())
             .unwrap_or(0);
-        let sample_rate = state.sample_rate.unwrap_or(0);
-        let estimated_bytes = elapsed_seconds
-            .saturating_mul(u64::from(sample_rate))
-            .saturating_mul(std::mem::size_of::<i16>() as u64);
         return VoiceRecordingSnapshot {
             phase: VoiceRecordingPhase::Recording,
             path: None,
-            bytes: estimated_bytes,
+            bytes: 0,
             duration_seconds: elapsed_seconds as f64,
             elapsed_seconds,
-            sample_rate: (sample_rate > 0).then_some(sample_rate),
             message: "Recording.".to_string(),
         };
     }
@@ -1969,7 +1899,6 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
             bytes: last.bytes,
             duration_seconds: last.duration_seconds,
             elapsed_seconds: last.duration_seconds.round() as u64,
-            sample_rate: Some(last.sample_rate),
             message: "Recording ready.".to_string(),
         };
     }
@@ -1981,7 +1910,6 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
             bytes: 0,
             duration_seconds: 0.0,
             elapsed_seconds: 0,
-            sample_rate: None,
             message: error.clone(),
         };
     }
@@ -1992,14 +1920,13 @@ fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
         bytes: 0,
         duration_seconds: 0.0,
         elapsed_seconds: 0,
-        sample_rate: None,
         message: "Ready to record.".to_string(),
     }
 }
 
 fn run_recording_thread(
     commands: mpsc::Receiver<RecordingCommand>,
-    ready: mpsc::Sender<Result<u32, String>>,
+    ready: mpsc::Sender<Result<(), String>>,
 ) {
     let host = cpal::default_host();
     let Some(device) = host.default_input_device() else {
@@ -2066,7 +1993,7 @@ fn run_recording_thread(
         )));
         return;
     }
-    let _ = ready.send(Ok(sample_rate));
+    let _ = ready.send(Ok(()));
 
     let mut stream = Some(stream);
     loop {
@@ -2145,7 +2072,6 @@ fn recording_clip_from_samples(
         path,
         bytes,
         duration_seconds,
-        sample_rate,
     })
 }
 
@@ -2218,28 +2144,16 @@ fn clean_id(value: &str) -> Result<String, String> {
     Ok(trimmed.to_string())
 }
 
-fn system_info(root: &Path, recommended_free_disk_bytes: u64, worker_loaded: bool) -> VoiceSystemInfo {
+fn system_info(root: &Path, worker_loaded: bool) -> VoiceSystemInfo {
     let total_ram_bytes = total_ram_bytes();
     let available_ram_bytes = available_ram_bytes();
-    let last_peak_ram_bytes = load_generation_budget(root).last_peak_ram_bytes;
-    let min_free_ram_bytes = required_ram_for_gate(worker_loaded);
-    let available_disk_bytes = available_disk_bytes(root);
     VoiceSystemInfo {
-        os: std::env::consts::OS.to_string(),
-        arch: std::env::consts::ARCH.to_string(),
-        cpu_threads: std::thread::available_parallelism()
-            .map(|value| value.get())
-            .unwrap_or(1),
         total_ram_bytes,
         available_ram_bytes,
-        min_required_ram_bytes: MIN_REQUIRED_RAM_BYTES,
-        min_free_ram_bytes,
-        last_peak_ram_bytes,
+        min_free_ram_bytes: required_ram_for_gate(worker_loaded),
+        last_peak_ram_bytes: load_generation_budget(root).last_peak_ram_bytes,
         has_enough_ram: ram_allows_job(available_ram_bytes, total_ram_bytes, worker_loaded)
             .map(|ok| ok && macos_pressure_allows()),
-        available_disk_bytes,
-        recommended_free_disk_bytes,
-        has_enough_disk: available_disk_bytes.map(|bytes| bytes >= recommended_free_disk_bytes),
     }
 }
 
@@ -3148,13 +3062,7 @@ mod tests {
         File::create(&path).unwrap().set_len(file.bytes).unwrap();
 
         let status = status_for_root(&root, false);
-        let listed = status
-            .model
-            .files
-            .iter()
-            .find(|item| item.path == file.path)
-            .unwrap();
-        assert!(listed.valid);
+        assert_eq!(status.model.installed_bytes, file.bytes);
         assert!(!status.model.installed);
         let _ = fs::remove_dir_all(root);
     }
@@ -3220,8 +3128,8 @@ mod tests {
         let path = dir.join(file.path);
         File::create(&path).unwrap().set_len(file.bytes).unwrap();
 
-        assert!(model_file_status(&dir, file, false).valid);
-        assert!(!model_file_status(&dir, file, true).valid);
+        assert!(model_file_valid(&dir, file, false));
+        assert!(!model_file_valid(&dir, file, true));
 
         let _ = fs::remove_dir_all(root);
     }
