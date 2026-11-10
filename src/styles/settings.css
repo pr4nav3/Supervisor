@@ -1,0 +1,442 @@
+/* Two inner cards, no shadow: the same surface as the voice popups' key-value cards. */
+.defaults-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.field-help {
+  display: block;
+  margin-top: 4px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+  line-height: 1.3;
+}
+
+.default-control {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  min-height: 64px;
+  padding: 10px 14px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+}
+
+.defaults-help {
+  margin-top: 12px;
+}
+
+.default-control > strong {
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+/* The page's cream, so the dropdown reads apart from its row. */
+.default-control > select {
+  width: 148px;
+  flex: 0 0 auto;
+  background-color: var(--sv-canvas);
+}
+
+.explain {
+  color: var(--sv-ink);
+  font-size: var(--sv-type-3);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.settings-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.settings-feature-card {
+  display: flex;
+  min-height: 172px;
+  flex-direction: column;
+  padding: 18px;
+}
+
+.settings-feature-card .voice-summary {
+  flex: 1 1 auto;
+}
+
+.settings-feature-card .voice-summary button {
+  align-self: end;
+  width: 100%;
+  margin-top: auto;
+}
+
+.settings-rules-panel,
+.settings-data-panel {
+  grid-column: 1 / -1;
+}
+
+.settings-data-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.settings-data-row + .settings-data-row {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1.5px solid color-mix(in srgb, var(--sv-ink) 18%, transparent);
+}
+
+.setting-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  min-height: 52px;
+  border-top: 1px solid rgba(16, 16, 16, 0.22);
+}
+
+.setting-row:first-of-type {
+  border-top: 0;
+}
+
+.setting-row span,
+.setting-row strong {
+  overflow-wrap: anywhere;
+}
+
+.setting-row span {
+  color: var(--sv-ink);
+}
+
+.setting-row strong {
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  font-weight: 500;
+}
+
+.toggle-row {
+  cursor: pointer;
+}
+
+.toggle-field {
+  display: inline-flex;
+  align-items: center;
+  justify-self: end;
+}
+
+.toggle-input {
+  position: absolute;
+  width: 1px;
+  min-height: 1px;
+  opacity: 0;
+}
+
+.toggle-track {
+  position: relative;
+  display: inline-block;
+  width: 48px;
+  height: 28px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border: var(--border);
+  border-radius: 3px;
+  background: var(--sv-coral);
+  transition: transform 120ms ease, background 120ms ease;
+}
+
+.toggle-input:checked + .toggle-track {
+  background: var(--sv-green);
+}
+
+.toggle-input:checked + .toggle-track .toggle-knob {
+  transform: translateX(20px);
+  background: var(--sv-ink);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--sv-ink);
+  outline-offset: 2px;
+}
+
+.voice-summary {
+  /* A column, not a grid: WebKit sizes a grid's auto rows here against the window instead of
+     the card, and in a tall window the text and button spread down the whole page. */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.voice-summary strong,
+.voice-card strong,
+.rule-toolbar strong {
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+.voice-card span {
+  color: var(--sv-ink);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  text-transform: uppercase;
+}
+
+.rule-manager {
+  display: grid;
+  gap: 10px;
+}
+
+.permanent-rule-manager .rule-toolbar {
+  align-items: start;
+}
+
+/* The text block gives way before the buttons wrap under it. */
+.permanent-rule-manager .rule-toolbar > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+.permanent-rule-manager .rule-toolbar .eyebrow {
+  margin-bottom: 4px;
+}
+
+.add-rule-button {
+  min-width: 116px;
+}
+
+.rule-group {
+  display: grid;
+  min-height: 68px;
+  overflow: hidden;
+  border: 1px solid rgba(16, 16, 16, 0.4);
+  border-radius: var(--radius-control);
+  padding: 10px 12px;
+  background: var(--sv-soft-white);
+}
+
+/* A distraction allowed for the session about to start. */
+.rule-chip.is-allowed {
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+  text-decoration: line-through;
+}
+
+.preflight-rule-manager .explain {
+  margin: 0 0 10px;
+}
+
+.session-allowed {
+  margin: 8px 0 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.rule-chip,
+.add-target-button {
+  min-height: 36px;
+  padding: 0 11px;
+}
+
+.rule-chip-distracting {
+  background: var(--sv-coral);
+}
+
+.add-target-button {
+  border-style: dashed;
+  background: var(--sv-soft-white);
+  box-shadow: none;
+}
+
+.rule-toolbar,
+.modal-head,
+.subpage-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rule-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.rule-toolbar h2,
+.phrase-panel .rule-toolbar h2 {
+  margin-bottom: 0;
+}
+
+.rule-editor-actions,
+.modal-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Two fields on one row: the site or app, and its name once a site is recognised. */
+.rule-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 10px;
+  align-items: center;
+  border: var(--border);
+  border-radius: var(--radius-card);
+  padding: 10px;
+  background: var(--sv-soft-white);
+}
+
+.phrase-editor {
+  display: grid;
+  gap: 12px;
+}
+
+.phrase-editor select {
+  width: 100%;
+  min-height: 40px;
+}
+
+.phrase-editor textarea {
+  width: 100%;
+  min-height: 92px;
+  padding: 10px 12px;
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-2);
+  line-height: 1.35;
+  resize: none;
+}
+
+.rule-editor > label {
+  align-self: end;
+}
+
+.rule-editor:has(.rule-name-field[hidden]) > label:nth-of-type(1) {
+  grid-column: 1 / -1;
+}
+
+.rule-preview {
+  display: flex;
+  flex-wrap: wrap;
+  grid-column: 1;
+  align-items: center;
+  align-self: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--sv-type-3);
+}
+
+.rule-editor .rule-editor-actions {
+  grid-column: 2;
+  justify-self: end;
+  align-self: center;
+}
+
+/* Save fades, like a disabled button anywhere in the app, until the line says there is
+   something to save. It stays a live button, so Enter still tries and says why not. */
+.rule-editor-actions .primary.is-quiet,
+.rule-editor-actions .primary.is-quiet:hover,
+.rule-editor-actions .primary.is-quiet:active {
+  opacity: 0.45;
+  transform: none;
+}
+
+.rule-editor-ask {
+  align-self: center;
+  font-weight: 650;
+}
+
+/* A small yellow tag before the name: what was recognised. The name beside it is the larger. */
+.rule-kind {
+  flex: none;
+  border: var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+  font-size: var(--sv-type-4);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.rule-preview-value {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-2);
+  font-weight: 600;
+}
+
+.rule-preview-note {
+  color: var(--sv-muted);
+}
+
+.rule-preview-error {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rule-preview-error::before {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  border: 1px solid var(--sv-border);
+  border-radius: 3px;
+  background: var(--sv-coral);
+  content: "";
+}
+
+button.recap-app-row,
+.week-hero-stat,
+button.share-door,
+.report-stat {
+  min-height: 0;
+  height: auto;
+  font: inherit;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+}
+
+/* A row that opens its popup: quiet until the mouse is on it, like the list it sits in. */
+button.recap-app-row {
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+/* A tint of the ink: dark on the light theme's boxes, light on the dark theme's. */
+button.recap-app-row:hover,
+button.recap-app-row:focus-visible {
+  background: color-mix(in srgb, var(--sv-ink) 9%, transparent);
+}
+
+button.recap-app-row:active {
+  transform: none;
+  box-shadow: none;
+}
+

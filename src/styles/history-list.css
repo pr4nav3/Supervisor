@@ -1,0 +1,146 @@
+.recap-apps h2 {
+  margin: 0;
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+.recap-app-block {
+  display: grid;
+  gap: 8px;
+}
+
+.recap-app-group {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: var(--border);
+  border-radius: var(--radius-card);
+  background: var(--sv-soft-white);
+  box-shadow: none;
+}
+
+.recap-app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 4.5em;
+  gap: 12px;
+  align-items: center;
+}
+
+.recap-app-name {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow-wrap: anywhere;
+  font-size: var(--sv-type-3);
+}
+
+.recap-app-row strong {
+  font-family: inherit;
+  font-size: var(--sv-type-3);
+  font-weight: inherit;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.history-day {
+  display: grid;
+  gap: 10px;
+}
+
+.history-day + .history-day {
+  margin-top: 6px;
+}
+
+.history-day-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.history-day-head p {
+  margin: 0;
+}
+
+.history-day-total {
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  font-variant-numeric: tabular-nums;
+  color: var(--sv-muted);
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+}
+
+button.history-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.9fr);
+  gap: 10px;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  padding: 12px;
+  text-align: left;
+  text-transform: none;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  letter-spacing: 0;
+  justify-content: stretch;
+  align-items: start;
+}
+
+.history-item h3 {
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+.history-item p {
+  margin-top: 4px;
+  color: var(--sv-ink);
+  font-size: var(--sv-type-3);
+}
+
+.history-item-stats {
+  display: grid;
+  gap: 8px;
+}
+
+.history-item dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin: 0;
+}
+
+.history-item dl div {
+  border: 1px solid rgba(16, 16, 16, 0.28);
+  border-radius: var(--radius-card);
+  padding: 8px;
+}
+
+.history-item dd {
+  margin: 4px 0 0;
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.mini-timeline {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  border: 1px solid var(--sv-border);
+  border-radius: 2px;
+}
+
+.mini-timeline span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+}
+

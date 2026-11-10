@@ -1,0 +1,446 @@
+/* Out of flow so it can never grow the fixed-size timer window. */
+.overlay-muted-tag {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 1px solid currentColor;
+  border-radius: var(--radius-control);
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  line-height: 1.2;
+}
+
+.overlay-slab h2 {
+  margin-top: 0;
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+}
+
+.overlay-slab p {
+  display: block;
+  max-height: none;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 0.82rem;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.overlay-progress {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  margin-top: 10px;
+}
+
+.overlay-progress > span {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.overlay-progress .progress {
+  width: 100%;
+  min-width: 0;
+  height: 12px;
+  margin: 0;
+}
+
+.overlay-actions {
+  display: grid;
+  grid-template-columns: 36px 36px minmax(0, 1fr);
+  gap: 8px;
+}
+
+/* A break waiting on the next round: "Start round 3" takes a row of its own above stop and More. */
+.overlay-actions.is-round {
+  grid-template-columns: 36px minmax(0, 1fr);
+}
+
+.overlay-round {
+  grid-column: 1 / -1;
+}
+
+.overlay-actions button {
+  min-height: 30px;
+  padding: 0 8px;
+}
+
+.overlay-icon {
+  padding: 0 !important;
+}
+
+.overlay-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.overlay-pause {
+  background: var(--sv-yellow);
+}
+
+button.overlay-more {
+  justify-content: start;
+  gap: 8px;
+  padding: 0 10px;
+  font-size: 0.68rem;
+}
+
+button.overlay-more::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid currentColor;
+  transition: transform 140ms ease;
+}
+
+/* Open, it goes yellow like the Strictness dropdown on the start screen. */
+button.overlay-more.is-open {
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+}
+
+button.overlay-more.is-open::before {
+  transform: rotate(90deg);
+}
+
+.overlay-more-body {
+  display: grid;
+  gap: 8px;
+  padding: 8px 10px 10px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+}
+
+.overlay-more-body button {
+  box-shadow: 1px 1px 0 var(--sv-shadow-color);
+}
+
+.overlay-more-body button:active {
+  transform: translate(1px, 1px);
+  box-shadow: none;
+}
+
+.overlay-mute {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+  font-weight: 650;
+}
+
+/* The label stays on one line beside its toggle in the narrow window. */
+.overlay-mute > span:first-child {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.overlay-why {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: 0.82rem;
+}
+
+.overlay-more-body > p {
+  margin: 0;
+  color: var(--sv-ink);
+  font-size: var(--sv-type-4);
+}
+
+/* One mark now, full width like the pin below it. */
+.overlay-marks {
+  display: grid;
+  gap: 8px;
+}
+
+/* Two lines of text get air around them instead of touching the border. */
+.overlay-marks button,
+.overlay-pin {
+  min-height: 34px;
+  padding: 6px 10px;
+  line-height: 1.3;
+  text-align: center;
+}
+
+.overlay-pin {
+  width: 100%;
+}
+
+.overlay-marks .mark-distraction {
+  background: var(--sv-yellow);
+}
+
+.interrupt-alert {
+  min-height: 0;
+  padding: 14px 16px 0;
+  overflow: hidden;
+  background: var(--sv-coral);
+}
+
+.interrupt-alert h2 {
+  margin-top: 4px;
+  /* A long site name breaks rather than run off the 420 px card. */
+  overflow-wrap: anywhere;
+  font-size: 1.75rem;
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+
+.interrupt-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* The voice that spoke, and the task: paper on the coral in the light theme; in the dark
+   theme the panel grey, with the play button a shade lighter, as on the Session done card. */
+.interrupt-voice,
+.interrupt-task {
+  background: #fff4cf;
+  color: var(--sv-colored-ink);
+}
+
+[data-theme="dark"] .interrupt-voice,
+[data-theme="dark"] .interrupt-task,
+[data-theme="dark"] .interrupt-actions button:not(.primary) {
+  background: var(--sv-panel);
+  color: var(--sv-ink);
+}
+
+/* Scoped to the slab so the slab's own ink rule (`.state-slab :is(p, ...)`) doesn't win. */
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-who {
+  color: var(--sv-muted);
+}
+
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-line,
+[data-theme="dark"] .state-slab.interrupt-alert .interrupt-task :is(strong, span) {
+  color: var(--sv-ink);
+}
+
+[data-theme="dark"] .voice-orb-core {
+  background: #62615b;
+  color: var(--sv-ink);
+}
+
+.interrupt-voice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 14px;
+  padding: 8px 14px 8px 6px;
+  border: var(--border);
+  border-radius: 7px;
+  box-shadow: var(--shadow-control);
+}
+
+.interrupt-voice-text {
+  min-width: 0;
+}
+
+/* `p.` so the slab's later ink rule (`.state-slab :is(...)`, same weight without it) doesn't win. */
+.state-slab.interrupt-alert p.interrupt-voice-who {
+  margin: 0;
+  color: #5d564a;
+  font-size: 0.72rem;
+}
+
+.interrupt-alert .interrupt-voice-line {
+  margin: 3px 0 0;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* The orb is the play button: a play triangle at rest; while the voice speaks it turns green
+   and four bars move in it. */
+button.voice-orb {
+  position: relative;
+  flex: none;
+  width: 60px;
+  min-width: 60px;
+  height: 60px;
+  min-height: 60px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.voice-orb-core {
+  position: absolute;
+  inset: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: var(--border);
+  border-radius: 50%;
+  background: #fff7df;
+  box-shadow: 3px 3px 0 var(--sv-shadow-color);
+  color: var(--sv-colored-ink);
+  transition: background 0.2s ease;
+}
+
+button.voice-orb:active .voice-orb-core {
+  transform: translate(2px, 2px);
+  box-shadow: 1px 1px 0 var(--sv-shadow-color);
+}
+
+.voice-orb-play {
+  width: 15px;
+  height: 15px;
+  margin-left: 3px;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.voice-orb-bars {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  opacity: 0;
+}
+
+.voice-orb-bars i {
+  width: 4px;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--sv-colored-ink);
+}
+
+.interrupt-voice.is-speaking .voice-orb-core {
+  background: var(--sv-green);
+}
+
+.interrupt-voice.is-speaking .voice-orb-play {
+  opacity: 0;
+  transform: scale(0.4);
+}
+
+.interrupt-voice.is-speaking .voice-orb-bars {
+  opacity: 1;
+}
+
+.interrupt-voice.is-speaking .voice-orb-bars i {
+  animation: voice-orb-bar 0.8s ease-in-out infinite;
+}
+
+.interrupt-voice.is-speaking .voice-orb-bars i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.interrupt-voice.is-speaking .voice-orb-bars i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.interrupt-voice.is-speaking .voice-orb-bars i:nth-child(4) {
+  animation-delay: 0.1s;
+}
+
+@keyframes voice-orb-bar {
+  50% {
+    height: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .interrupt-voice.is-speaking .voice-orb-bars i {
+    height: 13px;
+    animation: none;
+  }
+}
+
+/* The task and the time left, as a strip across the bottom of the card. */
+.interrupt-task {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 14px -16px 0;
+  padding: 9px 16px;
+  border-top: var(--border);
+}
+
+.interrupt-task strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.interrupt-task > span {
+  flex: none;
+  font-size: 0.72rem;
+}
+
+/* Back to my task on top; the two allowances share the row below. */
+.interrupt-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.interrupt-actions .primary {
+  grid-column: 1 / -1;
+}
+
+/* Allow once beside Back to my task, one row. */
+.interrupt-actions.is-pair .primary {
+  grid-column: auto;
+}
+
+.interrupt-actions button {
+  min-height: 40px;
+}
+
+.overlay-view .feedback-toast {
+  right: 12px;
+  bottom: 12px;
+  font-size: 0.62rem;
+}
+
+.history-page {
+  display: grid;
+  gap: 14px;
+  container-type: inline-size;
+  container-name: history;
+}
+
+.history-toolbar {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 12px;
+  padding: 10px 12px;
+}
+
+.history-week-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.history-week-arrow {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  font-size: 1rem;
+}
+

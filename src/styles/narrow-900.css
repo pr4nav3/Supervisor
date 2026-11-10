@@ -1,0 +1,90 @@
+@media (max-width: 900px) {
+  .rule-editor > label,
+  .rule-name-field,
+  .rule-preview,
+  .rule-editor .rule-editor-actions {
+    grid-column: 1 / -1;
+  }
+
+  .rule-editor .rule-editor-actions {
+    justify-self: start;
+  }
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(16, 16, 16, 0.22);
+}
+
+.modal-panel {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
+  background: var(--sv-panel);
+}
+
+.modal-head {
+  margin-bottom: 14px;
+}
+
+.modal-head h2,
+.subpage-head h2 {
+  font-size: 1.6rem;
+  line-height: 1;
+}
+
+.preflight-panel {
+  width: min(760px, 100%);
+  padding: 22px;
+}
+
+.preflight-panel .modal-head {
+  align-items: flex-start;
+  margin-bottom: 22px;
+}
+
+.preflight-panel .modal-head h2 {
+  margin-top: 6px;
+  font-size: 1.8rem;
+}
+
+.preflight-main {
+  display: grid;
+  gap: 18px;
+}
+
+.preflight-goal {
+  display: grid;
+  gap: 8px;
+}
+
+.preflight-goal > span,
+.duration-head > span {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.preflight-goal input {
+  min-height: 44px;
+  background: var(--sv-soft-white);
+}
+
+.duration-field {
+  display: grid;
+  gap: 10px;
+}
+
+.duration-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

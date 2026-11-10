@@ -1,0 +1,143 @@
+
+/* A readout, not a button: no border or shadow. */
+.duration-head output {
+  min-width: 78px;
+  padding: 8px 0;
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  text-align: right;
+}
+
+#preflight-duration {
+  appearance: none;
+  width: calc(100% - 76px);
+  min-height: 12px;
+  margin: 2px 38px 0;
+  padding: 0;
+  border: 2px solid var(--sv-border);
+  border-radius: 5px;
+  /* --range-p is 0 to 1. The thumb's centre runs from 12px to 100% - 12px (its own width),
+     so the yellow fill ends under it and the labels below sit under its stops. */
+  --thumb: calc(12px + var(--range-p, 0) * (100% - 24px));
+  background:
+    linear-gradient(
+      90deg,
+      var(--sv-yellow) 0 var(--thumb),
+      var(--sv-panel-alt) var(--thumb) 100%
+    );
+}
+
+#preflight-duration::-webkit-slider-thumb {
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--sv-border);
+  border-radius: 6px;
+  background: var(--sv-green);
+  box-shadow: var(--shadow-control);
+  cursor: grab;
+}
+
+/* 40px: the slider's 38px margin plus its 2px border, inside which the thumb travels. */
+.duration-ticks {
+  position: relative;
+  height: 12px;
+  margin: -4px 40px 0;
+  color: var(--sv-ink);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+
+.duration-ticks span {
+  position: absolute;
+  left: calc(12px + var(--p) * (100% - 24px));
+  transform: translateX(-50%);
+}
+
+.preflight-disclosure {
+  overflow: hidden;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
+}
+
+.preflight-disclosure summary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-size: var(--sv-type-4);
+  list-style: none;
+}
+
+.preflight-disclosure summary::-webkit-details-marker {
+  display: none;
+}
+
+.preflight-disclosure summary::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-top: 6px solid transparent;
+  border-bottom: 6px solid transparent;
+  border-left: 9px solid var(--sv-border);
+  transition: transform 140ms ease;
+}
+
+.preflight-disclosure[open] summary {
+  background: var(--sv-yellow);
+}
+
+.preflight-disclosure[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.disclosure-body {
+  padding: 12px;
+  border-top: 1px solid rgba(16, 16, 16, 0.28);
+  background: var(--sv-soft-white);
+}
+
+.preflight-advanced {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+/* The panel scrolls when Distractions and Advanced are open in a short window; Start stays in
+   reach at its foot. A panel-coloured band around it and below it fills the padding, so a row
+   scrolling under slides beneath a gap rather than into the button's edge. */
+.preflight-start {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  width: 100%;
+  min-height: 46px;
+  margin-top: 14px;
+  box-shadow: var(--shadow-control), 0 0 0 10px var(--sv-panel), 0 24px 0 10px var(--sv-panel);
+}
+
+.modal-actions {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.subpage-head {
+  justify-content: flex-start;
+  margin-bottom: 14px;
+}
+
+.voice-page {
+  display: grid;
+  gap: 14px;
+}
+
+.voice-page .subpage-head {
+  margin-bottom: 0;
+}
+

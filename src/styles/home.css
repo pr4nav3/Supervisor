@@ -1,0 +1,451 @@
+/* Home fills the window: the grid grows and the start button sits on the bottom edge. */
+.home-ready {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 0;
+  container-type: inline-size;
+}
+
+.home-grid {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+/* Onboarding line (while needed), the quote taking what is left, the last session. */
+.home-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.panel.quote-card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  background: var(--sv-yellow);
+  min-height: 150px;
+  padding: 14px 18px 16px;
+  /* The card takes the room the column leaves; its own text never asks for more. Without this,
+     fitQuote's larger font grew the card, and with it the column, past the window. */
+  contain: size;
+  overflow: hidden;
+}
+
+.quote-card blockquote {
+  margin: 10px 0 0;
+  font-size: 1.5rem; /* fitQuote() sets the real size once the card is laid out */
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  overflow-wrap: break-word;
+  text-wrap: balance;
+}
+
+.quote-by {
+  margin-top: auto;
+  padding-top: 12px;
+  opacity: 0.75;
+  font-size: var(--sv-type-4);
+}
+
+.panel.cal-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 18px;
+}
+
+.streak-line {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.streak-line strong {
+  font-size: 3rem;
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.85;
+}
+
+.streak-line span {
+  font-size: 1.35rem;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.streak-rule {
+  margin: -4px 0 0;
+  color: var(--sv-ink);
+  font-size: var(--sv-type-4);
+  opacity: 0.8;
+}
+
+.cal-grid {
+  display: grid;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-rows: auto;
+  grid-auto-rows: minmax(34px, 1fr);
+  gap: 8px;
+}
+
+.cal-dow {
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+/* A past day lifts like a raised button and its date slides out for its focused time. The
+   clip hides the sliding date and time at the day's edge, but leaves the right and bottom open
+   by its shadow's 4px, so the shadow and the hover strip below still show and still count. */
+.cal-day {
+  position: relative;
+  min-height: 34px;
+  border: var(--border);
+  border-radius: 5px;
+  padding: 4px 6px;
+  background: var(--sv-soft-white);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  clip-path: inset(0 -4px -4px 0 round 5px);
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out;
+}
+
+.cal-day.is-out {
+  border-color: var(--sv-border);
+  background: transparent;
+  color: var(--sv-ink);
+  opacity: 0.6;
+}
+
+.cal-day.is-on {
+  border-color: var(--sv-colored-ink);
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.cal-day.is-out.is-on {
+  opacity: 0.6;
+}
+
+.cal-day.is-today {
+  border-color: var(--sv-colored-ink);
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+  font-weight: 700;
+}
+
+.cal-day.is-future {
+  border-style: dashed;
+  border-color: var(--sv-border);
+  background: transparent;
+  color: var(--sv-ink);
+  opacity: 0.6;
+}
+
+/* Hidden until the focus days load, so the calendar pops in once, with its colours. */
+.cal-grid.is-waiting .cal-day {
+  opacity: 0;
+}
+
+/* Backwards, not both: a held end frame would pin the transform and stop the hover lift. The
+   curve eases out without overshooting, so no day grows past its size and settles back. */
+.cal-grid.is-animated .cal-day {
+  animation: cal-pop 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+}
+
+/* A card that lifts under the mouse keeps the strip it moves off as part of itself. Without it,
+   with the cursor on a bottom or right edge the card slides out from under it, drops back,
+   and lifts again, over and over. The strip sits behind the card's content, so buttons inside
+   still take their own clicks. */
+.cal-day,
+.voice-card.is-pickable,
+button.share-door,
+button.share-pick,
+button.share-card,
+.panel.trend-door,
+button.wp-day {
+  position: relative;
+}
+
+:is(
+    .cal-day:not(.is-future),
+    .voice-card.is-pickable,
+    .week-hero-stat,
+    .report-stat,
+    button.share-door:not([aria-disabled="true"]),
+    button.share-pick,
+    button.share-card,
+    .panel.trend-door,
+    .trend-point
+  ):hover::after,
+.wp-week:hover button.wp-day:not(:disabled)::after {
+  position: absolute;
+  inset: 0 -3px -3px 0;
+  z-index: -1;
+  content: "";
+}
+
+.cal-day:not(.is-future):hover {
+  z-index: 1;
+  opacity: 1;
+  transform: translate(-2px, -2px);
+  box-shadow: 4px 4px 0 var(--sv-shadow-color);
+}
+
+.cal-num {
+  display: block;
+}
+
+.cal-num,
+.cal-time {
+  transition:
+    opacity 140ms ease-out,
+    transform 140ms ease-out;
+}
+
+.cal-time {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-content: center;
+  justify-content: center;
+  column-gap: 0.3em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.1;
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.cal-day:not(.is-future):hover .cal-num {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+.cal-day:not(.is-future):hover .cal-time {
+  opacity: 1;
+  transform: none;
+}
+
+/* Without motion the lift and the swap still happen, just at once. */
+@media (prefers-reduced-motion: reduce) {
+  .cal-day,
+  .cal-num,
+  .cal-time {
+    transition: none;
+  }
+}
+
+/* Only a start frame: each day eases into its own look, so a faded future day or a day from
+   another month never flashes at full strength first. It slides, never scales, so it is drawn
+   at its real size throughout. */
+@keyframes cal-pop {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.cal-card .eyebrow {
+  margin: 0;
+  color: var(--sv-ink);
+}
+
+/* The hint sits centred between the card and the panel's edge: the same 10px gap above as
+   padding below, and any spare height split around it. */
+.panel.last-session-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px 10px;
+}
+
+.share-hint {
+  margin: auto 0;
+  color: var(--sv-muted);
+  font-size: 0.62rem;
+  text-align: center;
+}
+
+.share-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  border: var(--border);
+  border-radius: var(--radius-card);
+  background-color: var(--sv-canvas);
+  background-image:
+    linear-gradient(var(--sv-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--sv-grid-line) 1px, transparent 1px);
+  background-size: 14px 14px;
+  box-shadow: 3px 3px 0 var(--sv-shadow-color);
+  color: var(--sv-ink);
+  font: inherit;
+  letter-spacing: 0;
+  text-align: left;
+  text-transform: none;
+  cursor: pointer;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+button.share-card:hover,
+button.share-card:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 var(--sv-shadow-color);
+}
+
+button.share-card:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--sv-shadow-color);
+}
+
+/* Before the first session: the same shape, drawn as an outline. */
+.share-card.is-empty {
+  border-style: dashed;
+  box-shadow: none;
+  cursor: default;
+  opacity: 0.7;
+}
+
+.share-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.share-head strong {
+  display: -webkit-box;
+  overflow: hidden;
+  min-width: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.share-head span {
+  flex: 0 1 auto;
+  max-width: 58%;
+  color: var(--sv-muted);
+  font-size: 0.72rem;
+  line-height: 1.25;
+  text-align: right;
+}
+
+.share-strip {
+  position: relative;
+  display: block;
+  overflow: visible;
+  height: 30px;
+  margin-top: 2px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--sv-soft-white);
+}
+
+.share-strip .strip-on { background: var(--sv-green); }
+.share-strip .strip-off { background: var(--sv-coral); }
+
+/* Segments sit in a clipped layer so the strip's corners stay round; the nudge marks stay outside it. */
+.share-strip-fill {
+  position: absolute;
+  inset: 0;
+  display: block;
+  overflow: hidden;
+  border-radius: 3px;
+}
+
+.share-strip i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.share-strip b {
+  position: absolute;
+  top: -9px;
+  width: 0;
+  height: 0;
+  margin-left: -5px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 7px solid var(--sv-ink);
+}
+
+.share-stats {
+  display: grid;
+  /* Three across when there is room; a narrow card wraps the tiles rather than squeezing the numbers. */
+  grid-template-columns: repeat(auto-fit, minmax(78px, 1fr));
+  gap: 8px;
+  margin-top: 4px;
+}
+
+/* Each stat is a small tile in the app's own card language. */
+.share-stats > span {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  border: var(--border);
+  border-radius: 5px;
+  padding: 7px 8px 8px;
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+}
+
+/* Labels may wrap; values never do, so fitShareStats() shrinks any that would overflow. */
+.share-stats small {
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+
+.share-stats strong {
+  margin-top: auto;
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.onboard-card {
+  width: 100%;
+  padding: 10px 14px;
+}
+
+.onboard-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.onboard-head .eyebrow {
+  margin: 0;
+}
+

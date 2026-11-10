@@ -1,0 +1,1036 @@
+/* "?" opens the how-to; it sits at the far end of the title row. */
+.voice-help-button {
+  min-width: 36px;
+  min-height: 36px;
+  margin-left: auto;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Model and memory: two History-style tiles, each with a › into its numbers. Red when it blocks. */
+.voice-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.voice-tile {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px 10px 16px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+  color: var(--sv-ink);
+}
+
+.voice-tile .eyebrow {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.voice-tile strong {
+  display: block;
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-tile-dot {
+  width: 12px;
+  height: 12px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-green);
+}
+
+.voice-tile > button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: var(--sv-soft-white);
+  font-family: var(--font-sans);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.voice-tile.is-bad {
+  background: var(--sv-coral);
+  color: var(--sv-colored-ink);
+}
+
+.voice-tile.is-bad .eyebrow {
+  color: var(--sv-colored-ink);
+  opacity: 0.8;
+}
+
+.voice-tile.is-bad .voice-tile-dot {
+  background: var(--sv-soft-white);
+}
+
+/* "Derek speaks like Mom": the sentence, then one plain card per personality. */
+.personality-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+/* The sentence wraps beside its button; a long name is cut short, so it is two lines at most. */
+.personality-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.speaks-like {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+  min-width: 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.speaks-voice,
+.speaks-tone {
+  max-width: min(100%, 16ch);
+  overflow: hidden;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  padding: 0 10px;
+  color: var(--sv-colored-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.personality-head .small-button {
+  flex: none;
+  min-height: 34px;
+}
+
+.speaks-voice {
+  background: var(--sv-green);
+}
+
+.speaks-tone {
+  background: var(--sv-yellow);
+}
+
+.personality-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+button.personality-card {
+  min-width: 0;
+  min-height: 48px;
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-3);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+button.personality-card.is-on {
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+}
+
+button.personality-card span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Your own personality, chosen: its card with a ⋯ for Rename and Delete. */
+.personality-own {
+  position: relative;
+  display: grid;
+  min-width: 0;
+}
+
+.personality-own button.personality-card {
+  padding-right: 40px;
+}
+
+button.personality-more {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  transform: translateY(-50%);
+  background: var(--sv-soft-white);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+/* The ⋯ rides on its card: when the card presses in, it moves the same 2px and keeps its own
+   shadow. Pressed itself, it presses like any button. */
+.personality-own:has(> button.personality-card:active:not(:disabled)) button.personality-more {
+  transform: translate(2px, calc(-50% + 2px));
+}
+
+button.personality-more:active {
+  transform: translate(2px, calc(-50% + 2px));
+  box-shadow: none;
+}
+
+.personality-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 6px);
+  right: 0;
+  display: grid;
+  gap: 6px;
+  min-width: 140px;
+  padding: 8px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-panel);
+  box-shadow: var(--shadow);
+}
+
+.personality-menu button {
+  justify-content: flex-start;
+  min-height: 34px;
+}
+
+.personality-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
+}
+
+.personality-form input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.personality-form > span {
+  flex: 1;
+  min-width: 200px;
+  font-size: var(--sv-type-3);
+}
+
+.lines-title {
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+/* Each card is as tall as its lines; a short one does not stretch to its neighbour. */
+.moment-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 12px;
+}
+
+.clips-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
+}
+
+.moment-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: baseline;
+}
+
+.moment-head .eyebrow {
+  margin: 0;
+}
+
+.moment-head > span {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.moment-head .moment-when {
+  grid-column: 1 / -1;
+}
+
+.moment-card > .empty {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+/* Too few lines where they repeat: the app's warning yellow, flat. */
+.moment-nudge {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+  font-size: var(--sv-type-3);
+}
+
+.moment-nudge strong {
+  font-weight: 650;
+}
+
+.moment-foot {
+  display: flex;
+  padding-top: 10px;
+  border-top: 1.5px solid color-mix(in srgb, var(--sv-ink) 18%, transparent);
+}
+
+.moment-foot .small-button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.line-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.line-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  padding: 8px 12px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+}
+
+.line-text {
+  font-size: 0.84rem;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.line-row.is-busy {
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+}
+
+.line-dot {
+  flex: none;
+  width: 11px;
+  height: 11px;
+  border: 1.5px solid var(--sv-border);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.line-dot.is-ready {
+  background: var(--sv-green);
+}
+
+.line-state {
+  font-size: var(--sv-type-4);
+  color: var(--sv-muted);
+  white-space: nowrap;
+}
+
+.line-state.is-busy {
+  color: inherit;
+}
+
+.line-state.is-bad,
+.clips-hint.is-bad,
+.field-help.is-bad,
+.explain.is-bad {
+  color: var(--sv-error);
+}
+
+.webcam-side .panel > .field-help {
+  margin: -4px 0 8px;
+}
+
+.line-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.line-actions .small-button {
+  min-height: 32px;
+  padding: 0 10px;
+}
+
+.line-actions .voice-play {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.line-actions .voice-play svg {
+  width: 10px;
+  height: 10px;
+}
+
+.clips-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 12px;
+  padding-top: 12px;
+  border-top: 1.5px solid color-mix(in srgb, var(--sv-ink) 18%, transparent);
+}
+
+.clips-foot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.clips-foot .small-button {
+  min-height: 36px;
+}
+
+.clips-foot .clips-generate {
+  min-height: 40px;
+  padding: 0 16px;
+}
+
+.clips-hint {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.clips-hint.is-ready {
+  color: var(--sv-ink);
+}
+
+.line-popup {
+  width: min(520px, 100%);
+}
+
+.line-count {
+  justify-self: end;
+  margin-top: -6px;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+}
+
+.line-audio-block {
+  display: grid;
+  gap: 6px;
+}
+
+.line-audio-label {
+  font-size: var(--sv-type-4);
+}
+
+.line-audio {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 10px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+}
+
+.line-audio-wave {
+  width: 100%;
+  height: 36px;
+  color: var(--sv-ink);
+}
+
+.line-audio.is-stale .line-audio-wave {
+  opacity: 0.45;
+}
+
+/* The line box grows from one row as the words come (fitLineBox). */
+.line-popup .phrase-editor textarea {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.new-personality-popup p {
+  margin: 0;
+  color: var(--sv-muted);
+}
+
+.line-audio-note {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.line-audio-note:empty {
+  display: none;
+}
+
+.line-popup-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.line-popup-gap {
+  flex: 1;
+}
+
+.line-popup-ask {
+  flex: 1;
+  font-weight: 650;
+}
+
+@media (max-width: 760px) {
+  .moment-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Edit voice: the name field with its button beside it. */
+.voice-rename {
+  display: grid;
+}
+
+.voice-rename-status {
+  margin-left: 6px;
+  color: var(--sv-muted);
+  font-style: normal;
+}
+
+/* The three popups off this page share one shape. */
+.voice-popup {
+  display: grid;
+  gap: 12px;
+  width: min(480px, 100%);
+  padding: 16px;
+}
+
+.voice-popup p {
+  margin: 0;
+  font-size: var(--sv-type-3);
+}
+
+.voice-popup .quiet {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.voice-popup .modal-actions {
+  justify-content: flex-end;
+}
+
+.voice-help-steps {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 18px;
+  font-size: var(--sv-type-3);
+}
+
+.voice-kv {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.voice-kv div {
+  padding: 8px 10px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+}
+
+.voice-kv span {
+  display: block;
+  color: var(--sv-muted);
+  font-size: 0.62rem;
+}
+
+.voice-kv strong {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--sv-type-2);
+  font-weight: 700;
+}
+
+.voice-kv strong.is-bad {
+  color: var(--sv-error);
+}
+
+@media (max-width: 640px) {
+  .voice-tiles,
+  .voice-kv {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .line-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .line-row .line-actions {
+    grid-column: 2;
+    justify-self: start;
+  }
+}
+
+.voice-roster-panel,
+.phrase-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.voice-roster-panel .rule-toolbar {
+  align-items: center;
+}
+
+.new-voice-button {
+  min-width: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.68rem;
+}
+
+/* Room for a card's lift and shadow: the row clips what falls outside it. No scroll snapping:
+   WebKit re-snaps when a card widens for its hello and drifts the row sideways. */
+.voice-list {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 4px 4px 2px;
+}
+
+.voice-card {
+  display: flex;
+  flex: 0 0 auto;
+  width: 170px;
+  min-width: 170px;
+  flex-direction: column;
+  gap: 8px;
+  border: var(--border);
+  border-radius: var(--radius-card);
+  padding: 10px;
+  background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
+}
+
+.voice-card strong {
+  flex: 0 0 auto;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  overflow: hidden;
+  font-size: 1.2rem;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+
+/* The card is the Select button, drawn like one: a 2px shadow at rest. Hover lifts it 1px and the
+   shadow grows 1px, so its edge stays put; a press sinks it into the shadow. Its buttons ride
+   along with it, and pressing one of them leaves the card where it is. */
+.voice-card.is-pickable {
+  cursor: pointer;
+  transition: transform 100ms ease, box-shadow 100ms ease;
+}
+
+.voice-card.is-pickable:hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--sv-shadow-color);
+}
+
+.voice-card.is-pickable:active:not(:has(button:active)) {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+.voice-card:focus-visible {
+  outline: 3px solid var(--sv-yellow);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-card.is-pickable {
+    transition: none;
+  }
+}
+
+.voice-card-top {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+
+.voice-card-top strong {
+  flex: 1;
+  min-width: 0;
+  text-overflow: ellipsis;
+}
+
+.voice-card-tag {
+  font-size: 0.68rem;
+  opacity: 0.75;
+}
+
+/* Card spans are mono labels; these are sentences. */
+.voice-card .voice-card-speaks,
+.voice-card .voice-card-quiet,
+.voice-card .voice-card-note {
+  font-family: var(--font-sans);
+  text-transform: none;
+}
+
+.voice-card-speaks {
+  margin-top: -4px;
+  font-size: var(--sv-type-3);
+}
+
+.voice-card-speaks b {
+  font-weight: 650;
+}
+
+.voice-card .voice-card-note {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.voice-card .voice-card-quiet {
+  margin-top: -4px;
+  font-size: var(--sv-type-3);
+  opacity: 0.8;
+}
+
+/* Play on the left (the orb while it plays), Edit on the right. */
+.voice-card-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 6px;
+}
+
+/* The buttons take the panel's colour, in both themes; the orb keeps its green. */
+.voice-card-foot button:not(.is-playing) {
+  background: var(--sv-panel);
+}
+
+.voice-card-foot button.voice-play {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.voice-card-foot button.voice-play svg {
+  width: 9px;
+  height: 9px;
+}
+
+/* While the voice says hello, the card widens a little to carry the words beside the play
+   button, and the words wrap rather than push the row's other cards out of sight. */
+/* The box is the theme's panel in both themes, dark or cream, with the theme's ink on it, even
+   on the selected green card: it is gone again the moment the voice stops. */
+.voice-card .voice-card-line,
+.voice-card.selected .voice-card-line {
+  display: none;
+  min-width: 0;
+  padding: 4px 7px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-panel);
+  color: var(--sv-ink);
+  font-family: var(--font-sans);
+  font-size: 0.74rem;
+  font-weight: 650;
+  line-height: 1.2;
+  text-transform: none;
+  flex: 1 1 auto;
+}
+
+.voice-card.is-speaking {
+  width: auto;
+  max-width: 300px;
+}
+
+.voice-card.is-speaking .voice-card-line {
+  display: block;
+}
+
+/* Edit voice, as the personality cards' ⋯. */
+.voice-card-foot button.voice-card-more {
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  letter-spacing: 0;
+}
+
+/* A play button while its clip plays: the session-done orb, small. It turns green, and four bars
+   move in it in place of the triangle. */
+.mini-orb {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  height: 12px;
+}
+
+.mini-orb i {
+  width: 2px;
+  height: 25%;
+  border-radius: 1px;
+  background: var(--sv-colored-ink);
+  animation: mini-orb-bar 0.8s ease-in-out infinite;
+}
+
+.mini-orb i:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.mini-orb i:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+.mini-orb i:nth-child(4) {
+  animation-delay: 0.1s;
+}
+
+@keyframes mini-orb-bar {
+  50% {
+    height: 100%;
+  }
+}
+
+button.is-playing .mini-orb {
+  display: flex;
+}
+
+button.is-playing svg,
+button.is-playing .voice-preview-icon {
+  display: none;
+}
+
+button.voice-play.is-playing,
+button.voice-preview-play.is-playing {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mini-orb i {
+    height: 70%;
+    animation: none;
+  }
+}
+
+.voice-card.selected {
+  background: var(--sv-green);
+}
+
+.voice-card.selected button,
+.voice-card.selected button.voice-play svg {
+  color: var(--sv-ink);
+}
+
+.voice-play svg {
+  display: block;
+  width: 11px;
+  height: 11px;
+}
+
+audio {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+}
+
+.phrase-panel > .eyebrow {
+  margin: 0;
+}
+
+.recording-panel {
+  width: min(820px, 100%);
+}
+
+.recording-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr);
+  gap: 12px;
+}
+
+.recording-stage,
+.recording-review {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  border: var(--border);
+  border-radius: var(--radius-card);
+  padding: 14px;
+  background: var(--sv-soft-white);
+}
+
+.recording-stage {
+  justify-items: center;
+  text-align: center;
+}
+
+.mic-button {
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  padding: 0;
+  background: var(--sv-green);
+}
+
+.mic-button span {
+  width: 34px;
+  height: 46px;
+  border: var(--border);
+  border-radius: 18px 18px 12px 12px;
+  background: var(--sv-ink);
+}
+
+.mic-button.recording {
+  background: var(--sv-coral);
+}
+
+.recording-error {
+  color: var(--sv-coral);
+  font-size: var(--sv-type-3);
+}
+
+.delete-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.busy-backdrop {
+  z-index: 24;
+}
+
+.busy-panel {
+  width: min(460px, 100%);
+}
+
+.busy-panel h2 {
+  margin-bottom: 8px;
+  font-size: 1.4rem;
+  line-height: 1;
+}
+
+.loading-bar {
+  overflow: hidden;
+  height: 16px;
+  margin-top: 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+}
+
+.loading-bar span {
+  display: block;
+  width: 38%;
+  height: 100%;
+  background: var(--sv-ink);
+  animation: loading-sweep 1.1s linear infinite;
+}
+
+.loading-bar.determinate span {
+  animation: none;
+  transform: none;
+}
+
+.download-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--sv-ink);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.busy-note {
+  margin-top: 12px;
+}
+
+@keyframes loading-sweep {
+  0% {
+    transform: translateX(-105%);
+  }
+  100% {
+    transform: translateX(280%);
+  }
+}
+
+.overlay-shell {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: 8px;
+}
+
+.overlay-slab {
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  padding: 12px 12px 10px;
+  box-shadow: var(--shadow-control);
+}
+

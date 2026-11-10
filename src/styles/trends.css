@@ -1,0 +1,393 @@
+/* Trends: three cards in the app's state colours. Focus is the hero (bars, full width);
+   attention span keeps the yellow of the History chart; recovery sits on a plain panel. */
+.trends-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.trend-card {
+  --plot-ink: #141410;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px 18px 12px;
+  min-width: 0;
+}
+
+.trend-focus {
+  grid-column: 1 / -1;
+  background: var(--sv-green);
+}
+
+.trend-span {
+  background: var(--sv-yellow);
+}
+
+.trend-focus :is(p, span),
+.trend-span :is(p, span) {
+  color: #141410;
+}
+
+.trend-recovery {
+  --plot-ink: var(--sv-ink);
+}
+
+/* On the dark panel the line reads as a grey mark, not a cream border. */
+[data-theme="dark"] .trend-recovery {
+  --plot-ink: #8f8c82;
+}
+
+.trend-head {
+  display: grid;
+  gap: 6px;
+}
+
+.trend-head p {
+  margin: 0;
+}
+
+.trend-hint {
+  margin-top: -4px;
+  font-size: 0.7rem;
+  opacity: 0.7;
+}
+
+.trend-figure {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.trend-value {
+  font-size: clamp(1.9rem, 4cqi, 2.5rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.trend-value small {
+  margin-left: 6px;
+  font-size: var(--sv-type-3);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* The range: the History toolbar's arrows and title, with a compact Weeks / Months beside them,
+   on one line at the default window size. */
+.trends-toolbar {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+
+.trends-toolbar .history-week-nav {
+  min-width: 0;
+}
+
+.trends-toolbar .history-week-nav h2 {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 1.05rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trends-toolbar .history-seg {
+  flex: none;
+  gap: 8px;
+}
+
+.trends-toolbar .history-seg button {
+  min-width: 0;
+  min-height: 34px;
+  padding: 0 14px;
+  font-size: var(--sv-type-4);
+}
+
+/* Bars: the week chart in History. The cards' ink, a paler bar for the period in progress, a
+   short outline for one with no sessions, and a dashed average with its tag on the right. */
+/* An ink axis under the bars, like the line charts, with a gap so no bar ever touches it. */
+.trend-bars-plot {
+  --track: 170px;
+  --axis-gap: 6px;
+  position: relative;
+  /* Room for the widest Avg tag, a month of three-digit hours ("Avg 744h 59m", 102px). */
+  padding-right: 108px;
+  padding-bottom: var(--axis-gap);
+  border-bottom: 2.5px solid #141410;
+}
+
+/* A tighter gap than the week chart, so twelve bars still read as wide; the labels match it. */
+.recap-bars.trend-bars {
+  min-height: 0;
+  margin-top: 0;
+  padding-top: 34px;
+  gap: 6px;
+}
+
+.trend-bars .recap-bar-track {
+  justify-content: center;
+  height: var(--track);
+}
+
+/* Width follows the count (--bar-w, set in renderTrendBars), never wider than its column. */
+.trend-bars .recap-bar {
+  width: min(100%, var(--bar-w));
+  height: 12px;
+  min-height: 0;
+  border: 2px solid rgba(20, 20, 16, 0.35);
+  border-radius: 5px;
+  background: transparent;
+}
+
+.trend-bars .recap-bar.is-on {
+  border-color: #141410;
+  background: #fff7df;
+}
+
+.trend-bars .recap-bar.is-on.is-now {
+  background: color-mix(in srgb, #fff7df 55%, var(--sv-green));
+}
+
+.trend-bars .week-tip {
+  color: var(--sv-ink);
+}
+
+/* Placed at the same height a bar of the average would reach (see renderTrendBars), and drawn
+   first so every bar sits in front of it. */
+.trend-avg {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 0;
+  border-top: 2px dashed #141410;
+  pointer-events: none;
+}
+
+.trend-avg b {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: #141410;
+  color: var(--sv-green);
+  font-size: var(--sv-type-4);
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateY(-50%);
+}
+
+/* Labels sit just under the axis line. */
+.trend-ticks {
+  display: grid;
+  gap: 6px;
+  margin-top: 4px;
+  padding-right: 108px;
+}
+
+/* A label may spill into a neighbour's room; only where that neighbour's label is hidden. */
+.trend-ticks span {
+  justify-self: center;
+  font-size: var(--sv-type-4);
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.8;
+}
+
+/* Lines: the finished periods joined, a dashed typical line, the period in progress unjoined. */
+.trend-line-plot {
+  position: relative;
+  height: 120px;
+  margin-top: 4px;
+  color: var(--plot-ink);
+}
+
+.trend-line-plot svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.trend-path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-typical {
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Points sit above the lines, solid, so a line never shows through one. */
+.trend-point {
+  position: absolute;
+  z-index: 1;
+  width: 11px;
+  height: 11px;
+  border: 2px solid #141410;
+  border-radius: 2px;
+  background: #fff7df;
+  transform: translate(-50%, -50%);
+  transition: transform 100ms ease-out;
+  cursor: default;
+}
+
+.trend-recovery .trend-point {
+  background: var(--sv-coral);
+}
+
+/* The period in progress is a point like the others; the line stops short of it, which says
+   it isn't done. */
+
+.trend-point:hover,
+.trend-point:focus-visible {
+  z-index: 2;
+  outline: none;
+  transform: translate(calc(-50% - 2px), calc(-50% - 2px));
+}
+
+.trend-point .week-tip {
+  color: var(--sv-ink);
+  transform: translate(-50%, 6px);
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+
+.trend-point:hover .week-tip,
+.trend-point:focus-visible .week-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* Line charts have no Avg tag to make room for. Points sit at each column's exact centre
+   (no gap), so the labels' columns must not have one either. */
+.trend-line-plot + .trend-ticks {
+  column-gap: 0;
+  padding-right: 0;
+}
+
+.trend-baseline {
+  stroke: currentColor;
+  stroke-width: 2.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.trend-empty {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  margin: 0;
+  font-size: var(--sv-type-4);
+  text-align: center;
+  opacity: 0.75;
+}
+
+.trend-pill {
+  padding: 3px 9px;
+  border: var(--border);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: #141410;
+}
+
+.trend-pill.is-good {
+  background: #fff7df;
+}
+
+/* Same look as the other dark-mode tags (RAM stamp, status chip). */
+[data-theme="dark"] .trend-card .trend-pill.is-good {
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+}
+
+.trend-pill.is-bad {
+  background: #ff684f;
+}
+
+.trend-line {
+  font-size: var(--sv-type-3);
+  opacity: 0.85;
+}
+
+@container history (max-width: 620px) {
+  .trends-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .trends-toolbar {
+    flex-wrap: wrap;
+  }
+
+  /* Twelve labels crowd a narrow card; every other one reads. */
+  .trend-ticks.is-crowded span:nth-child(even) {
+    visibility: hidden;
+  }
+
+  .trend-bars-plot,
+  .trend-ticks {
+    padding-right: 0;
+  }
+
+  .trend-avg b {
+    top: -26px;
+    right: auto;
+    left: 0;
+    transform: none;
+  }
+}
+
+.trends-locked :is(p, strong) {
+  color: #141410;
+}
+
+.trends-locked {
+  gap: 8px;
+  padding: 18px;
+}
+
+.trends-locked .span-value {
+  font-size: clamp(1.5rem, 3cqi, 2rem);
+}
+
+.trends-locked .span-caption {
+  max-width: 36rem;
+}
+
+.trend-pips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.trend-pips span {
+  width: 34px;
+  height: 12px;
+  border: var(--border);
+  border-radius: 3px;
+  background: transparent;
+}
+
+.trend-pips span.is-on {
+  background: var(--sv-green);
+}
+
+.trend-pips strong {
+  margin-left: 6px;
+  font-size: var(--sv-type-4);
+  font-weight: 600;
+}
+

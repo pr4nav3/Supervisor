@@ -1,0 +1,113 @@
+/* Session states. The live card and the status window draw waiting and away in fixed colours. */
+.state-focused {
+  background: var(--sv-green);
+}
+
+.state-paused,
+.state-suspicious,
+.state-break {
+  background: var(--sv-yellow);
+}
+
+.state-distracted {
+  background: var(--sv-coral);
+}
+
+.state-idle {
+  background: var(--sv-panel-alt);
+  color: var(--sv-ink);
+}
+
+.state-waiting {
+  background: var(--sv-soft-white);
+}
+
+:is(.active-session-grid, .overlay-shell) .state-waiting {
+  background: #fff7df;
+}
+
+:is(.active-session-grid, .overlay-shell) .state-idle {
+  background: #eadfc9;
+}
+
+.progress {
+  overflow: hidden;
+  height: 16px;
+  margin-top: 28px;
+  /* Fixed colours, like the live strip: the card is the same in both themes. */
+  border: 2px solid #141410;
+  border-radius: var(--radius-control);
+  background: #fff7df;
+}
+
+.progress span {
+  display: block;
+  height: 100%;
+  background: #141410;
+}
+
+.panel,
+.modal-panel {
+  min-width: 0;
+  padding: 16px;
+  background: var(--sv-panel);
+}
+
+.start-watch-button {
+  width: 100%;
+  min-height: 64px;
+  margin-top: 14px;
+  border-radius: var(--radius-card);
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.empty,
+.quiet {
+  border: var(--border);
+  border-radius: var(--radius-card);
+  padding: 12px;
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+  font-size: var(--sv-type-3);
+}
+
+label {
+  display: grid;
+  gap: 6px;
+}
+
+label span,
+dt {
+  color: var(--sv-ink);
+  font-size: var(--sv-type-4);
+  font-weight: 500;
+}
+
+.state-focused,
+.state-distracted {
+  color: var(--sv-colored-ink);
+}
+
+.primary {
+  background: var(--sv-green);
+}
+
+.danger {
+  background: var(--sv-coral);
+}
+
+.small-button {
+  min-width: 44px;
+}
+
+.settings-page {
+  display: grid;
+  gap: 10px;
+}
+
+.defaults-card {
+  padding: 14px 18px;
+}
+

@@ -1,0 +1,331 @@
+/* The first run: one step at a time, made of the same panels, cards and rows as Settings. */
+.modal-panel.first-run-panel {
+  display: grid;
+  gap: 14px;
+  width: min(640px, 100%);
+  padding: 22px;
+}
+
+.first-run-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 0;
+}
+
+.first-run-head h2 {
+  margin-top: 6px;
+}
+
+.first-run-copy {
+  margin: 0;
+  font-size: var(--sv-type-2);
+  line-height: 1.4;
+}
+
+.first-run-where {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.first-run-block {
+  display: grid;
+  gap: 6px;
+  padding: 12px 16px;
+}
+
+.first-run-block .eyebrow {
+  margin: 0;
+}
+
+.first-run-panel .setting-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 44px;
+}
+
+.first-run-ok {
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The reminder at a third of its size, beside what its two buttons do. */
+.reminder-preview {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: 16px;
+  align-items: center;
+  padding: 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-panel-alt);
+}
+
+.reminder-preview-cap {
+  margin: 0 0 8px;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini {
+  display: grid;
+  gap: 6px;
+  padding: 10px 10px 8px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-coral);
+  box-shadow: var(--shadow-control);
+  color: var(--sv-colored-ink);
+}
+
+.reminder-mini-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini > strong {
+  font-size: 1rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.reminder-mini-voice {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+}
+
+.reminder-mini-voice i {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-green);
+}
+
+.reminder-mini-voice small {
+  display: block;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.reminder-mini-voice em {
+  display: block;
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.reminder-mini-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+  margin-top: 2px;
+}
+
+.reminder-mini-buttons > span {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  border: var(--border);
+  border-radius: 5px;
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+  font-size: 0.5rem;
+}
+
+.reminder-mini-buttons > span.is-primary {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.reminder-preview-keys {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  font-size: var(--sv-type-3);
+  line-height: 1.4;
+}
+
+.reminder-preview-keys dt {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-3);
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.reminder-preview-keys dd {
+  margin: 0;
+  color: var(--sv-muted);
+}
+
+.reminder-preview-foot {
+  margin: 0;
+  padding-top: 10px;
+  border-top: 1px solid color-mix(in srgb, var(--sv-ink) 25%, transparent);
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+/* While the practice runs: what Supervisor sees right now. */
+.practice-live {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+}
+
+.practice-live i {
+  width: 12px;
+  height: 12px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-yellow);
+}
+
+.practice-live.is-hit i {
+  background: var(--sv-coral);
+}
+
+.practice-live b {
+  display: block;
+  font-size: 0.95rem;
+}
+
+.practice-live small {
+  display: block;
+  margin-top: 2px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.practice-live-tag {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+/* The first run's few cards share the panel's width, so the one that speaks takes its room from
+   the others and nothing scrolls out of sight. */
+.first-run-voices {
+  padding-bottom: 6px;
+}
+
+.first-run-voices .voice-card {
+  flex: 1 1 0;
+  min-width: 128px;
+}
+
+.first-run-voices .voice-card.is-speaking {
+  flex: 1.6 1 0;
+  max-width: none;
+}
+
+.first-run-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.first-run-actions .primary {
+  min-width: 150px;
+}
+
+/* A tip on Home: one line and its buttons, in Getting started's place and shape. */
+.home-tip-actions {
+  display: flex;
+  flex: none;
+  gap: 6px;
+}
+
+.home-tip-actions .small-button {
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.onboard-head .small-button {
+  min-height: 26px;
+  padding: 0 8px;
+}
+
+.status-chip,
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  padding: 0 12px;
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+  color: var(--sv-ink);
+  font-size: var(--sv-type-1);
+  font-weight: 500;
+}
+
+.tabs button,
+.theme-toggle,
+.settings-feature-card .voice-summary button,
+button[data-action="back-settings"],
+button[data-action="close-voice-info"],
+button[data-action="close-report"],
+button[data-action="close-recording"],
+button[data-action="cancel-delete-voice"] {
+  font-size: var(--sv-type-1);
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@container (max-width: 640px) {
+  .home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+}
+
+.webcam-home {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.webcam-side {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.webcam-side .setting-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  border-top: 0;
+}
+

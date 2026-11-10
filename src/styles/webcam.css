@@ -1,0 +1,201 @@
+/* The camera's name can be long, so it gets the whole row under its label. */
+.webcam-side .setting-row.camera-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 8px 0 10px;
+}
+
+.webcam-side .setting-row > span:first-child,
+.first-run-panel .setting-row > span:first-child {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.webcam-test-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.webcam-test-panel .eyebrow {
+  margin-bottom: 0;
+}
+
+.voice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.webcam-page .subpage-head h2 {
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+.webcam-stage {
+  min-height: 258px;
+}
+
+.webcam-side .quiet {
+  font-size: var(--sv-type-3);
+}
+
+.webcam-metrics div {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.webcam-metrics dt {
+  font-family: var(--font-sans);
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.webcam-metrics dd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.webcam-metrics dd::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border: var(--border);
+  border-radius: 50%;
+  background: var(--sv-soft-white);
+}
+
+.webcam-metrics .is-good dd {
+  color: var(--sv-ink);
+}
+
+.webcam-metrics .is-good dd::before {
+  background: var(--sv-green);
+}
+
+.webcam-metrics .is-bad dd {
+  color: var(--sv-ink);
+}
+
+.webcam-metrics .is-bad dd::before {
+  background: var(--sv-coral);
+}
+
+.webcam-note {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+  line-height: 1.4;
+}
+
+
+.webcam-frame-wrap,
+.webcam-frame-wrap img,
+.webcam-waiting {
+  background: var(--sv-soft-white);
+}
+
+.webcam-frame-wrap {
+  position: relative;
+  overflow: hidden;
+  margin: 16px auto 0;
+  aspect-ratio: 4 / 3;
+  max-height: min(420px, 46vh);
+  border: var(--border);
+  border-radius: var(--radius-card);
+}
+
+.webcam-frame-wrap img {
+  display: none;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  max-height: min(420px, 46vh);
+  object-fit: contain;
+}
+
+.webcam-frame-wrap.is-live img {
+  display: block;
+}
+
+.state-slab p.webcam-waiting {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  max-width: none;
+  margin: 0;
+  color: var(--sv-colored-ink);
+  font-size: 1.35rem;
+  font-weight: 400;
+}
+
+[data-theme="dark"] .state-slab p.webcam-waiting {
+  color: var(--sv-ink);
+}
+
+.webcam-frame-wrap.is-live .webcam-waiting {
+  display: none;
+  background: transparent;
+}
+
+.webcam-live-error {
+  margin-top: 10px;
+  color: var(--sv-colored-ink);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+}
+
+.webcam-metrics {
+  display: grid;
+  margin: 0;
+}
+
+.state-slab,
+.panel,
+.modal-panel {
+  border: var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
+}
+
+.state-slab {
+  min-height: 258px;
+  padding: 18px;
+  background: var(--sv-yellow);
+}
+
+.state-slab h2 {
+  margin-top: 30px;
+  font-size: 2.7rem;
+  font-weight: 650;
+  line-height: 1;
+}
+
+/* The stage's title: what the camera sees, at a card title's size, at the top of the card. */
+.state-slab.webcam-stage h2 {
+  margin-top: 0;
+  font-size: 1.7rem;
+}
+
+.state-slab.webcam-stage > p {
+  margin-top: 6px;
+}
+
+.state-slab p {
+  max-width: 620px;
+  margin-top: 12px;
+  font-size: var(--sv-type-3);
+}
+

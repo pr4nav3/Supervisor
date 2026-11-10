@@ -1,0 +1,345 @@
+/* Delete (or the starter note) on the left, Done on the right. */
+.voice-info-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.voice-info-foot > :only-child {
+  margin-left: auto;
+}
+
+.voice-info-note {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.confirm-panel {
+  width: min(420px, 100%);
+}
+
+/* Session done: the round-over card and its button, held in one panel over the report. */
+.session-over-card {
+  display: grid;
+  gap: 12px;
+  width: min(420px, 100%);
+}
+
+.session-over-card .interrupt-alert {
+  box-shadow: none;
+}
+
+/* The voice row a shade off the card behind it, its play button lighter again. */
+.session-over-card .interrupt-voice {
+  background: var(--sv-canvas);
+  color: var(--sv-ink);
+}
+
+.session-over-card .state-slab.interrupt-alert .interrupt-voice-who {
+  color: var(--sv-muted);
+}
+
+.session-over-card .state-slab.interrupt-alert .interrupt-voice-line {
+  color: var(--sv-ink);
+}
+
+.session-over-card .voice-orb-core {
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+}
+
+/* While the line plays the orb is green here too, as on every other card. */
+.session-over-card .interrupt-voice.is-speaking .voice-orb-core,
+[data-theme="dark"] .session-over-card .interrupt-voice.is-speaking .voice-orb-core {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.confirm-panel p {
+  color: var(--sv-ink);
+  font-size: var(--sv-type-3);
+}
+
+.confirm-panel p + p {
+  margin-top: 8px;
+}
+
+/* The summary line carries the card under the title; the hint is a quiet aside.
+   Scoped to the card so `.state-slab p` doesn't win. */
+.report-slab .report-meta {
+  margin-top: 8px;
+  color: var(--sv-ink);
+  font-size: 1.2rem;
+  font-weight: 550;
+}
+
+.report-slab .report-meta.report-hint {
+  margin-top: 4px;
+  font-size: var(--sv-type-4);
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+/* Holds the hint's line when there is no bar to hover, so the bar sits where it always does. */
+.report-slab .report-hint.is-placeholder {
+  visibility: hidden;
+}
+
+.timeline-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-empty span {
+  border-radius: var(--radius-control);
+  padding: 2px 8px;
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  text-transform: uppercase;
+}
+
+.timeline-wrap {
+  position: relative;
+  margin-top: 22px;
+}
+
+/* The hovered run pops out of the bar: a copy in its colour that sits on the run and grows past
+   the bar's edges, outside its clip; the rest of the bar stays as it is. */
+.timeline-lift {
+  position: absolute;
+  z-index: 2;
+  border: 2px solid var(--sv-border);
+  border-radius: 4px;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    left 120ms ease-out,
+    width 120ms ease-out,
+    top 160ms cubic-bezier(0.2, 0.9, 0.3, 1.25),
+    height 160ms cubic-bezier(0.2, 0.9, 0.3, 1.25),
+    opacity 80ms ease-out;
+}
+
+.timeline-lift.is-up {
+  opacity: 1;
+}
+
+.timeline-tip {
+  position: absolute;
+  bottom: calc(100% + 18px);
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 6px 9px;
+  border-radius: 5px;
+  background: #4c4b46;
+  color: #fff8e9;
+  font-size: 0.8rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Points down at the run, even when the tip is pushed in from the bar's ends. */
+.timeline-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: var(--caret, 50%);
+  border: 6px solid transparent;
+  border-top-color: #4c4b46;
+  transform: translateX(-50%);
+}
+
+/* A group of thin parts lists each one, with its colour. */
+.timeline-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.timeline-tip-row i {
+  width: 9px;
+  height: 9px;
+  border: 1px solid #fff8e9;
+  border-radius: 2px;
+}
+
+.timeline-tip b {
+  font-weight: 700;
+}
+
+.timeline-tip small {
+  display: block;
+  color: #c9c2b2;
+  font-size: 0.74rem;
+}
+
+.timeline-bar {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  height: 40px;
+  border: var(--border);
+  border-radius: 5px;
+}
+
+.timeline-span {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+
+.timeline-wrap:focus-visible {
+  outline: 2px solid var(--sv-border);
+  outline-offset: 4px;
+  border-radius: 6px;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    padding: 16px;
+  }
+
+  .topbar,
+  .voice-grid,
+  .webcam-home,
+  .recording-grid,
+  .history-item {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar {
+    display: grid;
+  }
+
+  .state-slab h2 {
+    font-size: 2.2rem;
+  }
+
+  .rule-editor,
+  .phrase-editor {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rule-editor-actions {
+    grid-column: 1 / -1;
+  }
+
+  .overlay-slab h2 {
+    font-size: 1.45rem;
+  }
+}
+
+@media (max-width: 620px) {
+  .tabs,
+.history-item dl,
+.setting-row,
+.delete-choice-grid,
+.rule-editor,
+.defaults-grid,
+.settings-feature-grid,
+.rule-group {
+    grid-template-columns: 1fr;
+  }
+
+  .rule-group {
+    align-items: start;
+  }
+
+  .preflight-advanced {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .rule-editor-actions,
+  .modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .modal-backdrop {
+    padding: 10px;
+  }
+}
+
+.state-slab,
+.state-slab :is(h2, p, .eyebrow, .report-meta):not(.webcam-waiting),
+.preflight-disclosure[open] summary,
+.preflight-disclosure[open] summary span,
+.quote-card,
+.quote-card :is(.eyebrow, blockquote, .quote-by),
+.span-card,
+.span-card :is(.eyebrow, .span-value, .span-caption),
+.voice-card.selected,
+.voice-card.selected :is(strong, p, span, canvas, svg),
+.webcam-stage > h2,
+.webcam-stage > p,
+.primary,
+.danger,
+.voice-preview-play,
+.notice,
+.feedback-toast,
+.tabs button.active,
+.rule-chip-distracting,
+.chips span,
+.overlay-pause,
+.overlay-marks .mark-distraction,
+.interrupt-alert,
+.interrupt-alert :is(h2, p, .interrupt-kicker) {
+  color: #141410;
+}
+
+.state-slab .empty {
+  color: var(--sv-ink);
+}
+
+:is(.timeline-bar, .mini-timeline) .state-focused,
+.legend-key.state-focused {
+  background: #a8eb37;
+}
+
+:is(.timeline-bar, .mini-timeline) :is(.state-suspicious, .state-distracted),
+.legend-key:is(.state-suspicious, .state-distracted) {
+  background: #ff684f;
+}
+
+/* Phone = the webcam saw a phone in hand. Violet: apart from distraction coral and away blue. */
+:is(.timeline-bar, .mini-timeline) .state-phone,
+.legend-key.state-phone {
+  background: #b07cf0;
+}
+
+/* Away = idle (no input) or device asleep / unknown. Cool blue so it never reads as Neutral. */
+:is(.timeline-bar, .mini-timeline) :is(.state-idle, .state-unknown),
+.legend-key.state-idle {
+  background: #7f93b5;
+}
+
+/* Empty bar = time with no recorded span (Supervisor in front, capture gap). Must not read as Neutral. */
+.timeline-bar,
+.mini-timeline,
+.legend-key.state-unrecorded {
+  background: repeating-linear-gradient(-45deg, #fff7df 0 4px, #d8ccb0 4px 5px);
+}
+
+.eyebrow,
+.chips,
+label span,
+dt,
+.feedback-toast,
+.active-goal span,
+.active-timer span,
+.quote-by,
+.webcam-waiting,
+.voice-card span,
+.status-chip,
+.preflight-disclosure summary,
+.download-meta,
+.overlay-progress > span,
+.interrupt-kicker,
+.legend-swatch span {
+  line-height: 1;
+}
+

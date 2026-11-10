@@ -1,0 +1,75 @@
+/* The app popup: the dialog, its fields and the start screen's two-way toggle. */
+.modal-panel.app-edit-panel {
+  display: grid;
+  gap: 14px;
+  width: min(400px, 100%);
+  padding: 18px 20px 20px;
+}
+
+.app-edit-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.app-edit-head h2 {
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+
+.app-edit-actions {
+  display: flex;
+  flex: none;
+  gap: 8px;
+}
+
+.app-edit-field {
+  display: grid;
+  gap: 6px;
+}
+
+.app-edit-field > span {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.app-edit-field input {
+  width: 100%;
+}
+
+.app-edit-field .mode-tabs {
+  margin: 0;
+}
+
+/* Work in the app's green, Distraction in its red, as everywhere else. */
+.app-edit-field .mode-tabs button.active[data-counts="work"] {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.app-edit-field .mode-tabs button.active[data-counts="distraction"] {
+  background: var(--sv-coral);
+  color: var(--sv-colored-ink);
+}
+
+/* "Allowed" after a name: the smallest label, muted. */
+.recap-app-tag {
+  margin-left: 8px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.app-edit-note,
+.app-edit-error {
+  margin: 0;
+  font-size: var(--sv-type-3);
+}
+
+.app-edit-note {
+  color: var(--sv-muted);
+}
+
+
+

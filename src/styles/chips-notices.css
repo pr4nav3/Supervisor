@@ -1,0 +1,48 @@
+/* The header chip while no session runs: today's streak minutes. Yellow while today is
+   short (a click starts the missing minutes), green once it counts. Ink on both, like the
+   app's other coloured controls, in either theme. */
+.status-chip.streak-chip.is-short {
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+}
+
+.status-chip.streak-chip.is-kept {
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+/* The live card's distraction chips read left to right, like a list. */
+.session-rule-chips {
+  justify-content: flex-start;
+}
+
+/* History storage trouble, or a Mac without Accessibility: the sentence and its button on one
+   row. In the running session's distractions card it sits between the chips and Edit, as does
+   the notice for a browser whose address bar can't be read. */
+.notice-storage,
+.notice-access {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.notice-access {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 10px 0;
+  line-height: 1.4;
+}
+
+.recording-prompt {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
+  font-size: var(--sv-type-3);
+  line-height: 1.45;
+  text-align: left;
+}

@@ -1,0 +1,1065 @@
+/* The week label is the way into the picker: a quiet button that turns yellow while it is open. */
+button.history-week-label {
+  min-height: 40px;
+  padding: 0 10px;
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+  color: inherit;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+button.history-week-label:hover,
+button.history-week-label:focus-visible {
+  border-color: var(--sv-border);
+  background: var(--sv-soft-white);
+}
+
+button.history-week-label.is-open {
+  border-color: var(--sv-border);
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+  box-shadow: var(--shadow-control);
+}
+
+button.history-week-label:active {
+  transform: none;
+}
+
+.history-week-nav h2 {
+  margin: 0;
+  font-size: clamp(1.1rem, 2.6cqi, 1.4rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+button.history-week-label.is-open h2 span {
+  color: inherit;
+  opacity: 0.7;
+}
+
+.history-week-today {
+  min-height: 32px;
+  margin-left: 4px;
+  padding: 0 10px;
+  background: var(--sv-green);
+  color: var(--sv-colored-ink);
+}
+
+.panel.week-picker {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 10px;
+  z-index: 5;
+  width: 340px;
+  max-width: calc(100% - 20px);
+  padding: 14px;
+}
+
+.week-picker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.week-picker-head strong {
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.week-picker-head button {
+  min-width: 30px;
+  min-height: 30px;
+  padding: 0;
+  background: var(--sv-soft-white);
+}
+
+.week-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0 5px;
+}
+
+.wp-dow {
+  padding-bottom: 5px;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-align: center;
+}
+
+button.wp-day {
+  aspect-ratio: 1 / 1;
+  min-height: 0;
+  padding: 0;
+  border: 1.5px solid var(--sv-border);
+  border-radius: 4px;
+  background: var(--sv-soft-white);
+  box-shadow: none;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+button.wp-day:active {
+  transform: none;
+}
+
+button.wp-day.is-out {
+  border-color: color-mix(in srgb, var(--sv-ink) 35%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--sv-ink) 60%, transparent);
+}
+
+button.wp-day.l1 {
+  background: color-mix(in srgb, var(--sv-green) 35%, var(--sv-soft-white));
+}
+
+button.wp-day.l2 {
+  background: color-mix(in srgb, var(--sv-green) 65%, var(--sv-soft-white));
+}
+
+button.wp-day.l3 {
+  background: var(--sv-green);
+}
+
+button.wp-day.l1,
+button.wp-day.l2,
+button.wp-day.l3 {
+  color: var(--sv-colored-ink);
+}
+
+button.wp-day.is-today {
+  font-weight: 700;
+}
+
+/* A row is a week and one box, gaps included, so the pointer never leaves it between two
+   days. Hovering anywhere on it lifts the whole week it would pick; the week that is showing
+   keeps its yellow. */
+.wp-week {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  padding: 2.5px 0;
+}
+
+.wp-week:hover button.wp-day:not(:disabled) {
+  outline: 2px solid var(--sv-ink);
+  outline-offset: -1px;
+  transform: translate(-1px, -1px);
+  box-shadow: 2px 2px 0 var(--sv-shadow-color);
+}
+
+button.wp-day.is-selected,
+.wp-week:hover button.wp-day.is-selected {
+  outline: 3px solid var(--sv-yellow);
+  outline-offset: -1px;
+}
+
+button.wp-day.is-future,
+button.wp-day.is-future:disabled {
+  border-style: dashed;
+  border-color: color-mix(in srgb, var(--sv-ink) 40%, transparent);
+  background: transparent;
+  color: color-mix(in srgb, var(--sv-ink) 60%, transparent);
+  opacity: 1;
+}
+
+.week-picker-note {
+  margin: 10px 0 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.history-week-nav h2 span {
+  margin-left: 8px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+  font-weight: 500;
+}
+
+.history-search {
+  display: flex;
+  flex: 0 1 320px;
+  align-items: center;
+  gap: 10px;
+  min-width: 200px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: var(--border);
+  border-radius: 6px;
+  background: var(--sv-soft-white);
+}
+
+/* The search box's frame shades as a whole; its input inside stays clear. */
+.history-search:focus-within {
+  background-image: linear-gradient(var(--field-focus-shade), var(--field-focus-shade));
+}
+
+.history-search svg {
+  flex: none;
+}
+
+.history-search input,
+.history-search input:focus {
+  width: 100%;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  background-image: none !important;
+  box-shadow: none;
+  font-size: var(--sv-type-3);
+  outline: none;
+}
+
+.history-search input::-webkit-search-cancel-button {
+  cursor: pointer;
+}
+
+.history-search-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 0 2px;
+}
+
+.history-search-head p {
+  margin: 0;
+}
+
+.history-search-head p + p {
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+}
+
+/* The week's hero beside the door into Trends. */
+.history-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.panel.week-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+}
+
+.week-hero .eyebrow,
+.week-hero .recap-bar-col {
+  color: var(--sv-colored-ink);
+}
+
+/* Top-aligned: the figure hugs its eyebrow instead of sinking to the cards' baseline. */
+.week-hero-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.week-hero-value {
+  font-size: clamp(2.6rem, 6cqi, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+  white-space: nowrap;
+}
+
+/* The figure keeps its one line; when the panel is narrow the two tiles drop under it. */
+.week-hero-figure {
+  display: grid;
+  flex: 1 1 0;
+  min-width: min-content;
+  gap: 6px;
+}
+
+.week-hero-note {
+  margin: 0;
+  max-width: 34ch;
+  white-space: pre-line;
+  font-size: var(--sv-type-3);
+  line-height: 1.3;
+}
+
+.week-hero-stats {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+/* The two figures sit on the app's own card colour, whichever theme is on. Like the report's
+   tiles they lift under the mouse and turn over on a click to say what the number is; the
+   front sets the size and the explanation lies over it. */
+:is(.week-hero-stat, .report-stat) {
+  position: relative;
+  padding: 0;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-panel);
+  box-shadow: var(--shadow-control);
+  color: var(--sv-ink);
+  perspective: 600px;
+}
+
+.week-hero-stat {
+  display: block;
+  min-width: 128px;
+  cursor: pointer;
+}
+
+:is(.week-hero-stat, .report-stat):hover {
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--sv-shadow-color);
+}
+
+:is(.week-hero-stat, .report-stat):active {
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--sv-shadow-color);
+}
+
+:is(.week-hero-stat-face, .report-stat-face) {
+  backface-visibility: hidden;
+  transition: transform 260ms ease, opacity 260ms ease;
+}
+
+.week-hero-stat-face {
+  display: block;
+  padding: 8px 12px 9px;
+}
+
+:is(.week-hero-stat-back, .report-stat-back) {
+  font-size: var(--sv-type-4);
+  line-height: 1.2;
+  transform: rotateX(180deg);
+  opacity: 0;
+}
+
+.week-hero-stat-back {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  overflow: hidden;
+  padding: 4px 9px;
+}
+
+:is(.week-hero-stat, .report-stat).is-flipped :is(.week-hero-stat-face, .report-stat-face) {
+  transform: rotateX(-180deg);
+  opacity: 0;
+}
+
+:is(.week-hero-stat, .report-stat).is-flipped :is(.week-hero-stat-back, .report-stat-back) {
+  transform: none;
+  opacity: 1;
+}
+
+.week-hero-stat .eyebrow {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: 0.66rem;
+}
+
+.week-hero-stat strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.week-hero-bars {
+  min-height: 0;
+  margin-top: 6px;
+  padding-top: 28px;
+  gap: 10px;
+}
+
+.week-hero .recap-bar-track {
+  height: 120px;
+}
+
+/* Empty days are a short outline; days with work fill in ink; today stays light so it reads as unfinished. */
+.week-hero .recap-bar {
+  height: 12px;
+  min-height: 0;
+  border: 2px solid rgba(20, 20, 16, 0.35);
+  border-radius: 5px;
+  background: transparent;
+}
+
+.week-hero .recap-bar.is-on {
+  border-color: #141410;
+  background: var(--sv-green);
+}
+
+.week-hero .recap-bar.is-on.is-today {
+  background: color-mix(in srgb, var(--sv-green) 45%, #fff7df);
+}
+
+/* Bars rise from the baseline once, left to right; `backwards` keeps them flat through the delay
+   and leaves hover transforms alone once done. */
+/* Bars grow up from the baseline by their real height, never by scaling: a scaled bar is drawn
+   soft and a hair small until it ends, then snaps to full size. Each bar's own height is the end
+   frame. The curve eases out without overshooting. */
+.week-hero-bars.is-animated .recap-bar.is-on,
+.trend-bars.is-animated .recap-bar.is-on,
+.trend-spark.is-animated .trend-spark-bar {
+  animation: bar-rise 600ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+
+@keyframes bar-rise {
+  from {
+    height: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .week-hero-bars.is-animated .recap-bar.is-on,
+  .trend-bars.is-animated .recap-bar.is-on,
+  .trend-spark.is-animated .trend-spark-bar {
+    animation: none;
+  }
+}
+
+.week-hero .recap-bar.is-today:not(.is-on) {
+  border-color: #141410;
+}
+
+/* The right column: the Share card, then the Trends door filling the rest of the week card's height. */
+.history-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.history-side .trend-door {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* The Share card: a button in the shape of a small panel, one line and a quiet "Copy" that
+   darkens with the lift. Without a week to share it sits dimmed and still. */
+button.share-door {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 18px;
+  color: var(--sv-ink);
+  cursor: pointer;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+button.share-door:hover,
+button.share-door:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--sv-shadow-color);
+}
+
+button.share-door:active {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--sv-shadow-color);
+}
+
+button.share-door:hover .trend-door-go,
+button.share-door:focus-visible .trend-door-go {
+  color: var(--sv-ink);
+  transform: translateX(2px);
+}
+
+button.share-door[aria-disabled="true"],
+button.share-door[aria-disabled="true"]:hover {
+  transform: none;
+  box-shadow: var(--shadow-control);
+  cursor: default;
+}
+
+button.share-door[aria-disabled="true"] strong {
+  color: var(--sv-muted);
+}
+
+.share-door-text {
+  display: block;
+  min-width: 0;
+}
+
+.share-door-text .eyebrow {
+  margin: 0;
+}
+
+/* The Share popup: two columns, each a card drawn as it will be copied, with its button. */
+.share-panel {
+  width: min(900px, 100%);
+  padding: 20px 22px 22px;
+}
+
+/* The popup's head only: the card's own head keeps its baseline row. */
+.modal-head.share-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.share-sub {
+  margin: 8px 0 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.share-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-items: stretch;
+}
+
+/* The card at the top, its button at the foot, so the two buttons share a line. */
+.share-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.share-preview {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.share-preview-empty {
+  aspect-ratio: 648 / 520;
+}
+
+button.share-pick,
+button.trend-spark-track,
+.review-later {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
+/* A card that copies on click: no button box of its own, it lifts like the cards beside it. */
+button.share-pick {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+  will-change: transform;
+}
+
+button.share-pick:hover,
+button.share-pick:focus-visible {
+  transform: translate(-2px, -2px);
+}
+
+button.share-pick:active {
+  transform: translate(1px, 1px);
+}
+
+.share-note {
+  margin: 0;
+  min-height: 40px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+  line-height: 40px;
+}
+
+@media (max-width: 720px) {
+  .share-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.share-door-text strong {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The card is the door. It lifts under the mouse like the day card and the calendar's days, and
+   presses on click; a quiet "View trends" in its header says what the click does. The bars are
+   their own targets, so the card holds still over the whole chart: a cursor run across the bars
+   should not shake the card, and a click in a gap opens nothing. */
+.panel.trend-door {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 14px 18px 16px;
+  cursor: pointer;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.panel.trend-door:hover:not(:has(.trend-spark:hover)),
+.panel.trend-door:focus-visible {
+  transform: translate(-2px, -2px);
+  box-shadow: 6px 6px 0 var(--sv-shadow-color);
+}
+
+.panel.trend-door:active:not(:has(.trend-spark:active)) {
+  transform: translate(1px, 1px);
+  box-shadow: 2px 2px 0 var(--sv-shadow-color);
+}
+
+.trend-door .eyebrow {
+  margin: 0;
+}
+
+.trend-door-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.trend-door-go {
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: color 120ms ease-out, transform 120ms ease-out;
+}
+
+.panel.trend-door:hover:not(:has(.trend-spark:hover)) .trend-door-go,
+.panel.trend-door:focus-visible .trend-door-go {
+  color: var(--sv-ink);
+  transform: translateX(2px);
+}
+
+/* The figure and its reading on one line; with a chart below, the reading never wraps. */
+.trend-door-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 4px;
+}
+
+/* No weeks yet: the line goes under the title and reads at body size, so the card has something in it. */
+.trend-door-line.is-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.trend-door-line.is-stacked .trend-door-caption {
+  max-width: 28ch;
+  font-size: var(--sv-type-3);
+  line-height: 1.35;
+}
+
+.trend-door-line .trend-door-value {
+  flex: none;
+  white-space: nowrap;
+}
+
+.trend-door-line .trend-door-caption {
+  min-width: 0;
+}
+
+.trend-door.has-chart .trend-door-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Four weeks of bars, no axis; the viewed week is solid, the running week an outline. */
+/* The same bars as the week's days, in ink rather than green: the viewed week is solid, the
+   rest sit back, the running week is a hollow outline, an empty week a short outline. Every
+   colour is a theme token, so dark mode flips them with the panel. */
+.trend-spark {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 10px;
+  /* The same height as the week's bars beside it, so the two charts share a baseline; the
+     room above is the card's, like the hero's space between its tiles and its bars. */
+  min-height: 96px;
+  max-height: 146px;
+  /* The band runs to the card's edges, so the sides of the bars hold the card still too;
+     only above and below it does the card lift. The padding puts the bars back in place. */
+  margin: auto -18px 0;
+  padding: 26px 18px 0;
+}
+
+/* A bar is a button that opens its week: no box of its own, the bar is the whole of it. */
+button.trend-spark-track {
+  border-radius: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.trend-spark-track {
+  position: relative;
+  display: flex;
+  flex: 1;
+  align-items: flex-end;
+  min-width: 0;
+}
+
+button.trend-spark-track:focus-visible .trend-spark-bar:not(.is-empty) {
+  transform: translate(-2px, -2px);
+}
+
+button.trend-spark-track:focus-visible .week-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* A hovered bar's tip paints over its neighbours and the card's text. */
+.trend-spark-track:hover {
+  z-index: 2;
+}
+
+.trend-spark-bar {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 12px;
+  min-height: 0;
+  border: var(--border);
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--sv-ink) 38%, var(--sv-panel));
+  transition: transform 100ms ease-out;
+}
+
+.trend-spark-track:hover .trend-spark-bar:not(.is-empty) {
+  transform: translate(-2px, -2px);
+}
+
+.trend-spark-track:hover .week-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+.trend-spark-bar .week-tip {
+  z-index: 2;
+  transform: translate(-50%, 6px);
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+
+.trend-spark-bar.is-viewed {
+  background: var(--sv-ink);
+}
+
+.trend-spark-bar.is-running {
+  border-color: var(--sv-muted);
+  background: transparent;
+}
+
+.trend-spark-bar.is-running.is-viewed {
+  border-color: var(--sv-ink);
+  background: color-mix(in srgb, var(--sv-ink) 18%, var(--sv-panel));
+}
+
+/* A label under every bar: its week, "So far" for this one, bold for the one being viewed. */
+.trend-spark-labels {
+  display: flex;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.trend-spark-labels span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sv-muted);
+  font-family: var(--font-mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.trend-spark-labels .is-viewed {
+  color: var(--sv-ink);
+  font-weight: 700;
+}
+
+.trend-spark-bar.is-empty {
+  border-color: color-mix(in srgb, var(--sv-ink) 35%, transparent);
+  background: transparent;
+}
+
+.trend-door-value {
+  font-size: 1.45rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+.trend-door-caption {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+/* Sessions or Apps & sites: one list under the week at a time. */
+.history-seg-row {
+  display: flex;
+  justify-content: center;
+}
+
+.history-seg {
+  display: inline-flex;
+  gap: 12px;
+}
+
+.history-seg button {
+  min-width: 170px;
+  min-height: 40px;
+  font-size: var(--sv-type-1);
+}
+
+.history-seg button.is-on {
+  background: var(--sv-yellow);
+  color: var(--sv-colored-ink);
+  font-weight: 600;
+}
+
+.week-apps {
+  display: grid;
+  gap: 14px;
+  padding: 18px 22px 16px;
+}
+
+/* Two boxes side by side, each as tall as its own rows. */
+.week-app-cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 28px;
+}
+
+.week-app-empty {
+  margin: 0;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-3);
+}
+
+.week-app-cols .eyebrow {
+  margin: 0;
+  color: var(--sv-muted);
+}
+
+.week-app-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+}
+
+.week-app-foot button {
+  min-height: 32px;
+  padding: 0 10px;
+  background: var(--sv-panel);
+}
+
+.span-card {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-height: 0;
+  padding: 16px 18px 12px;
+  background: var(--sv-yellow);
+}
+
+.span-value {
+  margin: 0;
+  font-size: clamp(2rem, 4.2cqi, 2.6rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.span-caption {
+  margin: 0 0 8px;
+  font-size: var(--sv-type-3);
+}
+
+.recap-head {
+  justify-content: flex-start;
+  margin-bottom: 0;
+}
+
+.recap-head > div:first-of-type {
+  margin-right: auto;
+}
+
+/* The section's title in the ink, its groups' labels in the muted tone below it. */
+.recap-apps .recap-apps-title {
+  margin: 0 0 8px;
+  font-size: var(--sv-type-1);
+  font-weight: 500;
+  color: var(--sv-ink);
+}
+
+.recap-apps {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.recap-bars {
+  display: grid;
+  align-items: end;
+  gap: 8px;
+  margin-top: 18px;
+  min-height: 160px;
+  padding-top: 36px;
+}
+
+button.recap-bar-col {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font: inherit;
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: default;
+}
+
+button.recap-bar-col:hover,
+button.recap-bar-col:focus-visible {
+  z-index: 1;
+}
+
+button.recap-bar-col:active {
+  transform: none;
+  box-shadow: none;
+}
+
+.recap-bar-track {
+  display: flex;
+  align-items: flex-end;
+  overflow: visible;
+  width: 100%;
+  height: 150px;
+}
+
+.recap-bar {
+  position: relative;
+  width: 100%;
+  min-height: 10px;
+  border: var(--border);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--sv-ink) 22%, var(--sv-panel));
+  transition: transform 100ms ease-out;
+}
+
+.week-tip {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  padding: 3px 7px;
+  border: var(--border);
+  border-radius: 4px;
+  background: var(--sv-panel);
+  color: var(--sv-ink);
+  font-family: var(--font-mono);
+  font-size: var(--sv-type-4);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+}
+
+button.recap-bar-col .week-tip {
+  transform: translate(-50%, 6px);
+  transition: opacity 100ms ease-out, transform 100ms ease-out;
+}
+
+button.recap-bar-col:hover .week-tip,
+button.recap-bar-col:focus-visible .week-tip {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* The first and last bars' tips hug their bar's edge instead of centring on it: centred, the
+   hidden tip would hang past the page and give History a sideways scroll. */
+button.recap-bar-col:first-child .week-tip,
+.trend-spark-track:first-child .week-tip {
+  left: 0;
+  transform: translate(0, 6px);
+}
+
+button.recap-bar-col:last-child .week-tip,
+.trend-spark-track:last-child .week-tip {
+  left: auto;
+  right: 0;
+  transform: translate(0, 6px);
+}
+
+button.recap-bar-col:first-child:hover .week-tip,
+button.recap-bar-col:first-child:focus-visible .week-tip,
+button.recap-bar-col:last-child:hover .week-tip,
+button.recap-bar-col:last-child:focus-visible .week-tip {
+  transform: translate(0, 0);
+}
+
+button.recap-bar-col:hover .recap-bar,
+button.recap-bar-col:focus-visible .recap-bar {
+  transform: translate(-2px, -2px);
+}
+
+button.recap-bar-col:active .recap-bar {
+  transform: none;
+}
+
+.recap-bar.is-on {
+  background: var(--sv-green);
+}
+
+.recap-bar-label {
+  font-size: var(--sv-type-4);
+  font-weight: 500;
+}
+

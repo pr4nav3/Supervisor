@@ -1,0 +1,233 @@
+/* The cards take a bit under half the window, so the timer has room without the view
+   stretching to the bottom edge; past 400px they stop growing. */
+.active-session-grid {
+  display: grid;
+  min-height: clamp(300px, 46vh, 400px);
+  grid-template-columns: minmax(0, 1.45fr) minmax(230px, 0.72fr);
+  align-items: stretch;
+  gap: 14px;
+}
+
+.active-state-card {
+  display: flex;
+  flex-direction: column;
+  min-height: 280px;
+}
+
+/* Two groups: "Current session" with the state under it, then the goal label with the goal.
+   `.state-slab.` outranks the shared `.state-slab h2` rule further down, which otherwise
+   wins the tie and pushes the state 30px away from its label. */
+.state-slab.active-state-card h2 {
+  margin-top: 6px;
+  font-size: clamp(2.4rem, 7cqi, 3.5rem);
+  font-weight: 750;
+  letter-spacing: -0.04em;
+}
+
+.active-goal {
+  margin-top: 28px;
+}
+
+.active-goal span,
+.active-timer span {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.active-goal strong {
+  display: block;
+  margin-top: 6px;
+  font-size: var(--sv-type-2);
+  font-weight: 650;
+}
+
+.active-timer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  margin-top: auto;
+  padding-top: 28px;
+}
+
+.active-timer strong {
+  font-size: clamp(2.6rem, 8cqi, 3.8rem);
+  font-weight: 750;
+  letter-spacing: -0.05em;
+  line-height: 0.9;
+}
+
+/* The session so far: work in ink, distractions in coral, away in grey, the time left empty,
+   a cream tick at now. No green, so it reads on every state colour of the card. */
+.live-strip {
+  position: relative;
+  overflow: hidden;
+  height: 26px;
+  margin-top: 14px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  /* Fixed colours: the bar reads the same in both themes. */
+  background: #fff7df;
+}
+
+.live-strip i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+}
+
+.live-strip .strip-on {
+  background: #101010;
+}
+
+.live-strip .strip-off {
+  background: #ff684f;
+}
+
+.live-strip .strip-away {
+  background: #8d8a80;
+}
+
+.live-strip .live-now {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: #fff7df;
+  box-shadow: 0 0 0 1px #101010;
+}
+
+/* So far above Distractions: numbers you glance at go above the list you rarely edit. */
+.session-side {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 14px;
+  min-width: 0;
+}
+
+/* Three across while REMINDERS fits a tile (78px); in a narrow window the third takes its own
+   row rather than its label running out of the tile. */
+.sofar-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.sofar-tile {
+  flex: 1 1 78px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: var(--border);
+  border-radius: var(--radius-control);
+  background: var(--sv-soft-white);
+}
+
+.sofar-tile span {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.sofar-tile strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 1.15rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.session-rules-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.session-rules-card,
+.rule-group {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.rule-chip-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.no-session-rules,
+.rule-chip,
+.add-target-button {
+  display: inline-block;
+  width: max-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.no-session-rules {
+  border: var(--border);
+  border-radius: var(--radius-control);
+  padding: 6px 10px;
+  background: var(--sv-soft-white);
+  font-size: var(--sv-type-3);
+}
+
+/* The live session shows six distractions, plus any allowed once, and a "…" for the rest: Edit distractions has them all. */
+.session-rule-chips .session-rule-more {
+  width: auto;
+  max-width: none;
+  flex: 0 0 auto;
+  overflow: visible;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--sv-ink);
+  font-size: 1.7rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.06em;
+  transform: translateY(-0.18em);
+}
+
+.no-session-rules {
+  color: var(--sv-ink);
+}
+
+.session-rules-card > button {
+  width: 100%;
+  margin-top: auto;
+}
+
+.active-session-controls {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 1fr;
+  gap: 12px;
+}
+
+/* Big buttons get a bigger face: a size up, bolder, and a shadow to match their weight. */
+.active-session-controls button {
+  min-height: 64px;
+  box-shadow: 4px 4px 0 var(--sv-shadow-color);
+  font-size: 1rem;
+  font-weight: 650;
+}
+
+.active-session-controls button:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
+}
+
