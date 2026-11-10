@@ -7,7 +7,7 @@ type RuleTarget = "app" | "website";
 /** A browser's own pages (New Tab, settings, files) are "app": the browser itself. */
 type ActivityKind = "app" | "website" | "other_websites";
 type Strictness = "gentle" | "normal" | "strict";
-type SessionStatus = "idle" | "active" | "paused" | "snoozed" | "complete";
+type SessionStatus = "idle" | "active" | "paused" | "snoozed";
 type FocusState = "focused" | "suspicious" | "distracted" | "idle";
 type Tab = "session" | "settings" | "history";
 type AppView = "main" | "overlay";
@@ -132,9 +132,7 @@ interface SessionMetrics {
 /** What the webcam says during a session. Only flags; frames never reach the session. */
 interface CameraStatus {
   live: boolean;
-  present: boolean;
   phone: boolean;
-  phone_seconds: number;
   /** Past the strictness grace: the popup shows and the phone is nudged when due. */
   phone_distracted: boolean;
 }

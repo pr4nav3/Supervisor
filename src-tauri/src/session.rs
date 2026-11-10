@@ -1119,7 +1119,6 @@ impl Session {
         self.close_open_span(now, storage);
         self.claim_tail(now, storage);
         self.finish_timer_hold(now);
-        self.status = SessionStatus::Complete;
     }
 
     /// Seconds into the session with pauses cut out, so the spans are the timer's time only.
@@ -1513,10 +1512,6 @@ impl Session {
             .is_some_and(|at| now.saturating_sub(at) <= CAMERA_STALE_AFTER)
     }
 
-    fn camera_sees_someone(&self, now: Duration) -> bool {
-        self.camera_live(now) && self.camera.present
-    }
-
     /// Nobody in view for `CAMERA_AWAY_AFTER`, and no input since they left. Input always wins:
     /// someone typing is there even if the camera misses them.
     fn camera_away(&self, sample: &ActivitySample, now: Duration) -> bool {
@@ -1587,9 +1582,7 @@ impl Session {
             .map_or(0, |since| now.saturating_sub(since).as_secs());
         CameraStatus {
             live: self.camera_live(now),
-            present: self.camera_sees_someone(now),
             phone: self.phone_active(),
-            phone_seconds,
             phone_distracted: self.phone_active() && phone_seconds >= self.phone_grace_seconds(),
         }
     }
@@ -1741,7 +1734,6 @@ pub enum SessionStatus {
     Active,
     Paused,
     Snoozed,
-    Complete,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -1788,10 +1780,7 @@ pub struct CurrentSession {
 pub struct CameraStatus {
     /// Frames are arriving.
     pub live: bool,
-    pub present: bool,
     pub phone: bool,
-    /// How long this phone has been in view.
-    pub phone_seconds: u64,
     /// Past the grace: the popup shows and the phone is nudged when due.
     pub phone_distracted: bool,
 }
