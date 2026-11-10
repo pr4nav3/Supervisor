@@ -497,13 +497,6 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-const starterRules: AppRule[] = ["youtube.com", "netflix.com", "tiktok.com", "instagram.com", "reddit.com"].map(
-  (value) => ({
-    target: "website",
-    value,
-  }),
-);
-
 /** Every personality has lines for each moment. The two that repeat all session want a few. */
 const MOMENTS: { id: PhraseMoment; label: string; when: string; often: boolean }[] = [
   { id: "nudge", label: "Back to work", when: "When you get distracted", often: true },
@@ -627,7 +620,7 @@ let shareOpen = false;
 let shareMonth: MonthRecap | null = null;
 let historyHydrated = false;
 const knownHistoryIds = new Set<number>();
-let permanentRules = cloneRules(starterRules);
+let permanentRules: AppRule[] = [];
 let preflightOpen = false;
 /** Distractions the user allowed for the session about to start. */
 let preflightExceptions: AppRule[] = [];
@@ -753,9 +746,6 @@ let distractionLatchedAt = 0;
 let momentKey = "";
 let momentShownAt = 0;
 let momentDismissed = "";
-const webcamSettings = {
-  phoneUse: false,
-};
 let webcamFrame: WebcamFrame | null = null;
 let webcamError = "";
 /** The last camera error said as a toast, so a repeating one is said once until it clears. */
@@ -793,7 +783,6 @@ async function init(): Promise<void> {
       invoke<Record<string, string>>("get_app_names"),
     ]);
     settings = loadedSettings;
-    webcamSettings.phoneUse = loadedSettings.webcam_enabled;
     siteNames = loadedSiteNames;
     appNames = loadedAppNames;
     history = loadedHistory;
@@ -2957,11 +2946,11 @@ function renderWebcamSettings(): string {
         <section class="state-slab webcam-stage ${webcamStateClass(frame, alerting)}" aria-live="polite">
           <h2 id="webcam-title">${escapeHtml(webcamTitle(frame, alerting))}</h2>
           <p id="webcam-copy">${escapeHtml(webcamCopy(frame, alerting))}</p>
-          <div class="webcam-frame-wrap${frame?.jpeg && webcamSettings.phoneUse ? " is-live" : ""}" id="webcam-frame-wrap">
+          <div class="webcam-frame-wrap${frame?.jpeg && settings.webcam_enabled ? " is-live" : ""}" id="webcam-frame-wrap">
             <img id="webcam-preview" alt="" />
             <p id="webcam-waiting" class="webcam-waiting">${escapeHtml(webcamWaitingCopy())}</p>
           </div>
-          <p id="webcam-live-error" class="webcam-live-error"${webcamSettings.phoneUse && webcamError ? "" : " hidden"}>${escapeHtml(webcamError)}</p>
+          <p id="webcam-live-error" class="webcam-live-error"${settings.webcam_enabled && webcamError ? "" : " hidden"}>${escapeHtml(webcamError)}</p>
         </section>
 
         <div class="webcam-side">
@@ -2970,7 +2959,7 @@ function renderWebcamSettings(): string {
             <label class="setting-row toggle-row">
               <span>Turn on webcam models</span>
               <span class="toggle-field">
-                <input id="webcam-phone-use" class="toggle-input" type="checkbox" ${webcamSettings.phoneUse ? "checked" : ""} aria-label="Turn on webcam models" />
+                <input id="webcam-phone-use" class="toggle-input" type="checkbox" ${settings.webcam_enabled ? "checked" : ""} aria-label="Turn on webcam models" />
                 <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
               </span>
             </label>
@@ -3032,7 +3021,7 @@ function renderWebcamMetrics(frame: WebcamFrame | null): string {
   const face = Boolean(frame?.face_in_frame);
   const phone = Boolean(frame?.phone_in_frame);
   return `
-    <dl class="webcam-metrics"${webcamSettings.phoneUse ? "" : " hidden"}>
+    <dl class="webcam-metrics"${settings.webcam_enabled ? "" : " hidden"}>
       <div class="${face ? "is-good" : ""}"><dt>Face</dt><dd>${face ? "In view" : "Out of view"}</dd></div>
       <div class="${phone ? "is-bad" : ""}"><dt>Phone or watch</dt><dd>${phone ? "Seen" : "Not seen"}</dd></div>
     </dl>
@@ -6561,7 +6550,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     render();
     void refreshCameras();
     // The backend turns the camera on for a preview: with the switch off it stays off.
-    if (webcamSettings.phoneUse) {
+    if (settings.webcam_enabled) {
       await startWebcamPreview();
     }
     return;
@@ -8079,7 +8068,8 @@ function paintRecordingClock(): void {
 
 /** Saved, because sessions run the webcam only when this is on. */
 async function setWebcamEnabled(enabled: boolean): Promise<void> {
-  webcamSettings.phoneUse = enabled;
+  const was = settings.webcam_enabled;
+  settings.webcam_enabled = enabled;
   webcamHitStreak = 0;
   try {
     settings = await invoke<SessionSettings>("update_settings", {
@@ -8089,15 +8079,15 @@ async function setWebcamEnabled(enabled: boolean): Promise<void> {
   } catch (error) {
     // A toast, not the error line: that line is hidden while the switch is off, which is
     // where a failed save to turn it on leaves it.
+    settings.webcam_enabled = was;
     showFeedback(`Couldn't save that: ${errorText(error)}`, 4000);
     const box = document.getElementById("webcam-phone-use") as HTMLInputElement | null;
     if (box) {
-      box.checked = settings.webcam_enabled;
+      box.checked = was;
     }
   }
-  webcamSettings.phoneUse = settings.webcam_enabled;
   // The first run's switch shares this; only the Webcam page shows a preview.
-  if (webcamSettings.phoneUse) {
+  if (settings.webcam_enabled) {
     if (settingsView === "webcam" && activeTab === "settings") {
       void startWebcamPreview();
     }
@@ -8218,7 +8208,7 @@ function paintWebcamDom(): void {
   const img = document.getElementById("webcam-preview") as HTMLImageElement | null;
   const wrap = document.getElementById("webcam-frame-wrap");
   // A frame from before the switch went off is not shown as live.
-  if (img && frame?.jpeg && webcamSettings.phoneUse) {
+  if (img && frame?.jpeg && settings.webcam_enabled) {
     img.src = `data:image/jpeg;base64,${frame.jpeg}`;
     img.alt = "Webcam preview";
     wrap?.classList.add("is-live");
@@ -8248,7 +8238,7 @@ function paintWebcamDom(): void {
   const liveError = document.getElementById("webcam-live-error");
   if (liveError) {
     liveError.textContent = webcamError;
-    liveError.hidden = !(webcamSettings.phoneUse && webcamError);
+    liveError.hidden = !(settings.webcam_enabled && webcamError);
   }
   const gpuNote = document.getElementById("webcam-gpu-note");
   if (gpuNote) {
@@ -8261,7 +8251,7 @@ function paintWebcamDom(): void {
 }
 
 function webcamWouldAlert(frame: WebcamFrame | null): boolean {
-  return frame !== null && webcamSettings.phoneUse && frame.phone_in_frame;
+  return frame !== null && settings.webcam_enabled && frame.phone_in_frame;
 }
 
 /** Red with a phone out, green with someone in frame, plain otherwise. */
@@ -8273,7 +8263,7 @@ function webcamStateClass(frame: WebcamFrame | null, alerting: boolean): string 
 }
 
 function webcamWaitingCopy(): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Camera off";
   }
   if (webcamError) {
@@ -8283,7 +8273,7 @@ function webcamWaitingCopy(): string {
 }
 
 function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Webcam models off";
   }
   if (!frame) {
@@ -8296,7 +8286,7 @@ function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
 }
 
 function webcamCopy(frame: WebcamFrame | null, alerting: boolean): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Turn them on to get a reminder when your phone or watch comes out.";
   }
   if (!frame) {
