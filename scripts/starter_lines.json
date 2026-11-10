@@ -3,271 +3,325 @@
   {
    "id": "gentle_not_what_working_on",
    "tone": "gentle",
+   "moment": "nudge",
    "text": "Hey, that's not what we're working on."
   },
   {
    "id": "gentle_come_on_back",
    "tone": "gentle",
+   "moment": "nudge",
    "text": "Come on back, you were doing well."
   },
   {
    "id": "gentle_itll_keep",
    "tone": "gentle",
+   "moment": "nudge",
    "text": "Leave that for later, it'll keep."
   },
   {
    "id": "gentle_thats_enough",
    "tone": "gentle",
+   "moment": "nudge",
    "text": "Okay, that's enough, back we go."
   },
   {
    "id": "gentle_finish_the_work",
    "tone": "gentle",
+   "moment": "nudge",
    "text": "Finish the work first, then you can have that."
   },
   {
    "id": "gentle_phone_check_after",
    "tone": "gentle",
+   "moment": "phone",
    "text": "Put the phone down for a bit, you can check it after."
   },
   {
    "id": "gentle_phone_middle_of_something",
    "tone": "gentle",
+   "moment": "phone",
    "text": "Phone away, you're in the middle of something."
   },
   {
    "id": "gentle_phone_twenty_minutes",
    "tone": "gentle",
+   "moment": "phone",
    "text": "Leave the phone, it'll still be there in twenty minutes."
   },
   {
    "id": "gentle_phone_face_down",
    "tone": "gentle",
+   "moment": "phone",
    "text": "I see the phone. Pop it face down and carry on."
   },
   {
    "id": "gentle_round_stretch",
    "tone": "gentle",
+   "moment": "roundover",
    "text": "That's a round done. Stand up, stretch, get some water."
   },
   {
    "id": "gentle_round_take_five",
    "tone": "gentle",
+   "moment": "roundover",
    "text": "Nice one. Take five, you've earned it."
   },
   {
    "id": "gentle_session_good_work",
    "tone": "gentle",
+   "moment": "sessionover",
    "text": "And that's the session. Good work today."
   },
   {
    "id": "gentle_session_something_nice",
    "tone": "gentle",
+   "moment": "sessionover",
    "text": "All done. Go do something nice with the rest of your day."
   },
   {
    "id": "mom_see_from_here",
    "tone": "mom",
+   "moment": "nudge",
    "text": "I can see that from here, you know."
   },
   {
    "id": "mom_why_is_it_open",
    "tone": "mom",
+   "moment": "nudge",
    "text": "Is that your work? No? Then why is it open?"
   },
   {
    "id": "mom_come_over_there",
    "tone": "mom",
+   "moment": "nudge",
    "text": "Don't make me come over there."
   },
   {
    "id": "mom_five_minutes_hour",
    "tone": "mom",
+   "moment": "nudge",
    "text": "Five more minutes of that becomes an hour. I know you."
   },
   {
    "id": "mom_grounded",
    "tone": "mom",
+   "moment": "nudge",
    "text": "Close it, or you're grounded. Don't test me."
   },
   {
    "id": "mom_counting_to_three",
    "tone": "mom",
+   "moment": "nudge",
    "text": "I'm counting to three. One."
   },
   {
    "id": "mom_phone_not_asking_twice",
    "tone": "mom",
+   "moment": "phone",
    "text": "Phone down. I'm not asking twice."
   },
   {
    "id": "mom_phone_texting",
    "tone": "mom",
+   "moment": "phone",
    "text": "Who could you possibly be texting right now?"
   },
   {
    "id": "mom_phone_mine_till_dinner",
    "tone": "mom",
+   "moment": "phone",
    "text": "Phone away, or it's mine till dinner."
   },
   {
    "id": "mom_phone_disappointed",
    "tone": "mom",
+   "moment": "phone",
    "text": "That phone again? I'm not angry, I'm disappointed."
   },
   {
    "id": "mom_round_water",
    "tone": "mom",
+   "moment": "roundover",
    "text": "Good job. Now go and drink some water."
   },
   {
    "id": "mom_round_sitting_too_long",
    "tone": "mom",
+   "moment": "roundover",
    "text": "Well done. Take a little break, you've been sitting too long."
   },
   {
    "id": "mom_session_proud",
    "tone": "mom",
+   "moment": "sessionover",
    "text": "All done? Good. I'm proud of you."
   },
   {
    "id": "mom_session_not_so_hard",
    "tone": "mom",
+   "moment": "sessionover",
    "text": "That's finished? See, that wasn't so hard."
   },
   {
    "id": "genz_bro_lock_in",
    "tone": "genz",
+   "moment": "nudge",
    "text": "Bro, lock in."
   },
   {
    "id": "genz_not_doing_that",
    "tone": "genz",
+   "moment": "nudge",
    "text": "Nah, we're not doing that right now."
   },
   {
    "id": "genz_lowkey_not_assignment",
    "tone": "genz",
+   "moment": "nudge",
    "text": "Lowkey not the assignment."
   },
   {
    "id": "genz_be_so_for_real",
    "tone": "genz",
+   "moment": "nudge",
    "text": "Be so for real right now. Close it."
   },
   {
    "id": "genz_not_bros",
    "tone": "genz",
+   "moment": "nudge",
    "text": "We're not gonna be bros if you keep this up. Close it."
   },
   {
    "id": "genz_caught_in_4k",
    "tone": "genz",
+   "moment": "nudge",
    "text": "Caught in 4K. Close it."
   },
   {
    "id": "genz_phone_bestie",
    "tone": "genz",
+   "moment": "phone",
    "text": "Phone down, bestie."
   },
   {
    "id": "genz_phone_bro",
    "tone": "genz",
+   "moment": "phone",
    "text": "Bro, the phone. Put it down."
   },
   {
    "id": "genz_phone_group_chat",
    "tone": "genz",
+   "moment": "phone",
    "text": "The group chat can wait, trust."
   },
   {
    "id": "genz_phone_talked_about_this",
    "tone": "genz",
+   "moment": "phone",
    "text": "Phone again? Bro, we talked about this."
   },
   {
    "id": "genz_round_snack",
    "tone": "genz",
+   "moment": "roundover",
    "text": "Round done, go get a snack or something."
   },
   {
    "id": "genz_round_cooking",
    "tone": "genz",
+   "moment": "roundover",
    "text": "Okay that's a round, take five, you're cooking."
   },
   {
    "id": "genz_session_ate_that",
    "tone": "genz",
+   "moment": "sessionover",
    "text": "Session done, you ate that."
   },
   {
    "id": "genz_session_lowkey_proud",
    "tone": "genz",
+   "moment": "sessionover",
    "text": "That's a wrap. Lowkey proud of you."
   },
   {
    "id": "stern_not_the_work",
    "tone": "stern",
+   "moment": "nudge",
    "text": "That isn't the work. Close it."
   },
   {
    "id": "stern_wont_ask_again",
    "tone": "stern",
+   "moment": "nudge",
    "text": "Close it. I won't ask again."
   },
   {
    "id": "stern_wasting_own_time",
    "tone": "stern",
+   "moment": "nudge",
    "text": "You're wasting your own time. Back to it."
   },
   {
    "id": "stern_set_time_aside",
    "tone": "stern",
+   "moment": "nudge",
    "text": "You set this time aside. Use it."
   },
   {
    "id": "stern_enough",
    "tone": "stern",
+   "moment": "nudge",
    "text": "Enough. Back to work."
   },
   {
    "id": "stern_phone_down",
    "tone": "stern",
+   "moment": "phone",
    "text": "Put the phone down."
   },
   {
    "id": "stern_phone_until_done",
    "tone": "stern",
+   "moment": "phone",
    "text": "The phone goes away until you're done."
   },
   {
    "id": "stern_phone_eyes_on_work",
    "tone": "stern",
+   "moment": "phone",
    "text": "Phone down, eyes on the work."
   },
   {
    "id": "stern_phone_put_away_now",
    "tone": "stern",
+   "moment": "phone",
    "text": "I can see the phone. Put it away. Now."
   },
   {
    "id": "stern_round_straight_back",
    "tone": "stern",
+   "moment": "roundover",
    "text": "Round's over. Five minutes, then straight back."
   },
   {
    "id": "stern_round_not_six",
    "tone": "stern",
+   "moment": "roundover",
    "text": "Break. Five minutes, not six."
   },
   {
    "id": "stern_session_same_time",
    "tone": "stern",
+   "moment": "sessionover",
    "text": "Done. Same time tomorrow."
   },
   {
    "id": "stern_session_thats_time",
    "tone": "stern",
+   "moment": "sessionover",
    "text": "That's time. Good work."
   }
  ]

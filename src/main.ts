@@ -1,5 +1,6 @@
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
+import starterLines from "../scripts/starter_lines.json";
 import "./styles.css";
 
 type PermissionState = "granted" | "missing" | "not_required";
@@ -398,9 +399,6 @@ interface VoiceDownloadSnapshot {
 interface VoiceOption {
   id: string;
   name: string;
-  kind: string;
-  detail: string;
-  coverage: string;
   /** Lines with audio, and lines in all, for the current personality. */
   ready: number;
   total: number;
@@ -464,27 +462,19 @@ interface VoiceRecordingSnapshot {
   message: string;
 }
 
-const app = getAppRoot();
+const app = document.querySelector<HTMLDivElement>("#app")!;
 const appView: AppView = new URLSearchParams(window.location.search).get("view") === "overlay" ? "overlay" : "main";
 document.body.classList.toggle("overlay-view", appView === "overlay");
 
 let theme: "light" | "dark" = localStorage.getItem("supervisor-theme") === "dark" ? "dark" : "light";
 
-function applyTheme(): void {
-  if (theme === "dark") {
-    document.documentElement.dataset.theme = "dark";
-  } else {
-    delete document.documentElement.dataset.theme;
-  }
-}
-
-applyTheme();
+document.documentElement.dataset.theme = theme;
 window.addEventListener("storage", (event) => {
   if (event.key !== "supervisor-theme") {
     return;
   }
   theme = event.newValue === "dark" ? "dark" : "light";
-  applyTheme();
+  document.documentElement.dataset.theme = theme;
   bindVoiceWaveforms();
 });
 window.addEventListener("keydown", (event) => {
@@ -492,13 +482,6 @@ window.addEventListener("keydown", (event) => {
     closeTopLayer();
   }
 });
-
-const starterRules: AppRule[] = ["youtube.com", "netflix.com", "tiktok.com", "instagram.com", "reddit.com"].map(
-  (value) => ({
-    target: "website",
-    value,
-  }),
-);
 
 /** Every personality has lines for each moment. The two that repeat all session want a few. */
 const MOMENTS: { id: PhraseMoment; label: string; when: string; often: boolean }[] = [
@@ -509,69 +492,11 @@ const MOMENTS: { id: PhraseMoment; label: string; when: string; often: boolean }
 ];
 const toneOrder: VoiceTone[] = ["gentle", "mom", "genz", "stern"];
 
-const phraseBank: PhraseDefinition[] = [
-  { id: "gentle_not_what_working_on", tone: "gentle", moment: "nudge", text: "Hey, that's not what we're working on." },
-  { id: "gentle_come_on_back", tone: "gentle", moment: "nudge", text: "Come on back, you were doing well." },
-  { id: "gentle_itll_keep", tone: "gentle", moment: "nudge", text: "Leave that for later, it'll keep." },
-  { id: "gentle_thats_enough", tone: "gentle", moment: "nudge", text: "Okay, that's enough, back we go." },
-  { id: "gentle_finish_the_work", tone: "gentle", moment: "nudge", text: "Finish the work first, then you can have that." },
-  { id: "gentle_phone_check_after", tone: "gentle", moment: "phone", text: "Put the phone down for a bit, you can check it after." },
-  { id: "gentle_phone_middle_of_something", tone: "gentle", moment: "phone", text: "Phone away, you're in the middle of something." },
-  { id: "gentle_phone_twenty_minutes", tone: "gentle", moment: "phone", text: "Leave the phone, it'll still be there in twenty minutes." },
-  { id: "gentle_phone_face_down", tone: "gentle", moment: "phone", text: "I see the phone. Pop it face down and carry on." },
-  { id: "gentle_round_stretch", tone: "gentle", moment: "roundover", text: "That's a round done. Stand up, stretch, get some water." },
-  { id: "gentle_round_take_five", tone: "gentle", moment: "roundover", text: "Nice one. Take five, you've earned it." },
-  { id: "gentle_session_good_work", tone: "gentle", moment: "sessionover", text: "And that's the session. Good work today." },
-  { id: "gentle_session_something_nice", tone: "gentle", moment: "sessionover", text: "All done. Go do something nice with the rest of your day." },
-  { id: "mom_see_from_here", tone: "mom", moment: "nudge", text: "I can see that from here, you know." },
-  { id: "mom_why_is_it_open", tone: "mom", moment: "nudge", text: "Is that your work? No? Then why is it open?" },
-  { id: "mom_come_over_there", tone: "mom", moment: "nudge", text: "Don't make me come over there." },
-  { id: "mom_five_minutes_hour", tone: "mom", moment: "nudge", text: "Five more minutes of that becomes an hour. I know you." },
-  { id: "mom_grounded", tone: "mom", moment: "nudge", text: "Close it, or you're grounded. Don't test me." },
-  { id: "mom_counting_to_three", tone: "mom", moment: "nudge", text: "I'm counting to three. One." },
-  { id: "mom_phone_not_asking_twice", tone: "mom", moment: "phone", text: "Phone down. I'm not asking twice." },
-  { id: "mom_phone_texting", tone: "mom", moment: "phone", text: "Who could you possibly be texting right now?" },
-  { id: "mom_phone_mine_till_dinner", tone: "mom", moment: "phone", text: "Phone away, or it's mine till dinner." },
-  { id: "mom_phone_disappointed", tone: "mom", moment: "phone", text: "That phone again? I'm not angry, I'm disappointed." },
-  { id: "mom_round_water", tone: "mom", moment: "roundover", text: "Good job. Now go and drink some water." },
-  { id: "mom_round_sitting_too_long", tone: "mom", moment: "roundover", text: "Well done. Take a little break, you've been sitting too long." },
-  { id: "mom_session_proud", tone: "mom", moment: "sessionover", text: "All done? Good. I'm proud of you." },
-  { id: "mom_session_not_so_hard", tone: "mom", moment: "sessionover", text: "That's finished? See, that wasn't so hard." },
-  { id: "genz_bro_lock_in", tone: "genz", moment: "nudge", text: "Bro, lock in." },
-  { id: "genz_not_doing_that", tone: "genz", moment: "nudge", text: "Nah, we're not doing that right now." },
-  { id: "genz_lowkey_not_assignment", tone: "genz", moment: "nudge", text: "Lowkey not the assignment." },
-  { id: "genz_be_so_for_real", tone: "genz", moment: "nudge", text: "Be so for real right now. Close it." },
-  { id: "genz_not_bros", tone: "genz", moment: "nudge", text: "We're not gonna be bros if you keep this up. Close it." },
-  { id: "genz_caught_in_4k", tone: "genz", moment: "nudge", text: "Caught in 4K. Close it." },
-  { id: "genz_phone_bestie", tone: "genz", moment: "phone", text: "Phone down, bestie." },
-  { id: "genz_phone_bro", tone: "genz", moment: "phone", text: "Bro, the phone. Put it down." },
-  { id: "genz_phone_group_chat", tone: "genz", moment: "phone", text: "The group chat can wait, trust." },
-  { id: "genz_phone_talked_about_this", tone: "genz", moment: "phone", text: "Phone again? Bro, we talked about this." },
-  { id: "genz_round_snack", tone: "genz", moment: "roundover", text: "Round done, go get a snack or something." },
-  { id: "genz_round_cooking", tone: "genz", moment: "roundover", text: "Okay that's a round, take five, you're cooking." },
-  { id: "genz_session_ate_that", tone: "genz", moment: "sessionover", text: "Session done, you ate that." },
-  { id: "genz_session_lowkey_proud", tone: "genz", moment: "sessionover", text: "That's a wrap. Lowkey proud of you." },
-  { id: "stern_not_the_work", tone: "stern", moment: "nudge", text: "That isn't the work. Close it." },
-  { id: "stern_wont_ask_again", tone: "stern", moment: "nudge", text: "Close it. I won't ask again." },
-  { id: "stern_wasting_own_time", tone: "stern", moment: "nudge", text: "You're wasting your own time. Back to it." },
-  { id: "stern_set_time_aside", tone: "stern", moment: "nudge", text: "You set this time aside. Use it." },
-  { id: "stern_enough", tone: "stern", moment: "nudge", text: "Enough. Back to work." },
-  { id: "stern_phone_down", tone: "stern", moment: "phone", text: "Put the phone down." },
-  { id: "stern_phone_until_done", tone: "stern", moment: "phone", text: "The phone goes away until you're done." },
-  { id: "stern_phone_eyes_on_work", tone: "stern", moment: "phone", text: "Phone down, eyes on the work." },
-  { id: "stern_phone_put_away_now", tone: "stern", moment: "phone", text: "I can see the phone. Put it away. Now." },
-  { id: "stern_round_straight_back", tone: "stern", moment: "roundover", text: "Round's over. Five minutes, then straight back." },
-  { id: "stern_round_not_six", tone: "stern", moment: "roundover", text: "Break. Five minutes, not six." },
-  { id: "stern_session_same_time", tone: "stern", moment: "sessionover", text: "Done. Same time tomorrow." },
-  { id: "stern_session_thats_time", tone: "stern", moment: "sessionover", text: "That's time. Good work." },
-];
+const phraseBank = starterLines.phrases as PhraseDefinition[];
 
 const noneVoice: VoiceOption = {
   id: "none",
   name: "No voice",
-  kind: "",
-  detail: "",
-  coverage: "",
   ready: 0,
   total: 0,
   source: "none",
@@ -590,21 +515,16 @@ const STARTER_INTROS: Record<string, string> = {
 
 function starterVoiceOptions(): VoiceOption[] {
   return [
-    starterVoiceCard("starter-male", "derek", "Derek", "Starter voice. Its lines come ready."),
-    starterVoiceCard("starter-female", "elise", "Elise", "Warmer starter voice. Its lines come ready."),
+    starterVoiceCard("starter-male", "derek", "Derek"),
+    starterVoiceCard("starter-female", "elise", "Elise"),
   ];
 }
 
-function starterVoiceCard(id: string, profileId: string, name: string, detail: string): VoiceOption {
+function starterVoiceCard(id: string, profileId: string, name: string): VoiceOption {
   const profile = profileById(profileId);
-  const phrases = effectivePhrases();
-  const ready = phrases.filter((phrase) => clipForPhraseId(profile?.clips ?? [], phrase.id)).length;
   return {
     id,
     name: profile?.display_name || name,
-    kind: "Bundled",
-    detail,
-    coverage: `${ready}/${phrases.length} lines ready`,
     ...ownLineCount(profile),
     source: "starter",
     selectable: profile ? profileToneReady(profile) : true,
@@ -659,14 +579,13 @@ let historyPane: "sessions" | "apps" = "sessions";
 let historySearch = "";
 /** Null until the first search of the current text answers. */
 let historySearchResults: SessionSummary[] | null = null;
-let historySearchTimer: number | null = null;
+let historySearchTimer: number | undefined;
 let historySearchRequest = 0;
 /** The week (and data state) whose charts already played their entrance. */
 let historyChartsFor = "";
 /** The week picker under the toolbar: open, the month it shows (its first day), and that
  * month's days with sessions. */
 let weekPickerOpen = false;
-let pickerDismissBound = false;
 let pickerMonth = "";
 let pickerDays: Record<string, DailyFocus> = {};
 let pickerRequest = 0;
@@ -678,7 +597,7 @@ let shareOpen = false;
 let shareMonth: MonthRecap | null = null;
 let historyHydrated = false;
 const knownHistoryIds = new Set<number>();
-let permanentRules = cloneRules(starterRules);
+let permanentRules: AppRule[] = [];
 let preflightOpen = false;
 /** Distractions the user allowed for the session about to start. */
 let preflightExceptions: AppRule[] = [];
@@ -699,7 +618,7 @@ let lastOverlayFit = "";
 const OVERLAY_CORNER_WIDTH = 228;
 const OVERLAY_INTERRUPT_WIDTH = 420;
 let ruleEditor: RuleEditor | null = null;
-let rulePreviewTimer: number | null = null;
+let rulePreviewTimer: number | undefined;
 let siteNames: Record<string, string> = {};
 let appNames: Record<string, string> = {};
 /**
@@ -747,13 +666,12 @@ let newToneDraft: string | null = null;
 /** The ⋯ menu on your own personality's card: Rename and Delete. */
 let toneMenuOpen = false;
 let clipQueue: ClipQueue | null = null;
-let clipQueueTicker: number | null = null;
+let clipQueueTicker: number | undefined;
 /** A one-line job started from the line popup reopens that line when its clip lands. */
 let reopenLineAfterQueue: string | null = null;
 const clipAssetRevision = new Map<string, number>();
-let voiceHelpOpen = false;
-let modelInfoOpen = false;
-let memoryInfoOpen = false;
+/** The voice page's info popup, named as its open- and close- actions name it. */
+let voiceDialog: "voice-help" | "model-info" | "memory-info" | null = null;
 let modelDeleteOpen = false;
 let voiceBackend: VoiceBackendStatus | null = null;
 /** What the OS lets Supervisor see; null until the backend answers. */
@@ -774,7 +692,7 @@ let recordingOpen = false;
 let recordingState: RecordingState = "idle";
 let recordingError = "";
 let recordedVoice: RecordedVoice | null = null;
-let recordingTickId: number | null = null;
+let recordingTickId: number | undefined;
 let recordingStartedAtMs: number | null = null;
 let lastError = "";
 let voiceError = "";
@@ -784,11 +702,10 @@ const feedbackToast = document.createElement("div");
 feedbackToast.className = "feedback-toast";
 feedbackToast.setAttribute("role", "status");
 document.body.appendChild(feedbackToast);
-let feedbackTimer: number | null = null;
+let feedbackTimer: number | undefined;
 let pollId: number | null = null;
 let snapshotInFlight = false;
-let downloadPollId: number | null = null;
-let downloadPollInFlight = false;
+let downloadPollId: number | undefined;
 let nudgeAudio: HTMLAudioElement | null = null;
 /** The voice and line of the nudge playing or last played (main window). */
 let lastNudgeVoice: Omit<NudgeVoice, "speaking"> | null = null;
@@ -804,9 +721,6 @@ let distractionLatchedAt = 0;
 let momentKey = "";
 let momentShownAt = 0;
 let momentDismissed = "";
-const webcamSettings = {
-  phoneUse: false,
-};
 let webcamFrame: WebcamFrame | null = null;
 let webcamError = "";
 /** The last camera error said as a toast, so a repeating one is said once until it clears. */
@@ -822,16 +736,6 @@ let webcamPreviewStarted = false;
 /** Camera names in the order the worker opens them (empty where the OS gives none). */
 let webcamCameras: string[] = [];
 
-function getAppRoot(): HTMLDivElement {
-  const element = document.querySelector<HTMLDivElement>("#app");
-
-  if (!element) {
-    throw new Error("Missing app root");
-  }
-
-  return element;
-}
-
 async function init(): Promise<void> {
   render();
   try {
@@ -844,7 +748,6 @@ async function init(): Promise<void> {
       invoke<Record<string, string>>("get_app_names"),
     ]);
     settings = loadedSettings;
-    webcamSettings.phoneUse = loadedSettings.webcam_enabled;
     siteNames = loadedSiteNames;
     appNames = loadedAppNames;
     history = loadedHistory;
@@ -862,7 +765,7 @@ async function init(): Promise<void> {
     );
     // Every past session is known, except the newest one no report was ever offered for: a
     // session ended by quitting, or finished while the window was away, is offered on launch.
-    const offered = Number(readLocal("review.lastOffered") ?? "0");
+    const offered = Number(localStorage.getItem("review.lastOffered") ?? "0");
     history.forEach((item, index) => {
       if (index > 0 || item.id <= offered) {
         knownHistoryIds.add(item.id);
@@ -874,7 +777,7 @@ async function init(): Promise<void> {
     draft.strictness = loadedSettings.default_strictness;
     draft.voiceId = normalizeStoredVoiceId(loadedSettings.voice_profile);
     // A practice the app closed on: never offered as a report, ended and removed now.
-    const stalePractice = Number(readLocal(PRACTICE_KEY) ?? "0");
+    const stalePractice = Number(localStorage.getItem(PRACTICE_KEY) ?? "0");
     if (stalePractice) {
       practiceIds.add(stalePractice);
       knownHistoryIds.add(stalePractice);
@@ -892,7 +795,7 @@ async function init(): Promise<void> {
       })();
     }
     // The first launch opens the first run; after that it waits on Home's Getting started line.
-    if (appView === "main" && history.length === 0 && readLocal(FIRST_RUN_KEY) !== "1") {
+    if (appView === "main" && history.length === 0 && localStorage.getItem(FIRST_RUN_KEY) !== "1") {
       firstRunOpen = true;
     }
   } catch (error) {
@@ -1171,10 +1074,8 @@ function closeTopLayer(): void {
     paintVoiceLayer();
     return;
   }
-  if (voiceHelpOpen || modelInfoOpen || memoryInfoOpen) {
-    voiceHelpOpen = false;
-    modelInfoOpen = false;
-    memoryInfoOpen = false;
+  if (voiceDialog) {
+    voiceDialog = null;
     paintVoiceLayer();
     return;
   }
@@ -1304,9 +1205,7 @@ function editorIsOpen(): boolean {
     voiceDeleteTargetId !== null ||
     voiceInfoId !== null ||
     clipQueue?.phase === "working" ||
-    voiceHelpOpen ||
-    modelInfoOpen ||
-    memoryInfoOpen ||
+    voiceDialog !== null ||
     modelDeleteOpen ||
     voiceBusy !== null
   );
@@ -1570,7 +1469,7 @@ function renderSession(current: CurrentSession | null): string {
             <div id="day-card-slot" class="slot">${renderDayCard(streak.days)}</div>
           </div>
         </div>
-        ${renderStartAction()}
+        <button class="primary start-watch-button" type="button" data-action="open-preflight">Start focus session</button>
       </section>
       <div id="preflight-layer">${preflightOpen ? renderPreflightModal() : ""}</div>
     `;
@@ -1642,27 +1541,15 @@ function resumeLabel(current: CurrentSession): string {
 /** The big countdown and its bar: the session's time, or in a Pomodoro the current round or break. */
 function liveTimer(current: CurrentSession): { label: string; caption: string; percent: number } {
   const pomodoro = current.pomodoro;
-  if (!pomodoro) {
-    const percent = current.duration_seconds
-      ? Math.min(100, Math.round((current.elapsed_seconds / current.duration_seconds) * 100))
-      : 0;
-    return { label: formatDuration(current.remaining_seconds), caption: "Remaining", percent };
-  }
-  if (pomodoro.phase === "work") {
-    const left = pomodoro.phase_remaining_seconds;
-    const last = pomodoro.round >= pomodoro.rounds;
-    return {
-      label: formatDuration(left),
-      caption: last ? "Until done" : "Until break",
-      percent: Math.min(100, Math.round(((pomodoro.work_seconds - left) / pomodoro.work_seconds) * 100)),
-    };
-  }
-  const left = pomodoro.phase_remaining_seconds;
-  return {
-    label: formatDuration(left),
-    caption: pomodoro.phase === "break_over" ? `Until round ${pomodoro.round + 1} starts by itself` : `Until round ${pomodoro.round + 1}`,
-    percent: Math.min(100, Math.round(((pomodoro.break_seconds - left) / pomodoro.break_seconds) * 100)),
-  };
+  const left = pomodoro ? pomodoro.phase_remaining_seconds : current.remaining_seconds;
+  const total = !pomodoro ? current.duration_seconds : pomodoro.phase === "work" ? pomodoro.work_seconds : pomodoro.break_seconds;
+  const done = pomodoro ? total - left : current.elapsed_seconds;
+  const caption = !pomodoro
+    ? "Remaining"
+    : pomodoro.phase === "work"
+      ? pomodoro.round >= pomodoro.rounds ? "Until done" : "Until break"
+      : pomodoro.phase === "break_over" ? `Until round ${pomodoro.round + 1} starts by itself` : `Until round ${pomodoro.round + 1}`;
+  return { label: formatDuration(left), caption, percent: total ? Math.min(100, Math.round((done / total) * 100)) : 0 };
 }
 
 function breakOverLine(pomodoro: PomodoroStatus): string {
@@ -1777,10 +1664,7 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   const shown = rules.map((rule, index) => ({ rule, index })).filter(({ rule, index }) => index < 6 || isAllowed(rule));
   const hidden = rules.length - shown.length;
   const chips = shown
-    .map(({ rule, index }) => {
-      const allowed = isAllowed(rule);
-      return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
-    })
+    .map(({ rule, index }) => allowChip(rule, index, isAllowed(rule), "toggle-session-exception"))
     .concat(hidden > 0 ? [`<span class="session-rule-more" aria-label="${hidden} more">…</span>`] : [])
     .join("");
   const allowed = rules.filter(isAllowed).map(ruleName);
@@ -1788,6 +1672,11 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
     <div class="chips session-rule-chips">${chips}</div>
     ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.join(", "))}</p>` : ""}
   `;
+}
+
+/** A distraction chip that allows it once, or takes that back. `index` counts the newest rule first. */
+function allowChip(rule: AppRule, index: number, allowed: boolean, action: string): string {
+  return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="${action}" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
 }
 
 /** The same rule, however it was typed: matching ignores case, so the chips must too. */
@@ -1835,9 +1724,7 @@ function renderSessionReview(review: { items: ReviewItem[]; saving: boolean }): 
       return `<div class="review-chip ${item.distraction ? "is-distraction" : ""}">${main}<button class="review-rename" type="button" data-review-rename="${index}">${item.renaming ? "Save" : "Rename"}</button></div>`;
     })
     .join("");
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel review-panel" role="dialog" aria-modal="true" aria-labelledby="review-title">
+  return modal("review-panel", "review-title", `
         <p class="eyebrow">Session done</p>
         <h2 id="review-title">Any distractions here?</h2>
         <p class="review-intro">These counted as work. Click any that weren't.</p>
@@ -1846,9 +1733,7 @@ function renderSessionReview(review: { items: ReviewItem[]; saving: boolean }): 
           <button class="review-later" type="button" data-action="review-later">Skip</button>
           <button class="${marked ? "danger" : "primary"}" type="button" data-action="review-save" ${review.saving ? "disabled" : ""}>${marked ? `Add ${marked} to distractions` : "All work"}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** Renames first, then the answers: the distractions go on the list and count in this session. */
@@ -1940,9 +1825,7 @@ function bindSessionReview(root: ParentNode): void {
 }
 
 function renderSessionRulesModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel session-rules-panel" role="dialog" aria-modal="true" aria-labelledby="session-rules-title">
+  return modal("session-rules-panel", "session-rules-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">CURRENT SESSION</p>
@@ -1951,9 +1834,7 @@ function renderSessionRulesModal(): string {
           <button class="small-button" type="button" data-action="close-session-rules">Done</button>
         </div>
         ${renderRuleManager("")}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderOverlay(current: CurrentSession | null): string {
@@ -2461,7 +2342,7 @@ function closeFirstRun(): void {
   firstRunStep = null;
   ruleEditor = null;
   stopClip();
-  writeLocal(FIRST_RUN_KEY, "1");
+  localStorage.setItem(FIRST_RUN_KEY, "1");
   render();
 }
 
@@ -2472,7 +2353,7 @@ function moveFirstRun(by: number): void {
   ruleEditor = null;
   stopClip();
   if (next === "done") {
-    writeLocal(FIRST_RUN_KEY, "1");
+    localStorage.setItem(FIRST_RUN_KEY, "1");
   }
   paintFirstRun();
 }
@@ -2520,9 +2401,7 @@ function renderFirstRun(): string {
     done: "You're all set",
   };
   const back = index > 0 && !practice ? `<button type="button" data-action="first-run-back">Back</button>` : "<span></span>";
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel first-run-panel" role="dialog" aria-modal="true" aria-labelledby="first-run-title">
+  return modal("first-run-panel", "first-run-title", `
         <div class="modal-head first-run-head">
           <div>
             <p class="eyebrow">Getting started${step === "done" ? "" : ` · ${index + 1} of ${counted}`}</p>
@@ -2531,9 +2410,7 @@ function renderFirstRun(): string {
           ${practice || step === "done" ? "" : `<button class="small-button" type="button" data-action="first-run-skip">Skip</button>`}
         </div>
         ${renderFirstRunBody(step, back)}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderFirstRunBody(step: FirstRunStep, back: string): string {
@@ -2698,7 +2575,7 @@ async function startPractice(): Promise<void> {
     return;
   }
   practice = { id: current.id, caught: false };
-  writeLocal(PRACTICE_KEY, String(current.id));
+  localStorage.setItem(PRACTICE_KEY, String(current.id));
   activeTab = "session";
   render();
 }
@@ -2714,7 +2591,7 @@ async function endPractice(): Promise<void> {
   practiceQuietUntil = Date.now() + 5000;
   if (run.caught) {
     firstRunStep = "done";
-    writeLocal(FIRST_RUN_KEY, "1");
+    localStorage.setItem(FIRST_RUN_KEY, "1");
   }
   if (snapshot?.current?.id === run.id) {
     await invokeSnapshot("stop_session", undefined, false);
@@ -2732,11 +2609,7 @@ async function discardPractice(id: number): Promise<void> {
       // Already gone, or never saved.
     }
   }
-  try {
-    localStorage.removeItem(PRACTICE_KEY);
-  } catch {
-    // Nothing to clear.
-  }
+  localStorage.removeItem(PRACTICE_KEY);
   try {
     snapshot = await invoke<SessionSnapshot>("get_session_snapshot");
     settings = snapshot.settings;
@@ -2757,7 +2630,7 @@ interface HomeTip {
 }
 
 function homeTip(): HomeTip | null {
-  const hidden = (id: string) => readLocal(`tip.${id}`) === "1";
+  const hidden = (id: string) => localStorage.getItem(`tip.${id}`) === "1";
   const recorded = (voiceBackend?.profiles ?? []).some(
     (profile) => !(STARTER_PROFILE_IDS as readonly string[]).includes(profile.profile_id) && Boolean(profile.reference_path),
   );
@@ -2792,18 +2665,10 @@ function renderHomeTip(): string {
   `;
 }
 
-function renderStartAction(): string {
-  return `
-    <button class="primary start-watch-button" type="button" data-action="open-preflight">Start focus session</button>
-  `;
-}
-
 function renderPreflightModal(): string {
   const ruleCount = permanentRules.length;
   const progress = (draft.duration_minutes - 15) / 75;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel preflight-panel" role="dialog" aria-modal="true" aria-labelledby="preflight-title">
+  return modal("preflight-panel", "preflight-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">New session</p>
@@ -2867,9 +2732,7 @@ function renderPreflightModal(): string {
 
         ${renderVoiceGapNotice(selectedVoice(), "start")}
         <button class="primary preflight-start" type="button" data-action="confirm-start-session">Start focus session</button>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** Work / break chips on the left, rounds on the right, the finish time under them. */
@@ -3012,11 +2875,11 @@ function renderWebcamSettings(): string {
         <section class="state-slab webcam-stage ${webcamStateClass(frame, alerting)}" aria-live="polite">
           <h2 id="webcam-title">${escapeHtml(webcamTitle(frame, alerting))}</h2>
           <p id="webcam-copy">${escapeHtml(webcamCopy(frame, alerting))}</p>
-          <div class="webcam-frame-wrap${frame?.jpeg && webcamSettings.phoneUse ? " is-live" : ""}" id="webcam-frame-wrap">
+          <div class="webcam-frame-wrap${frame?.jpeg && settings.webcam_enabled ? " is-live" : ""}" id="webcam-frame-wrap">
             <img id="webcam-preview" alt="" />
             <p id="webcam-waiting" class="webcam-waiting">${escapeHtml(webcamWaitingCopy())}</p>
           </div>
-          <p id="webcam-live-error" class="webcam-live-error"${webcamSettings.phoneUse && webcamError ? "" : " hidden"}>${escapeHtml(webcamError)}</p>
+          <p id="webcam-live-error" class="webcam-live-error"${settings.webcam_enabled && webcamError ? "" : " hidden"}>${escapeHtml(webcamError)}</p>
         </section>
 
         <div class="webcam-side">
@@ -3025,7 +2888,7 @@ function renderWebcamSettings(): string {
             <label class="setting-row toggle-row">
               <span>Turn on webcam models</span>
               <span class="toggle-field">
-                <input id="webcam-phone-use" class="toggle-input" type="checkbox" ${webcamSettings.phoneUse ? "checked" : ""} aria-label="Turn on webcam models" />
+                <input id="webcam-phone-use" class="toggle-input" type="checkbox" ${settings.webcam_enabled ? "checked" : ""} aria-label="Turn on webcam models" />
                 <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
               </span>
             </label>
@@ -3087,7 +2950,7 @@ function renderWebcamMetrics(frame: WebcamFrame | null): string {
   const face = Boolean(frame?.face_in_frame);
   const phone = Boolean(frame?.phone_in_frame);
   return `
-    <dl class="webcam-metrics"${webcamSettings.phoneUse ? "" : " hidden"}>
+    <dl class="webcam-metrics"${settings.webcam_enabled ? "" : " hidden"}>
       <div class="${face ? "is-good" : ""}"><dt>Face</dt><dd>${face ? "In view" : "Out of view"}</dd></div>
       <div class="${phone ? "is-bad" : ""}"><dt>Phone or watch</dt><dd>${phone ? "Seen" : "Not seen"}</dd></div>
     </dl>
@@ -3134,16 +2997,9 @@ function renderRuleManager(title: string): string {
 /** Before a session: tap a distraction to allow it today; "+ Add" adds one for good. */
 function renderPreflightDistractions(): string {
   const chips = permanentRules
-    .map((rule, index) => ({ rule, index }))
+    .slice()
     .reverse()
-    .map(({ rule, index }) => {
-      const allowed = preflightExceptions.some((exception) => sameRule(exception, rule));
-      return `
-        <button class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" type="button" aria-pressed="${allowed}" data-action="toggle-exception" data-rule-index="${index}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">
-          ${escapeHtml(ruleName(rule))}
-        </button>
-      `;
-    })
+    .map((rule, index) => allowChip(rule, index, preflightExceptions.some((exception) => sameRule(exception, rule)), "toggle-exception"))
     .join("");
   return `
     <div class="rule-manager preflight-rule-manager">
@@ -3483,11 +3339,6 @@ function paintLinePopupButtons(): void {
       continue;
     }
     now.replaceWith(next);
-    next.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
-      button.addEventListener("click", () => {
-        void runAction(button.dataset.action || "", button);
-      });
-    });
   }
 }
 /** A voice popup opening or closing repaints only the dialog layer; the page under it stays put. */
@@ -3592,9 +3443,7 @@ function renderNewPersonalityModal(): string {
     return "";
   }
   const speaks = voiceTone(clipsVoice());
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup new-personality-popup" role="dialog" aria-modal="true" aria-labelledby="new-personality-title">
+  return modal("voice-popup new-personality-popup", "new-personality-title", `
         <h2 id="new-personality-title">New personality</h2>
         <p>A personality is what your voices say. Start from one you like and change a few of its lines, or start with nothing and write your own.</p>
         <form class="phrase-editor" id="new-tone">
@@ -3614,9 +3463,7 @@ function renderNewPersonalityModal(): string {
             <button class="primary" type="submit">Create</button>
           </div>
         </form>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** The voice's personality, one card per moment. */
@@ -3787,9 +3634,7 @@ function renderLinePopup(): string {
         <p class="line-audio-note">${changed ? "This audio says the old words. Saving removes it from every voice." : ""}</p>
       </div>`
     : "";
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup line-popup" role="dialog" aria-modal="true" aria-labelledby="line-popup-title">
+  return modal("voice-popup line-popup", "line-popup-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">${escapeHtml(toneLabel(editor.tone))} · ${escapeHtml(voice.name)}</p>
@@ -3825,9 +3670,7 @@ function renderLinePopup(): string {
           }
         </form>
         ${lock ? `<p class="quiet">${escapeHtml(lock)}</p>` : ""}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function closeToneForms(): void {
@@ -3837,9 +3680,7 @@ function closeToneForms(): void {
   toneMenuOpen = false;
 }
 function renderVoiceHelpModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="voice-help-title">
+  return modal("voice-popup", "voice-help-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Voices</p>
@@ -3855,18 +3696,14 @@ function renderVoiceHelpModal(): string {
           <li><strong>Select it.</strong> Once its back to work lines are generated, select the voice under Voices.</li>
         </ol>
         <p class="quiet">Listen to each line. If one sounds off, press Edit and regenerate it.</p>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderModelInfoModal(): string {
   const model = voiceBackend?.model;
   const installed = modelInstalled();
   const busy = voiceBusy !== null || ["checking", "downloading", "cancelling"].includes(voiceDownload?.phase ?? "");
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="model-info-title">
+  return modal("voice-popup", "model-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Voice engine</p>
@@ -3888,9 +3725,7 @@ function renderModelInfoModal(): string {
           ${installed ? `<button class="danger" type="button" data-action="ask-delete-model" ${busy ? "disabled" : ""}>Delete voice engine</button>` : ""}
           <button class="${installed ? "" : "primary"}" type="button" data-action="download-model-pack" ${busy ? "disabled" : ""}>${installed ? "Check for updates" : "Download voice engine"}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderMemoryInfoModal(): string {
@@ -3899,9 +3734,7 @@ function renderMemoryInfoModal(): string {
   const need = system?.min_free_ram_bytes ?? 0;
   const peak = system?.last_peak_ram_bytes ?? null;
   const locked = ramGenerationLocked();
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="memory-info-title">
+  return modal("voice-popup", "memory-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Memory</p>
@@ -3919,9 +3752,7 @@ function renderMemoryInfoModal(): string {
         <div class="modal-actions">
           <button class="${locked ? "primary" : ""}" type="button" data-action="check-ram">Check again</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function ramLockCopy(locked: boolean, peak: number | null): string {
@@ -3964,9 +3795,9 @@ function renderVoiceDialogs(): string {
     ${showVoiceDialog && voiceInfoId && !voiceDeleteTargetId && !voiceBusy ? renderVoiceInfoModal() : ""}
     ${showVoiceDialog && voiceDeleteTargetId ? renderDeleteVoiceModal() : ""}
     ${showVoiceDialog && modelDeleteOpen ? renderDeleteModelModal() : ""}
-    ${showVoiceDialog && modelInfoOpen && !modelDeleteOpen && !voiceBusy ? renderModelInfoModal() : ""}
-    ${showVoiceDialog && memoryInfoOpen && !voiceBusy ? renderMemoryInfoModal() : ""}
-    ${showVoiceDialog && voiceHelpOpen ? renderVoiceHelpModal() : ""}
+    ${showVoiceDialog && voiceDialog === "model-info" && !modelDeleteOpen && !voiceBusy ? renderModelInfoModal() : ""}
+    ${showVoiceDialog && voiceDialog === "memory-info" && !voiceBusy ? renderMemoryInfoModal() : ""}
+    ${showVoiceDialog && voiceDialog === "voice-help" ? renderVoiceHelpModal() : ""}
     ${showVoiceDialog && phraseEditor && !voiceDeleteTargetId ? renderLinePopup() : ""}
     ${showVoiceDialog && !phraseEditor ? renderNewPersonalityModal() : ""}
     ${voiceBusy && !clipQueue ? renderVoiceBusyModal() : ""}
@@ -3993,6 +3824,15 @@ function deleteAllCopy(bytes: number | null | undefined): string[] {
   ];
 }
 
+/** A popup: the backdrop, and the dialog named by its title. */
+function modal(cls: string, titleId: string, inner: string): string {
+  return `
+    <div class="modal-backdrop" role="presentation">
+      <section class="modal-panel ${cls}" role="dialog" aria-modal="true" aria-labelledby="${titleId}">${inner}</section>
+    </div>
+  `;
+}
+
 function renderHistoryConfirm(): string {
   if (!historyConfirm) {
     return "";
@@ -4006,7 +3846,6 @@ function renderHistoryConfirm(): string {
           body: deleteAllCopy(historyConfirm.bytes),
           cancel: "Keep my history",
           confirm: "Delete everything",
-          danger: true,
         }
       : {
           eyebrow: "HISTORY",
@@ -4014,49 +3853,34 @@ function renderHistoryConfirm(): string {
           body: ["This session will be removed from this computer. You cannot undo this."],
           cancel: "Cancel",
           confirm: "Delete session",
-          danger: true,
         };
+  const body = copy.body.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+  return confirmModal("history-confirm-title", copy.eyebrow, copy.title, body, ["cancel-history-confirm", copy.cancel], ["confirm-history", copy.confirm]);
+}
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="history-confirm-title">
+/** A yes-or-no popup whose red button goes ahead. `body` is markup. */
+function confirmModal(titleId: string, eyebrow: string, title: string, body: string, cancel: [string, string], confirm: [string, string]): string {
+  return modal("confirm-panel", titleId, `
         <div class="modal-head">
           <div>
-            <p class="eyebrow">${copy.eyebrow}</p>
-            <h2 id="history-confirm-title">${escapeHtml(copy.title)}</h2>
+            <p class="eyebrow">${eyebrow}</p>
+            <h2 id="${titleId}">${escapeHtml(title)}</h2>
           </div>
         </div>
-        ${copy.body.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        ${body}
         <div class="modal-actions">
-          <button type="button" data-action="cancel-history-confirm">${escapeHtml(copy.cancel)}</button>
-          <button class="${copy.danger ? "danger" : "primary"}" type="button" data-action="confirm-history">${escapeHtml(copy.confirm)}</button>
+          <button type="button" data-action="${cancel[0]}">${escapeHtml(cancel[1])}</button>
+          <button class="danger" type="button" data-action="${confirm[0]}">${escapeHtml(confirm[1])}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderQuitConfirm(): string {
   if (!quitConfirmOpen) {
     return "";
   }
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">QUIT</p>
-            <h2 id="quit-confirm-title">End this session and quit?</h2>
-          </div>
-        </div>
-        <p>The session so far is saved to History.</p>
-        <div class="modal-actions">
-          <button type="button" data-action="cancel-quit">Cancel</button>
-          <button class="danger" type="button" data-action="confirm-quit">End and quit</button>
-        </div>
-      </section>
-    </div>
-  `;
+  const body = "<p>The session so far is saved to History.</p>";
+  return confirmModal("quit-confirm-title", "QUIT", "End this session and quit?", body, ["cancel-quit", "Cancel"], ["confirm-quit", "End and quit"]);
 }
 
 /** Session done (yellow, the round-over card's shape): the session's title and focused time,
@@ -4092,9 +3916,7 @@ function renderRecordingModal(): string {
   const isRecording = recordingState === "recording";
   const canSave = Boolean(recordedVoice?.bytes && recordedVoice.name.trim() && voiceBusy === null);
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel recording-panel" role="dialog" aria-modal="true" aria-labelledby="record-title">
+  return modal("recording-panel", "record-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">New voice</p>
@@ -4133,29 +3955,12 @@ function renderRecordingModal(): string {
             }
           </section>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderDeleteModelModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-model-title">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">Voice engine</p>
-            <h2 id="delete-model-title">Delete the voice engine?</h2>
-          </div>
-        </div>
-        <p>Your voices and their lines stay on this computer. To generate new lines you'll need to download the voice engine again.</p>
-        <div class="modal-actions">
-          <button type="button" data-action="cancel-delete-model">Cancel</button>
-          <button class="danger" type="button" data-action="delete-model-files">Delete voice engine</button>
-        </div>
-      </section>
-    </div>
-  `;
+  const body = "<p>Your voices and their lines stay on this computer. To generate new lines you'll need to download the voice engine again.</p>";
+  return confirmModal("delete-model-title", "Voice engine", "Delete the voice engine?", body, ["cancel-delete-model", "Cancel"], ["delete-model-files", "Delete voice engine"]);
 }
 
 function renderVoiceInfoModal(): string {
@@ -4168,9 +3973,7 @@ function renderVoiceInfoModal(): string {
   const profileId = voice.source === "custom" ? voice.profile?.profile_id ?? "" : "";
   const canRename = Boolean(voice.profile) && voiceBusy === null;
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-info-panel" role="dialog" aria-modal="true" aria-labelledby="voice-info-title">
+  return modal("voice-info-panel", "voice-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Edit voice</p>
@@ -4207,9 +4010,7 @@ function renderVoiceInfoModal(): string {
           }
           <button class="primary" type="button" data-action="close-voice-info">Done</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 function renderDeleteVoiceModal(): string {
   const profile = voiceDeleteTargetId ? profileById(voiceDeleteTargetId) : null;
@@ -4217,9 +4018,7 @@ function renderDeleteVoiceModal(): string {
     return "";
   }
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-voice-title">
+  return modal("confirm-panel", "delete-voice-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">Delete voice</p>
@@ -4232,9 +4031,7 @@ function renderDeleteVoiceModal(): string {
           <button type="button" data-action="delete-voice-files" ${profile.clips.length === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
           <button class="danger" type="button" data-action="delete-voice-profile">Delete the voice</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderVoiceBusyModal(): string {
@@ -4395,9 +4192,7 @@ function renderShareModal(): string {
   queueMicrotask(mountShareCards);
   const week = weekRecap && weekRecap.start === historyWeekStart ? weekRecap : null;
   const month = shareMonth && shareMonth.start.slice(0, 7) === historyWeekStart.slice(0, 7) ? shareMonth : null;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel share-panel" role="dialog" aria-modal="true" aria-labelledby="share-title">
+  return modal("share-panel", "share-title", `
         <div class="modal-head share-head">
           <div>
             <p class="eyebrow">History</p>
@@ -4410,9 +4205,7 @@ function renderShareModal(): string {
           ${renderShareColumn(week !== null, "week", "copy-week-card", week !== null && week.session_count > 0, "No sessions this week")}
           ${renderShareColumn(month !== null, "month", "copy-month-card", month !== null && month.session_count > 0, "No sessions this month")}
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** The card is the button, like the day card on Home: a click copies it. A period with no
@@ -4498,11 +4291,6 @@ function addMonthsKey(monthStart: string, months: number): string {
   return monthKey(dayKey(date));
 }
 
-/** The Monday on or before the 1st; six rows of seven cover any month. */
-function pickerGridStart(monthStart: string): string {
-  return mondayKey(monthStart);
-}
-
 const PICKER_GRID_DAYS = 42;
 
 /** A month of days, shaded by focused time, with the viewed week outlined; a click picks that
@@ -4512,7 +4300,7 @@ function renderWeekPicker(weekStart: string, oldestMonday: string): string {
   const today = dayKey(new Date());
   const currentMonth = monthKey(today);
   const weekEnd = addDaysKey(weekStart, 6);
-  const gridStart = pickerGridStart(month);
+  const gridStart = mondayKey(month);
   const prevDisabled = month <= monthKey(oldestMonday);
   const nextDisabled = month >= currentMonth;
   const title = parseDayKey(month).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -4560,7 +4348,7 @@ function renderWeekPicker(weekStart: string, oldestMonday: string): string {
 /** Loads the days with sessions for the month the picker shows. */
 async function loadPickerDays(): Promise<void> {
   const month = pickerMonth || monthKey(historyWeekStart || thisMondayKey());
-  const start = pickerGridStart(month);
+  const start = mondayKey(month);
   const request = ++pickerRequest;
   try {
     const days = await invoke<DailyFocus[]>("get_focus_days", { start, end: addDaysKey(start, PICKER_GRID_DAYS) });
@@ -4618,8 +4406,8 @@ function renderWeekHero(weekStart: string, recap: WeekRecap | null, animate: boo
           ${note ? `<p class="week-hero-note">${escapeHtml(note)}</p>` : ""}
         </div>
         <div class="week-hero-stats">
-          ${weekStat("Longest stretch", longest, empty ? "Longest run of work in one go, once there is one." : "Longest run of work without a distraction or stepping away.")}
-          ${weekStat("Recovery", recovery, recovery === "None" ? "No distraction this week, so nothing to recover from." : "Typical time back to work after a distraction.")}
+          ${flipStat("week-hero-stat", "Longest stretch", longest, empty ? "Longest run of work in one go, once there is one." : "Longest run of work without a distraction or stepping away.")}
+          ${flipStat("week-hero-stat", "Recovery", recovery, recovery === "None" ? "No distraction this week, so nothing to recover from." : "Typical time back to work after a distraction.")}
         </div>
       </div>
       <div class="recap-bars week-hero-bars ${animate ? "is-animated" : ""}" style="grid-template-columns: repeat(${buckets.length}, minmax(0, 1fr))">
@@ -4902,9 +4690,7 @@ function renderAppEdit(): string {
         </div>
       </div>
     `;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel app-edit-panel" role="dialog" aria-modal="true" aria-labelledby="app-edit-title">
+  return modal("app-edit-panel", "app-edit-title", `
         <div class="modal-head app-edit-head">
           <div>
             <p class="eyebrow">${site ? "Website" : "App"}</p>
@@ -4922,9 +4708,7 @@ function renderAppEdit(): string {
         ${site ? `<label class="app-edit-field"><span>Address</span><input id="app-edit-address" maxlength="300" value="${attr(edit.address)}" spellcheck="false" /></label>` : ""}
         ${counts}
         ${edit.error ? `<p class="app-edit-error">${escapeHtml(edit.error)}</p>` : ""}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function appEditTitle(edit: AppEdit): string {
@@ -5168,11 +4952,6 @@ function averageOf(values: number[]): number | null {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-/** The median, or null when there is nothing to take it of. */
-function trendMedian(values: number[]): number | null {
-  return values.length ? medianOf(values) : null;
-}
-
 interface TrendPill {
   text: string;
   good: boolean;
@@ -5219,16 +4998,16 @@ function renderTrendsBody(): string {
   const focusBefore = averageOf(done(before).map((period) => period.focus_seconds));
   const total = shown.reduce((sum, period) => sum + period.focus_seconds, 0);
   const sessions = shown.reduce((sum, period) => sum + period.session_count, 0);
-  const spanNow = trendMedian(worked(shown).map((period) => period.median_stretch_seconds));
-  const spanBefore = trendMedian(worked(before).map((period) => period.median_stretch_seconds));
+  const spanNow = medianOf(worked(shown).map((period) => period.median_stretch_seconds));
+  const spanBefore = medianOf(worked(before).map((period) => period.median_stretch_seconds));
   const recoveries = (periods: TrendPeriod[]) =>
     done(periods).flatMap((period) => (period.recovery_median_seconds == null ? [] : [period.recovery_median_seconds]));
-  const recoveryNow = trendMedian(recoveries(shown));
+  const recoveryNow = medianOf(recoveries(shown));
   // With no finished period yet, the running one stands in, marked "so far".
   const runningPeriod = shown[shown.length - 1].start === running ? shown[shown.length - 1] : null;
   const spanSoFar = spanNow == null && runningPeriod && runningPeriod.session_count > 0 ? runningPeriod.median_stretch_seconds : null;
   const recoverySoFar = recoveryNow == null ? runningPeriod?.recovery_median_seconds ?? null : null;
-  const recoveryBefore = trendMedian(recoveries(before));
+  const recoveryBefore = medianOf(recoveries(before));
   const ticks = trendTicks(shown);
   // The half-width line charts fit every other label.
   const lineTicks = trendTicks(shown, shown.length > 6 ? 2 : 1);
@@ -5442,12 +5221,12 @@ function renderSessionReport(report: SessionReport): string {
         ${renderReportTimeline(report)}
       </section>
       <section class="report-stats" aria-label="Session stats">
-          ${reportStat("Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
-        ${reportStat("Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
-        ${reportStat("Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
-        ${reportStat("Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
+          ${flipStat("report-stat", "Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
+        ${flipStat("report-stat", "Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
+        ${flipStat("report-stat", "Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
+        ${flipStat("report-stat", "Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
         ${pomodoroStat(report)}
-        ${report.phone_seconds > 0 ? reportStat("Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
+        ${report.phone_seconds > 0 ? flipStat("report-stat", "Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
       </section>
       <section class="panel recap-apps">
         <h2 class="eyebrow recap-apps-title">Apps &amp; sites</h2>
@@ -5460,14 +5239,16 @@ function renderSessionReport(report: SessionReport): string {
 /** Stat tiles turned over to their explanation; cleared when another report opens. */
 const flippedStats = new Set<string>();
 
-/** The week card's two tiles turn over like the report's; their keys stay apart from the report's. */
-function weekStat(labelText: string, value: string, help: string): string {
-  const key = `week:${labelText}`;
+/** A report tile, or one of the week card's two, that turns over to its explanation. The week
+ *  card's keys stay apart from the report's. */
+function flipStat(cls: "week-hero-stat" | "report-stat", labelText: string, value: string, help: string): string {
+  const week = cls === "week-hero-stat";
+  const key = week ? `week:${labelText}` : labelText;
   const flipped = flippedStats.has(key);
   return `
-    <button class="week-hero-stat ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(key)}" aria-pressed="${flipped}">
-      <span class="week-hero-stat-face"><span class="eyebrow">${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
-      <span class="week-hero-stat-face week-hero-stat-back">${escapeHtml(help)}</span>
+    <button class="${cls} ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(key)}" aria-pressed="${flipped}">
+      <span class="${cls}-face"><span${week ? ` class="eyebrow"` : ""}>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
+      <span class="${cls}-face ${cls}-back">${escapeHtml(help)}</span>
     </button>
   `;
 }
@@ -5480,17 +5261,7 @@ function pomodoroStat(report: SessionReport): string {
   }
   // Rounds finished: each round end, plus the last one when the session ran its course.
   const finished = report.events.filter((event) => event.kind === "round_over").length + (report.ended_reason === "completed" ? 1 : 0);
-  return reportStat("Rounds", `${Math.min(finished, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
-}
-
-function reportStat(labelText: string, value: string, help: string): string {
-  const flipped = flippedStats.has(labelText);
-  return `
-    <button class="report-stat ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(labelText)}" aria-pressed="${flipped}">
-      <span class="report-stat-face"><span>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
-      <span class="report-stat-face report-stat-back">${escapeHtml(help)}</span>
-    </button>
-  `;
+  return flipStat("report-stat", "Rounds", `${Math.min(finished, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
 }
 
 /** Pauses are cut out, so the bar is the time the session ran; older sessions recorded before
@@ -5762,6 +5533,85 @@ function renderTimelineLegend(report: SessionReport, unrecorded: boolean): strin
   `;
 }
 
+// The buttons of every screen, wired once per window: a redraw's markup needs no binding. A button
+// inside an action card (a voice card) runs only its own action. Role=button cards take Enter and
+// Space like a button.
+document.addEventListener("click", (event) => {
+  const target = event.target as Element;
+  const tab = target.closest<HTMLElement>("[data-tab]");
+  const next = tab?.dataset.tab as Tab | undefined;
+  if (next && next !== activeTab) {
+    clearLastError();
+    animateOnArrival(next);
+    const leavingWebcam = settingsView === "webcam";
+    if (voiceInfoId) {
+      dismissVoiceInfo();
+    }
+    activeTab = next;
+    if (next !== "settings") {
+      if (settingsView === "voice") {
+        leaveVoiceScreen();
+      }
+      settingsView = "home";
+      ruleEditor = null;
+    }
+    closeWeekPicker();
+    if (next === "history") {
+      // Fresh data first, then one draw: a second draw mid-rise would snap the bars to full height.
+      historyArriving = true;
+      void Promise.all([refreshTrends(false), refreshHistoryWeek(false)]).then(() => {
+        historyArriving = false;
+        if (activeTab === "history") {
+          render();
+        }
+      });
+    } else {
+      render();
+    }
+    if (leavingWebcam) {
+      void stopWebcamPreview();
+    }
+  }
+  const button = target.closest<HTMLElement>("[data-action]");
+  if (button && button.getAttribute("aria-disabled") !== "true") {
+    void runAction(button.dataset.action || "", button);
+  }
+  const rule = target.closest<HTMLButtonElement>("[data-rule-action]");
+  if (rule) {
+    void handleRuleAction(rule);
+  }
+  const flip = target.closest<HTMLButtonElement>("[data-stat-flip]");
+  if (flip) {
+    const key = flip.dataset.statFlip ?? "";
+    const flipped = !flippedStats.has(key);
+    if (flipped) {
+      flippedStats.add(key);
+    } else {
+      flippedStats.delete(key);
+    }
+    flip.classList.toggle("is-flipped", flipped);
+    flip.setAttribute("aria-pressed", String(flipped));
+  }
+});
+document.addEventListener("keydown", (event) => {
+  const card = event.target as HTMLElement;
+  if (card.matches?.("[data-action]:not(button)") && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    card.click();
+  }
+});
+document.addEventListener("click", (event) => {
+  if (!weekPickerOpen) {
+    return;
+  }
+  const target = event.target as Element | null;
+  if (target?.closest(".week-picker, .history-week-label")) {
+    return;
+  }
+  closeWeekPicker();
+  paintWeekPicker();
+});
+
 /** Every listener for the markup inside `root`: the whole document after a full rebuild, or one
  *  slot after paintSlot, so a partial redraw is wired exactly like a full one. */
 function bindEvents(root: ParentNode = document): void {
@@ -5773,69 +5623,6 @@ function bindEvents(root: ParentNode = document): void {
       paintModalLayer();
     }
   });
-  root.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = button.dataset.tab as Tab;
-      if (next === activeTab) {
-        return;
-      }
-      clearLastError();
-      animateOnArrival(next);
-      const leavingWebcam = settingsView === "webcam";
-      if (voiceInfoId) {
-        dismissVoiceInfo();
-      }
-      activeTab = next;
-      if (next !== "settings") {
-        if (settingsView === "voice") {
-          leaveVoiceScreen();
-        }
-        settingsView = "home";
-        ruleEditor = null;
-      }
-      closeWeekPicker();
-      if (next === "history") {
-        // Fresh data first, then one draw: a second draw mid-rise would snap the bars to full height.
-        historyArriving = true;
-        void Promise.all([refreshTrends(false), refreshHistoryWeek(false)]).then(() => {
-          historyArriving = false;
-          if (activeTab === "history") {
-            render();
-          }
-        });
-      } else {
-        render();
-      }
-      if (leavingWebcam) {
-        void stopWebcamPreview();
-      }
-    });
-  });
-
-  root.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      // A button inside an action card (a voice card) runs only its own action.
-      if ((event.target as Element).closest("[data-action]") !== button || button.getAttribute("aria-disabled") === "true") {
-        return;
-      }
-      void runAction(button.dataset.action || "", button);
-    });
-    if (button.tagName !== "BUTTON") {
-      button.addEventListener("keydown", (event) => {
-        if (event.target === button && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          button.click();
-        }
-      });
-    }
-  });
-
-  root.querySelectorAll<HTMLButtonElement>("[data-rule-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      void handleRuleAction(button);
-    });
-  });
-
   root.querySelectorAll<HTMLFormElement>("[data-rule-form]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -5862,20 +5649,6 @@ function bindEvents(root: ParentNode = document): void {
     }
   });
 
-  if (!pickerDismissBound) {
-    pickerDismissBound = true;
-    document.addEventListener("click", (event) => {
-      if (!weekPickerOpen) {
-        return;
-      }
-      const target = event.target as Element | null;
-      if (target?.closest(".week-picker, .history-week-label")) {
-        return;
-      }
-      closeWeekPicker();
-      paintWeekPicker();
-    });
-  }
   const searchInput = root.querySelector("#history-search") as HTMLInputElement | null;
   searchInput?.addEventListener("input", () => {
     historySearch = searchInput.value;
@@ -5924,20 +5697,6 @@ function bindEvents(root: ParentNode = document): void {
       }
     });
   });
-  root.querySelectorAll<HTMLButtonElement>("[data-stat-flip]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const key = button.dataset.statFlip ?? "";
-      const flipped = !flippedStats.has(key);
-      if (flipped) {
-        flippedStats.add(key);
-      } else {
-        flippedStats.delete(key);
-      }
-      button.classList.toggle("is-flipped", flipped);
-      button.setAttribute("aria-pressed", String(flipped));
-    });
-  });
-
   root.querySelector("#default-strictness")?.addEventListener("change", (event) => {
     void updateDefaultStrictness((event.target as HTMLSelectElement).value as Strictness);
   });
@@ -6180,7 +5939,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "toggle-theme") {
     theme = theme === "dark" ? "light" : "dark";
     localStorage.setItem("supervisor-theme", theme);
-    applyTheme();
+    document.documentElement.dataset.theme = theme;
     // Waves are drawn in the theme's ink; the drawn key includes the theme, so they redraw.
     bindVoiceWaveforms();
     // The share cards are drawn in the theme's colours too.
@@ -6247,7 +6006,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "toggle-exception") {
-    const rule = permanentRules[Number(source?.dataset.ruleIndex)];
+    const rule = permanentRules.slice().reverse()[Number(source?.dataset.ruleIndex)];
     if (rule) {
       preflightExceptions = preflightExceptions.some((exception) => sameRule(exception, rule))
         ? preflightExceptions.filter((exception) => !sameRule(exception, rule))
@@ -6301,7 +6060,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "tip-hide") {
-    writeLocal(`tip.${source?.dataset.tip ?? ""}`, "1");
+    localStorage.setItem(`tip.${source?.dataset.tip ?? ""}`, "1");
     render();
     return;
   }
@@ -6314,14 +6073,14 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "tip-webcam") {
     await setWebcamEnabled(true);
-    writeLocal("tip.webcam", "1");
+    localStorage.setItem("tip.webcam", "1");
     showFeedback("Webcam on. Change it in Settings › Webcam");
     render();
     return;
   }
 
   if (action === "tip-share") {
-    writeLocal("tip.share", "1");
+    localStorage.setItem("tip.share", "1");
     document.querySelector<HTMLButtonElement>('nav.tabs [data-tab="history"]')?.click();
     return;
   }
@@ -6616,7 +6375,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     render();
     void refreshCameras();
     // The backend turns the camera on for a preview: with the switch off it stays off.
-    if (webcamSettings.phoneUse) {
+    if (settings.webcam_enabled) {
       await startWebcamPreview();
     }
     return;
@@ -6690,20 +6449,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
 
-  if (action === "open-memory-info" || action === "close-memory-info") {
-    memoryInfoOpen = action === "open-memory-info";
-    paintVoiceLayer();
-    return;
-  }
-
-  if (action === "open-model-info" || action === "close-model-info") {
-    modelInfoOpen = action === "open-model-info";
-    paintVoiceLayer();
-    return;
-  }
-
-  if (action === "open-voice-help" || action === "close-voice-help") {
-    voiceHelpOpen = action === "open-voice-help";
+  if (/^(open|close)-(voice-help|model-info|memory-info)$/.test(action)) {
+    voiceDialog = action.startsWith("open-") ? (action.slice(5) as typeof voiceDialog) : null;
     paintVoiceLayer();
     return;
   }
@@ -7167,11 +6914,8 @@ async function saveRuleForm(form: HTMLFormElement): Promise<void> {
 }
 
 function scheduleRulePreview(delay = 140): void {
-  if (rulePreviewTimer !== null) {
-    window.clearTimeout(rulePreviewTimer);
-  }
+  clearTimeout(rulePreviewTimer);
   rulePreviewTimer = window.setTimeout(() => {
-    rulePreviewTimer = null;
     void resolveRulePreview();
   }, delay);
 }
@@ -7254,17 +6998,36 @@ async function persistPermanentRuleChanges(previous: AppRule[]): Promise<void> {
   render();
 }
 
-function libraryBackup() {
-  return {
+/** Edits the line library and saves it. A failed save puts the library back and redraws. */
+async function editLibrary(mutate: () => void): Promise<boolean> {
+  const backup = {
     customPhrases: customPhrases.map((phrase) => ({ ...phrase })),
     customPhraseSets: [...customPhraseSets],
     phraseOverrides: { ...phraseOverrides },
     hiddenPhrases: new Set(hiddenPhrases),
   };
-}
-
-function restoreLibrary(backup: ReturnType<typeof libraryBackup>): void {
-  ({ customPhrases, customPhraseSets, phraseOverrides, hiddenPhrases } = backup);
+  mutate();
+  try {
+    const library = await invoke<PhraseLibraryState>("update_phrase_library", {
+      library: {
+        custom_tones: customPhraseSets,
+        custom_phrases: customPhrases,
+        phrase_overrides: Object.values(phraseOverrides),
+        hidden_phrases: [...hiddenPhrases],
+      },
+    });
+    customPhraseSets = library.custom_tones;
+    customPhrases = library.custom_phrases;
+    phraseOverrides = Object.fromEntries(library.phrase_overrides.map((phrase) => [phrase.id, phrase]));
+    hiddenPhrases = new Set(library.hidden_phrases);
+    voiceError = "";
+    return true;
+  } catch (error) {
+    voiceError = errorText(error);
+    ({ customPhrases, customPhraseSets, phraseOverrides, hiddenPhrases } = backup);
+    render();
+    return false;
+  }
 }
 
 /** Saves the Line popup. With `regenerate`, the line's clip is made right after, in the queue.
@@ -7282,26 +7045,25 @@ async function saveLine(regenerate: boolean): Promise<void> {
     return;
   }
   const existing = editor.phraseId ? effectivePhrases().find((item) => item.id === editor.phraseId) : null;
-  const backup = libraryBackup();
-  if (!phraseToneOrder().some((item) => sameTone(item, tone))) {
-    customPhraseSets.push(tone);
-  }
-  let id: string;
-  if (existing) {
-    id = existing.id;
-    const index = customPhrases.findIndex((phrase) => phrase.id === existing.id);
-    if (index >= 0) {
-      customPhrases[index] = { id, tone, moment, text };
-    } else {
-      phraseOverrides[id] = { id, tone, moment, text };
+  let id = "";
+  const saved = await editLibrary(() => {
+    if (!phraseToneOrder().some((item) => sameTone(item, tone))) {
+      customPhraseSets.push(tone);
     }
-  } else {
-    id = uniqueCustomPhraseId(text);
-    customPhrases.push({ id, tone, moment, text });
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+    if (existing) {
+      id = existing.id;
+      const index = customPhrases.findIndex((phrase) => phrase.id === existing.id);
+      if (index >= 0) {
+        customPhrases[index] = { id, tone, moment, text };
+      } else {
+        phraseOverrides[id] = { id, tone, moment, text };
+      }
+    } else {
+      id = uniqueCustomPhraseId(text);
+      customPhrases.push({ id, tone, moment, text });
+    }
+  });
+  if (!saved) {
     return;
   }
   if (existing && existing.text !== text) {
@@ -7349,14 +7111,13 @@ async function createTone(): Promise<void> {
     return;
   }
   const from = (document.getElementById("new-tone-from") as HTMLSelectElement | null)?.value ?? "";
-  const backup = libraryBackup();
-  customPhraseSets.push(name);
-  for (const phrase of from ? tonePhrases(from) : []) {
-    customPhrases.push({ id: uniqueCustomPhraseId(phrase.text), tone: name, moment: phrase.moment, text: phrase.text });
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  const saved = await editLibrary(() => {
+    customPhraseSets.push(name);
+    for (const phrase of from ? tonePhrases(from) : []) {
+      customPhrases.push({ id: uniqueCustomPhraseId(phrase.text), tone: name, moment: phrase.moment, text: phrase.text });
+    }
+  });
+  if (!saved) {
     return;
   }
   closeToneForms();
@@ -7364,43 +7125,20 @@ async function createTone(): Promise<void> {
 }
 /** Custom phrases go; bundled ones are hidden, so they stay deletable without a clip cleanup. */
 async function deletePhrase(phraseId: string): Promise<void> {
-  const backup = libraryBackup();
-  if (customPhrases.some((phrase) => phrase.id === phraseId)) {
-    customPhrases = customPhrases.filter((phrase) => phrase.id !== phraseId);
-  } else {
-    hiddenPhrases.add(phraseId);
-    delete phraseOverrides[phraseId];
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  const saved = await editLibrary(() => {
+    if (customPhrases.some((phrase) => phrase.id === phraseId)) {
+      customPhrases = customPhrases.filter((phrase) => phrase.id !== phraseId);
+    } else {
+      hiddenPhrases.add(phraseId);
+      delete phraseOverrides[phraseId];
+    }
+  });
+  if (!saved) {
     return;
   }
   phraseEditor = null;
   paintLines();
   showFeedback("Line deleted");
-}
-
-async function persistPhraseLibrary(): Promise<boolean> {
-  try {
-    const library = await invoke<PhraseLibraryState>("update_phrase_library", {
-      library: {
-        custom_tones: customPhraseSets,
-        custom_phrases: customPhrases,
-        phrase_overrides: Object.values(phraseOverrides),
-        hidden_phrases: [...hiddenPhrases],
-      },
-    });
-    customPhraseSets = library.custom_tones;
-    customPhrases = library.custom_phrases;
-    phraseOverrides = Object.fromEntries(library.phrase_overrides.map((phrase) => [phrase.id, phrase]));
-    hiddenPhrases = new Set(library.hidden_phrases);
-    voiceError = "";
-    return true;
-  } catch (error) {
-    voiceError = errorText(error);
-    return false;
-  }
 }
 
 async function invokeSnapshot(command: string, args?: Record<string, unknown>, paint = true): Promise<boolean> {
@@ -7468,11 +7206,11 @@ async function startModelDownload(): Promise<void> {
     const download = await invoke<VoiceDownloadSnapshot>("start_voice_model_download");
     applyDownloadSnapshot(download);
     voiceError = "";
-    startDownloadPolling();
     if (download.phase === "complete") {
-      stopDownloadPolling();
       await refreshVoiceStatus(false);
       showFeedback(download.up_to_date ? "Up to date" : "Voice engine ready");
+    } else {
+      startDownloadPolling();
     }
   } catch (error) {
     voiceBusy = null;
@@ -7494,38 +7232,21 @@ async function cancelModelDownload(): Promise<void> {
 }
 
 function startDownloadPolling(): void {
-  if (downloadPollId !== null) {
-    return;
-  }
-  downloadPollId = window.setInterval(() => {
-    void pollModelDownload();
-  }, 750);
+  downloadPollId ??= window.setTimeout(pollDownload, 750);
 }
 
 function stopDownloadPolling(): void {
-  if (downloadPollId !== null) {
-    window.clearInterval(downloadPollId);
-    downloadPollId = null;
-  }
+  clearTimeout(downloadPollId);
+  downloadPollId = undefined;
 }
 
-async function pollModelDownload(): Promise<void> {
+/** Runs every 750 ms while the voice engine popup waits on a download, until it ends. */
+async function pollDownload(): Promise<void> {
+  const poll = downloadPollId;
   if (voiceBusy !== "download-model") {
     stopDownloadPolling();
     return;
   }
-  if (downloadPollInFlight) {
-    return;
-  }
-  downloadPollInFlight = true;
-  try {
-    await pollModelDownloadNow();
-  } finally {
-    downloadPollInFlight = false;
-  }
-}
-
-async function pollModelDownloadNow(): Promise<void> {
   try {
     const download = await invoke<VoiceDownloadSnapshot>("get_voice_model_download");
     applyDownloadSnapshot(download);
@@ -7560,6 +7281,9 @@ async function pollModelDownloadNow(): Promise<void> {
     return;
   }
   paintDownloadProgress();
+  if (downloadPollId === poll) {
+    downloadPollId = window.setTimeout(pollDownload, 750);
+  }
 }
 
 function dismissDownloadModal(): void {
@@ -7687,7 +7411,7 @@ async function startVoiceRecording(): Promise<void> {
   try {
     const recording = await invoke<VoiceRecordingSnapshot>("start_voice_recording");
     applyRecordingSnapshot(recording);
-    if (recording.phase === "recording" && recordingTickId === null) {
+    if (recording.phase === "recording" && recordingTickId === undefined) {
       recordingTickId = window.setInterval(paintRecordingClock, 500);
     }
   } catch (error) {
@@ -7828,10 +7552,7 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
       }
     }
   }, false);
-  if (clipQueueTicker !== null) {
-    window.clearInterval(clipQueueTicker);
-    clipQueueTicker = null;
-  }
+  clearInterval(clipQueueTicker);
   const finished = clipQueue;
   if (finished?.phase !== "error") {
     clipQueue = null;
@@ -7953,17 +7674,16 @@ async function renameTone(): Promise<void> {
     showFeedback(`There is already a ${toneLabel(next)} personality`);
     return;
   }
-  const backup = libraryBackup();
-  customPhraseSets = customPhraseSets.map((tone) => (sameTone(tone, edit.from) ? next : tone));
-  customPhrases = customPhrases.map((phrase) => (sameTone(phrase.tone, edit.from) ? { ...phrase, tone: next } : phrase));
-  for (const [id, phrase] of Object.entries(phraseOverrides)) {
-    if (sameTone(phrase.tone, edit.from)) {
-      phraseOverrides[id] = { ...phrase, tone: next };
+  const saved = await editLibrary(() => {
+    customPhraseSets = customPhraseSets.map((tone) => (sameTone(tone, edit.from) ? next : tone));
+    customPhrases = customPhrases.map((phrase) => (sameTone(phrase.tone, edit.from) ? { ...phrase, tone: next } : phrase));
+    for (const [id, phrase] of Object.entries(phraseOverrides)) {
+      if (sameTone(phrase.tone, edit.from)) {
+        phraseOverrides[id] = { ...phrase, tone: next };
+      }
     }
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  });
+  if (!saved) {
     return;
   }
   for (const profile of voiceBackend?.profiles ?? []) {
@@ -7987,18 +7707,17 @@ async function deleteTone(tone: VoiceTone): Promise<void> {
     paintLines();
     return;
   }
-  const backup = libraryBackup();
-  customPhraseSets = customPhraseSets.filter((item) => !sameTone(item, tone));
-  customPhrases = customPhrases.filter((phrase) => !sameTone(phrase.tone, tone));
-  for (const [id, phrase] of Object.entries(phraseOverrides)) {
-    if (sameTone(phrase.tone, tone)) {
-      delete phraseOverrides[id];
-      hiddenPhrases.add(id);
+  const saved = await editLibrary(() => {
+    customPhraseSets = customPhraseSets.filter((item) => !sameTone(item, tone));
+    customPhrases = customPhrases.filter((phrase) => !sameTone(phrase.tone, tone));
+    for (const [id, phrase] of Object.entries(phraseOverrides)) {
+      if (sameTone(phrase.tone, tone)) {
+        delete phraseOverrides[id];
+        hiddenPhrases.add(id);
+      }
     }
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  });
+  if (!saved) {
     return;
   }
   render();
@@ -8085,10 +7804,8 @@ function applyRecordingSnapshot(recording: VoiceRecordingSnapshot): void {
 }
 
 function clearRecordingTick(): void {
-  if (recordingTickId !== null) {
-    window.clearInterval(recordingTickId);
-    recordingTickId = null;
-  }
+  clearInterval(recordingTickId);
+  recordingTickId = undefined;
 }
 
 function reconcilePolling(): void {
@@ -8108,13 +7825,9 @@ function tabButton(tab: Tab, text: string): string {
 function showFeedback(message: string, durationMs = 1400): void {
   feedbackToast.textContent = message;
 
-  if (feedbackTimer !== null) {
-    window.clearTimeout(feedbackTimer);
-  }
-
+  clearTimeout(feedbackTimer);
   feedbackTimer = window.setTimeout(() => {
     feedbackToast.textContent = "";
-    feedbackTimer = null;
   }, durationMs);
 }
 
@@ -8131,7 +7844,8 @@ function paintRecordingClock(): void {
 
 /** Saved, because sessions run the webcam only when this is on. */
 async function setWebcamEnabled(enabled: boolean): Promise<void> {
-  webcamSettings.phoneUse = enabled;
+  const was = settings.webcam_enabled;
+  settings.webcam_enabled = enabled;
   webcamHitStreak = 0;
   try {
     settings = await invoke<SessionSettings>("update_settings", {
@@ -8141,15 +7855,15 @@ async function setWebcamEnabled(enabled: boolean): Promise<void> {
   } catch (error) {
     // A toast, not the error line: that line is hidden while the switch is off, which is
     // where a failed save to turn it on leaves it.
+    settings.webcam_enabled = was;
     showFeedback(`Couldn't save that: ${errorText(error)}`, 4000);
     const box = document.getElementById("webcam-phone-use") as HTMLInputElement | null;
     if (box) {
-      box.checked = settings.webcam_enabled;
+      box.checked = was;
     }
   }
-  webcamSettings.phoneUse = settings.webcam_enabled;
   // The first run's switch shares this; only the Webcam page shows a preview.
-  if (webcamSettings.phoneUse) {
+  if (settings.webcam_enabled) {
     if (settingsView === "webcam" && activeTab === "settings") {
       void startWebcamPreview();
     }
@@ -8270,7 +7984,7 @@ function paintWebcamDom(): void {
   const img = document.getElementById("webcam-preview") as HTMLImageElement | null;
   const wrap = document.getElementById("webcam-frame-wrap");
   // A frame from before the switch went off is not shown as live.
-  if (img && frame?.jpeg && webcamSettings.phoneUse) {
+  if (img && frame?.jpeg && settings.webcam_enabled) {
     img.src = `data:image/jpeg;base64,${frame.jpeg}`;
     img.alt = "Webcam preview";
     wrap?.classList.add("is-live");
@@ -8300,7 +8014,7 @@ function paintWebcamDom(): void {
   const liveError = document.getElementById("webcam-live-error");
   if (liveError) {
     liveError.textContent = webcamError;
-    liveError.hidden = !(webcamSettings.phoneUse && webcamError);
+    liveError.hidden = !(settings.webcam_enabled && webcamError);
   }
   const gpuNote = document.getElementById("webcam-gpu-note");
   if (gpuNote) {
@@ -8313,7 +8027,7 @@ function paintWebcamDom(): void {
 }
 
 function webcamWouldAlert(frame: WebcamFrame | null): boolean {
-  return frame !== null && webcamSettings.phoneUse && frame.phone_in_frame;
+  return frame !== null && settings.webcam_enabled && frame.phone_in_frame;
 }
 
 /** Red with a phone out, green with someone in frame, plain otherwise. */
@@ -8325,7 +8039,7 @@ function webcamStateClass(frame: WebcamFrame | null, alerting: boolean): string 
 }
 
 function webcamWaitingCopy(): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Camera off";
   }
   if (webcamError) {
@@ -8335,7 +8049,7 @@ function webcamWaitingCopy(): string {
 }
 
 function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Webcam models off";
   }
   if (!frame) {
@@ -8348,7 +8062,7 @@ function webcamTitle(frame: WebcamFrame | null, alerting: boolean): string {
 }
 
 function webcamCopy(frame: WebcamFrame | null, alerting: boolean): string {
-  if (!webcamSettings.phoneUse) {
+  if (!settings.webcam_enabled) {
     return "Turn them on to get a reminder when your phone or watch comes out.";
   }
   if (!frame) {
@@ -8551,10 +8265,7 @@ async function playMomentLine(moment: PhraseMoment, turn: number): Promise<boole
   if (draft.voiceId === "none") {
     return false;
   }
-  const voice = selectedVoice();
-  const ready = momentPhrases(voiceTone(voice), moment)
-    .map((phrase) => clipForPhrase(voice, phrase))
-    .filter((clip): clip is VoiceClipSummary => Boolean(clip));
+  const ready = readyClips(selectedVoice(), moment);
   return playLine(ready.length ? ready[turn % ready.length] : null);
 }
 
@@ -8666,12 +8377,8 @@ function announceNudge(speaking: boolean): void {
  *  clip at all only when it has none ready. */
 function selectedNudgeClip(nudgeCount: number, phone = false): VoiceClipSummary | null {
   const voice = selectedVoice();
-  const readyIn = (moment: PhraseMoment) =>
-    momentPhrases(voiceTone(voice), moment)
-      .map((phrase) => clipForPhrase(voice, phrase))
-      .filter((clip): clip is VoiceClipSummary => Boolean(clip));
-  const phoneReady = phone ? readyIn("phone") : [];
-  const ready = phoneReady.length > 0 ? phoneReady : readyIn("nudge");
+  const phoneReady = phone ? readyClips(voice, "phone") : [];
+  const ready = phoneReady.length > 0 ? phoneReady : readyClips(voice, "nudge");
   // No nudge line in this personality: the voice stays quiet, as the Voice page says. A
   // session-over or round-over line is never a nudge.
   if (ready.length === 0) {
@@ -9119,6 +8826,13 @@ function tonePhrases(tone: VoiceTone): PhraseDefinition[] {
   return effectivePhrases().filter((phrase) => sameTone(phrase.tone, tone));
 }
 
+/** The clips a voice has for its personality's lines at a moment. */
+function readyClips(voice: VoiceOption, moment: PhraseMoment): VoiceClipSummary[] {
+  return momentPhrases(voiceTone(voice), moment)
+    .map((phrase) => clipForPhrase(voice, phrase))
+    .filter((clip): clip is VoiceClipSummary => Boolean(clip));
+}
+
 function momentPhrases(tone: VoiceTone, moment: PhraseMoment): PhraseDefinition[] {
   return tonePhrases(tone).filter((phrase) => phrase.moment === moment);
 }
@@ -9174,11 +8888,6 @@ function voiceSilentMoments(voice: VoiceOption): string[] {
   }).map((moment) => moment.label);
 }
 
-/** "a, b and c" */
-function listWords(words: string[]): string {
-  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-}
-
 /** The chosen voice, when it has no back to work line it can play: every reminder then stays
  *  quiet (selectedNudgeClip finds nothing). Moving the voice to another personality, making or
  *  deleting one, or adding or moving lines can all lead here, so the screens that name the voice
@@ -9188,7 +8897,7 @@ function quietVoice(): VoiceOption | null {
     return null;
   }
   const voice = selectedVoice();
-  return momentPhrases(voiceTone(voice), "nudge").some((phrase) => clipForPhrase(voice, phrase)) ? null : voice;
+  return readyClips(voice, "nudge").length ? null : voice;
 }
 
 function quietVoiceText(voice: VoiceOption): string {
@@ -9220,7 +8929,7 @@ function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): str
     if (silent.length === 0) {
       return "";
     }
-    words = `${voice.name} has no lines for ${listWords(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
+    words = `${voice.name} has no lines for ${new Intl.ListFormat("en-GB").format(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
   }
   const action =
     where === "start"
@@ -9235,26 +8944,14 @@ function availableVoices(): VoiceOption[] {
   const customVoices =
     voiceBackend?.profiles
       .filter((profile) => !(STARTER_PROFILE_IDS as readonly string[]).includes(profile.profile_id))
-      .map((profile) => {
-      const phrases = effectivePhrases();
-      const ready = phrases.filter((phrase) => clipForPhraseId(profile.clips, phrase.id)).length;
-      const hasReference = Boolean(profile.reference_path);
-      return {
+      .map((profile) => ({
         id: voiceOptionId(profile.profile_id),
         name: profile.display_name,
-        kind: ready > 0 ? "Ready" : hasReference ? "Recorded" : "Incomplete",
-        detail: ready > 0
-          ? "Its lines are generated and play in sessions."
-          : hasReference
-            ? "Recorded. Generate its lines before using this voice."
-            : "The recording is missing. Delete this voice or record it again.",
-        coverage: `${ready}/${phrases.length} lines ready`,
         ...ownLineCount(profile),
         source: "custom" as VoiceSource,
         selectable: profileToneReady(profile),
         profile,
-      };
-    }) ?? [];
+      })) ?? [];
 
   return [noneVoice, ...starterVoiceOptions(), ...customVoices];
 }
@@ -9573,10 +9270,7 @@ async function refreshHistoryWeek(shouldRender = true): Promise<void> {
 }
 
 function scheduleHistorySearch(): void {
-  if (historySearchTimer !== null) {
-    window.clearTimeout(historySearchTimer);
-    historySearchTimer = null;
-  }
+  clearTimeout(historySearchTimer);
   const query = historySearch.trim();
   if (!query) {
     historySearchRequest += 1;
@@ -9585,7 +9279,6 @@ function scheduleHistorySearch(): void {
     return;
   }
   historySearchTimer = window.setTimeout(() => {
-    historySearchTimer = null;
     void runHistorySearch(query);
   }, 150);
 }
@@ -9607,23 +9300,6 @@ async function runHistorySearch(query: string): Promise<void> {
     return;
   }
   paintHistoryBody();
-}
-
-/** Browser storage, which can be absent or throw (private windows, cleared site data). */
-function readLocal(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeLocal(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Nothing to do: the report is simply offered again next time.
-  }
 }
 
 /** The newest session not yet seen, left unseen until its report opens (or the caller decides
@@ -9668,7 +9344,7 @@ async function openHistoryReport(id: number, review = false): Promise<void> {
     lastError = "";
     knownHistoryIds.add(id);
     if (review) {
-      writeLocal("review.lastOffered", String(id));
+      localStorage.setItem("review.lastOffered", String(id));
     }
   } catch (error) {
     lastError = errorText(error);
@@ -9703,7 +9379,7 @@ async function confirmHistoryAction(): Promise<void> {
     await runHistoryCommand("delete_all_history", undefined, "History cleared", () => {
       knownHistoryIds.clear();
       practiceIds.clear();
-      writeLocal("review.lastOffered", "0");
+      localStorage.setItem("review.lastOffered", "0");
     });
     historyView = "list";
     sessionReport = null;
@@ -10008,9 +9684,10 @@ function focusedStretches(spans: ReportSpan[]): number[] {
   return stretches;
 }
 
-function medianOf(values: number[]): number {
+/** The median, or null when there is nothing to take it of. */
+function medianOf(values: number[]): number | null {
   if (values.length === 0) {
-    return 0;
+    return null;
   }
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -10048,7 +9725,7 @@ function summarizeDay(card: { day: string; reports: SessionReport[] }): DaySumma
     day: card.day,
     isToday: card.day === dayKey(new Date()),
     focusedSeconds: card.reports.reduce((sum, report) => sum + report.focused_seconds, 0),
-    attentionSeconds: medianOf(card.reports.flatMap((report) => focusedStretches(report.spans))),
+    attentionSeconds: medianOf(card.reports.flatMap((report) => focusedStretches(report.spans))) ?? 0,
     segments,
   };
 }
@@ -10245,17 +9922,7 @@ function cardCanvas(height: number, framed = false): { canvas: HTMLCanvasElement
 function drawCardTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sub = ""): void {
   const palette = cardPalette();
   const valueMax = sub ? 26 : 34;
-  ctx.fillStyle = palette.shadow;
-  ctx.beginPath();
-  ctx.roundRect(x + 4, y + 4, w, h, 6);
-  ctx.fill();
-  ctx.fillStyle = palette.panel;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 6);
-  ctx.fill();
-  ctx.strokeStyle = palette.border;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  drawCardPanel(ctx, x, y, w, h, 6);
   const inset = sub ? 12 : 16;
   const inner = w - inset * 2;
   ctx.textAlign = "left";
@@ -10409,16 +10076,16 @@ function drawCardHeader(ctx: CanvasRenderingContext2D, eyebrow: string, period: 
   return bottom + 18;
 }
 
-/** An inner panel in the card's language: hard shadow, fill, border. */
-function drawCardPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+/** An inner panel in the card's language: hard shadow, fill, border. Tiles are less rounded. */
+function drawCardPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius = 8): void {
   const palette = cardPalette();
   ctx.fillStyle = palette.shadow;
   ctx.beginPath();
-  ctx.roundRect(x + 4, y + 4, w, h, 8);
+  ctx.roundRect(x + 4, y + 4, w, h, radius);
   ctx.fill();
   ctx.fillStyle = palette.panel;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 8);
+  ctx.roundRect(x, y, w, h, radius);
   ctx.fill();
   ctx.strokeStyle = palette.border;
   ctx.lineWidth = 3;
@@ -10693,25 +10360,12 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function attr(value: string): string {
-  return escapeHtml(value).replaceAll('"', "&quot;");
-}
+const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
 
 function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => {
-    switch (char) {
-      case "&":
-        return "&amp;";
-      case "<":
-        return "&lt;";
-      case ">":
-        return "&gt;";
-      case '"':
-        return "&quot;";
-      default:
-        return "&#039;";
-    }
-  });
+  return value.replace(/[&<>"']/g, (char) => ESCAPES[char]);
 }
+
+const attr = escapeHtml;
 
 void init();
