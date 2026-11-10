@@ -260,10 +260,7 @@ fn is_local_name(domain: &str) -> bool {
 fn ip_key(ip: IpAddr) -> String {
     let local = match ip {
         IpAddr::V4(ip) => ip.is_private() || ip.is_loopback() || ip.is_link_local(),
-        IpAddr::V6(ip) => {
-            let first = ip.segments()[0];
-            ip.is_loopback() || (first & 0xfe00) == 0xfc00 || (first & 0xffc0) == 0xfe80
-        }
+        IpAddr::V6(ip) => ip.is_loopback() || ip.is_unique_local() || ip.is_unicast_link_local(),
     };
     if local {
         LOCAL_NETWORK.to_string()

@@ -4,10 +4,7 @@ use crate::focus::{
     starter_rules, AppRule, FocusConfig, FocusEngine, FocusSnapshot, FocusState,
     RuleTarget,
 };
-use crate::storage::{
-    focus_state_from_key, focus_state_key, open_or_reset, DailyFocus, HistoryWeek, MonthRecap, WeekRecap, SessionReport,
-    SessionStorage, StorageNotice, TrendPeriod, TrendUnit, TrendsData,
-};
+use crate::storage::{focus_state_from_key, focus_state_key, open_or_reset, SessionReport, SessionStorage, StorageNotice};
 use crate::website;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -84,42 +81,10 @@ impl SessionManager {
         self.storage()?.get_session_report(id)
     }
 
-    pub fn trends(&self) -> Result<TrendsData, String> {
-        self.storage()?.get_trends()
-    }
-
-    pub fn trend_periods(&self, unit: TrendUnit) -> Result<Vec<TrendPeriod>, String> {
-        self.storage()?.get_trend_periods(unit)
-    }
-
-    pub fn focus_days(&self, start: String, end: String) -> Result<Vec<DailyFocus>, String> {
-        self.storage()?.get_focus_days(&start, &end)
-    }
-
-    pub fn history_week(&self, week_start: String) -> Result<HistoryWeek, String> {
-        self.storage()?.get_history_week(&week_start)
-    }
-
-    pub fn search_sessions(&self, query: String) -> Result<Vec<SessionSummary>, String> {
-        self.storage()?.search_sessions(&query)
-    }
-
-    pub fn week_recap(&self, start: String) -> Result<WeekRecap, String> {
-        self.storage()?.get_week_recap(&start)
-    }
-
-    pub fn month_recap(&self, start: String) -> Result<MonthRecap, String> {
-        self.storage()?.get_month_recap(&start)
-    }
-
     pub fn delete_session(&mut self, id: u64) -> Result<(), String> {
         self.storage()?.delete_session(id)?;
         self.refresh_history();
         Ok(())
-    }
-
-    pub fn history_bytes(&self) -> Result<u64, String> {
-        self.storage()?.history_bytes()
     }
 
     pub fn delete_all_history(&mut self) -> Result<(), String> {
@@ -140,7 +105,7 @@ impl SessionManager {
         self.snapshot(now)
     }
 
-    fn storage(&self) -> Result<&SessionStorage, String> {
+    pub fn storage(&self) -> Result<&SessionStorage, String> {
         self.storage
             .as_ref()
             .ok_or_else(|| "History is off: Supervisor could not open its storage.".to_string())
@@ -207,14 +172,10 @@ impl SessionManager {
         Ok(self.site_names())
     }
 
-    pub fn app_names(&self) -> Result<HashMap<String, String>, String> {
-        self.storage()?.app_names()
-    }
-
     pub fn set_app_name(&mut self, key: &str, name: &str) -> Result<HashMap<String, String>, String> {
         self.storage()?.set_app_name(key, name)?;
         self.refresh_history();
-        self.app_names()
+        self.storage()?.app_names()
     }
 
     /// What to ask about after a session: up to four apps or sites it counted as work for two
@@ -255,17 +216,6 @@ impl SessionManager {
         self.storage()?.set_session_app_distraction(id, &kind, &key, distraction)?;
         self.refresh_history();
         self.session_report(id)
-    }
-
-    pub fn load_phrase_library(&self) -> Result<crate::storage::StoredPhraseLibrary, String> {
-        self.storage()?.load_phrase_library()
-    }
-
-    pub fn save_phrase_library(
-        &mut self,
-        library: crate::storage::StoredPhraseLibrary,
-    ) -> Result<crate::storage::StoredPhraseLibrary, String> {
-        self.storage()?.save_phrase_library(library)
     }
 }
 
@@ -924,10 +874,6 @@ impl Session {
 
         let mut sample = sample;
         if let Some(storage) = storage {
-            if sample.app_identity.is_empty() {
-                sample.app_identity =
-                    crate::app_identity::fallback_identity(&sample.process_path, &sample.app_name);
-            }
             sample.app_key = Some(storage.app_key(&sample.app_identity, &sample.app_name, &sample.app_label));
         }
         let activity = self.resolver.resolve(&sample, now);
@@ -3110,7 +3056,7 @@ mod tests {
         assert_eq!(snapshot.status, SessionStatus::Idle);
         assert!(snapshot.history.is_empty());
         assert_eq!(snapshot.storage_notice, Some(notice.clone()));
-        assert!(manager.trends().is_err());
+        assert!(manager.storage().is_err());
         assert_eq!(manager.dismiss_storage_notice(seconds(12)).storage_notice, Some(notice));
     }
 
@@ -3305,6 +3251,7 @@ mod tests {
         manager.start(input("Focus", Strictness::Strict), seconds(0));
         let other = ActivitySample {
             process_path: "/Applications/Other/Supervisor.app".to_string(),
+            app_identity: "path:/applications/other/supervisor.app".to_string(),
             ..sample("Supervisor", "Someone else's app", 0.0)
         };
         let snapshot = record(&mut manager, other, seconds(5));
@@ -3321,10 +3268,12 @@ mod tests {
         manager.start(input("Focus", Strictness::Normal), seconds(0));
         let alpha = ActivitySample {
             process_path: "/Vendors/Alpha/App.app".to_string(),
+            app_identity: "path:/vendors/alpha/app.app".to_string(),
             ..sample("App", "Alpha", 0.0)
         };
         let beta = ActivitySample {
             process_path: "/Vendors/Beta/App.app".to_string(),
+            app_identity: "path:/vendors/beta/app.app".to_string(),
             ..sample("App", "Beta", 0.0)
         };
         let focus = |snapshot: SessionSnapshot| snapshot.current.unwrap().focus.unwrap();
@@ -3428,7 +3377,7 @@ mod tests {
             app_name: app_name.to_string(),
             app_label: app_name.to_string(),
             process_path: format!("/Applications/{app_name}.app"),
-            app_identity: String::new(),
+            app_identity: format!("path:/applications/{}.app", app_name.to_lowercase()),
             app_key: None,
             process_id,
             window_title: Some(title.to_string()),

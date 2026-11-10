@@ -3,7 +3,7 @@ use crate::app_identity::{host_script, host_script_label, is_shared_host, window
 use crate::website::is_browser;
 use super::activity_normalize::{
     app_label, app_name_from_process_path, classify_foreground_surface, is_inside_dir,
-    normalize_title_for_browser, normalize_title_text, ForegroundDisposition,
+    normalize_title_for_browser, ForegroundDisposition,
     RawForegroundIdentity,
 };
 use std::collections::HashMap;
@@ -114,18 +114,17 @@ pub fn capture_current(
         return Err("foreground window has no process".to_string());
     }
 
-    let (mut process_id, mut process_path, mut exe_name) =
-        resolve_process_identity(hwnd, process_id);
+    let (mut process_id, mut process_path) = resolve_process_identity(hwnd, process_id);
     if belongs_to_this_process(hwnd) {
         process_id = std::process::id();
         if let Ok(path) = std::env::current_exe() {
             process_path = path.to_string_lossy().into_owned();
-            exe_name = file_name_from_path(&process_path);
         }
     }
     if process_path.is_empty() {
         return Err("foreground process could not be identified".to_string());
     }
+    let exe_name = file_name_from_path(&process_path);
 
     let disposition = classify_foreground_surface(&RawForegroundIdentity {
         exe_name: exe_name.clone(),
@@ -263,12 +262,8 @@ fn build_sample(
     raw_title: String,
     shell_surface: bool,
 ) -> ActivitySample {
-    let mut app_name = app_name_from_process_path(&process_path, &window_class);
-    if app_name.is_empty() {
-        app_name = exe_name.clone();
-    }
-    let window_title = normalize_title_for_browser(&exe_name, &raw_title)
-        .or_else(|| normalize_title_text(&raw_title));
+    let app_name = app_name_from_process_path(&process_path, &window_class);
+    let window_title = normalize_title_for_browser(&exe_name, &raw_title);
     let browser = (!shell_surface && is_browser(&app_name.to_lowercase())).then(|| {
         let read = super::browser_win32::read_browser(hwnd);
         // The user may have switched windows during the read; don't credit the new one.
@@ -493,21 +488,11 @@ fn identifier_like(name: &str) -> bool {
     !name.contains(char::is_whitespace) && (name.contains('.') || name.contains('_'))
 }
 
-fn resolve_process_identity(hwnd: HWND, process_id: u32) -> (u32, String, String) {
-    if let Some((uwp_pid, uwp_path)) = resolve_uwp_process(hwnd, process_id) {
-        let exe = file_name_from_path(&uwp_path);
-        return (uwp_pid, uwp_path, exe);
-    }
-
-    match query_process_path(process_id) {
-        Some(path) => {
-            let exe = file_name_from_path(&path);
-            (process_id, path, exe)
-        }
-        // A window class describes a UI surface, not the application that owns it.
-        // Without a process identity this tick cannot safely enter history or rules.
-        None => (process_id, String::new(), String::new()),
-    }
+fn resolve_process_identity(hwnd: HWND, process_id: u32) -> (u32, String) {
+    // A window class describes a UI surface, not the application that owns it. Without a
+    // process identity (an empty path) this tick cannot safely enter history or rules.
+    resolve_uwp_process(hwnd, process_id)
+        .unwrap_or_else(|| (process_id, query_process_path(process_id).unwrap_or_default()))
 }
 
 fn resolve_uwp_process(hwnd: HWND, host_pid: u32) -> Option<(u32, String)> {

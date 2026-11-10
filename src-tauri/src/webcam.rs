@@ -69,10 +69,6 @@ impl WebcamFrame {
     }
 }
 
-/// Called for every reading, preview or not. Frames themselves never leave this module except
-/// as the preview JPEG, which only the Settings page asks for and nothing stores.
-pub type FrameObserver = fn(&AppHandle, &WebcamFrame);
-
 /// One worker serves both the Settings preview and live sessions.
 pub struct WebcamPreview {
     starting: Mutex<()>,
@@ -211,7 +207,6 @@ pub fn start_worker(
     gpu: bool,
     camera: u32,
     preview: bool,
-    on_frame: FrameObserver,
 ) -> Result<(), String> {
     let _one_start_at_a_time = state
         .starting
@@ -221,7 +216,7 @@ pub fn start_worker(
         return Ok(());
     }
     stop_preview(state);
-    let started = spawn_worker(app, state, gpu, camera, preview, on_frame);
+    let started = spawn_worker(app, state, gpu, camera, preview);
     if started.is_err() {
         state.mark_failed();
     }
@@ -234,7 +229,6 @@ fn spawn_worker(
     gpu: bool,
     camera: u32,
     preview: bool,
-    on_frame: FrameObserver,
 ) -> Result<(), String> {
     camera_access()?;
 
@@ -291,7 +285,7 @@ fn spawn_worker(
     let failed_at = Arc::clone(&state.failed_at);
     let last_line_at = Arc::clone(&state.last_line_at);
     let gpu_failed = Arc::clone(&state.gpu_failed);
-    std::thread::spawn(move || read_worker(app, stdout, stop, on_frame, failed_at, last_line_at, gpu_failed));
+    std::thread::spawn(move || read_worker(app, stdout, stop, failed_at, last_line_at, gpu_failed));
     Ok(())
 }
 
@@ -401,7 +395,6 @@ fn read_worker<R: std::io::Read>(
     app: AppHandle,
     stdout: R,
     stop: Arc<AtomicBool>,
-    on_frame: FrameObserver,
     failed_at: Arc<Mutex<Option<Instant>>>,
     last_line_at: Arc<Mutex<Option<Instant>>>,
     gpu_failed: Arc<AtomicBool>,
@@ -434,7 +427,7 @@ fn read_worker<R: std::io::Read>(
                     gpu_broke = true;
                 }
                 reported_error |= frame.error.is_some();
-                on_frame(&app, &frame);
+                crate::on_webcam_frame(&app, &frame);
                 let _ = app.emit(WORKER_EVENT, &frame);
             }
             // Anything else on stdout (ONNX Runtime's provider fallback banner) is a log line,

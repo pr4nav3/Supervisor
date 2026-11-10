@@ -142,11 +142,12 @@ pub fn normalize_title_text(raw: &str) -> Option<String> {
     Some(stripped.to_owned())
 }
 
+/// The page's own title. One that comes out blank or a placeholder once the browser's name is
+/// off stays whole.
 pub fn normalize_title_for_browser(exe_name: &str, raw_title: &str) -> Option<String> {
     let base = normalize_title_text(raw_title)?;
     let without_suffix = strip_browser_suffix_for_exe(exe_name, &base);
-    let without_profile = strip_browser_profile_segment(&without_suffix);
-    normalize_title_text(&without_profile)
+    normalize_title_text(&strip_browser_profile_segment(&without_suffix)).or(Some(base))
 }
 
 pub fn strip_browser_suffix_for_exe(exe_name: &str, title: &str) -> String {
@@ -307,6 +308,8 @@ mod tests {
             ),
             Some("Inbox".to_string())
         );
+        // Nothing left but a placeholder: the title stays whole.
+        assert_eq!(normalize_title_for_browser("chrome.exe", "Untitled - Google Chrome").as_deref(), Some("Untitled - Google Chrome"));
     }
 
     #[test]
