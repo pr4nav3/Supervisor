@@ -465,27 +465,19 @@ interface VoiceRecordingSnapshot {
   message: string;
 }
 
-const app = getAppRoot();
+const app = document.querySelector<HTMLDivElement>("#app")!;
 const appView: AppView = new URLSearchParams(window.location.search).get("view") === "overlay" ? "overlay" : "main";
 document.body.classList.toggle("overlay-view", appView === "overlay");
 
 let theme: "light" | "dark" = localStorage.getItem("supervisor-theme") === "dark" ? "dark" : "light";
 
-function applyTheme(): void {
-  if (theme === "dark") {
-    document.documentElement.dataset.theme = "dark";
-  } else {
-    delete document.documentElement.dataset.theme;
-  }
-}
-
-applyTheme();
+document.documentElement.dataset.theme = theme;
 window.addEventListener("storage", (event) => {
   if (event.key !== "supervisor-theme") {
     return;
   }
   theme = event.newValue === "dark" ? "dark" : "light";
-  applyTheme();
+  document.documentElement.dataset.theme = theme;
   bindVoiceWaveforms();
 });
 window.addEventListener("keydown", (event) => {
@@ -748,16 +740,6 @@ let webcamAlarmAtMs = 0;
 let webcamPreviewStarted = false;
 /** Camera names in the order the worker opens them (empty where the OS gives none). */
 let webcamCameras: string[] = [];
-
-function getAppRoot(): HTMLDivElement {
-  const element = document.querySelector<HTMLDivElement>("#app");
-
-  if (!element) {
-    throw new Error("Missing app root");
-  }
-
-  return element;
-}
 
 async function init(): Promise<void> {
   render();
@@ -1496,7 +1478,7 @@ function renderSession(current: CurrentSession | null): string {
             <div id="day-card-slot" class="slot">${renderDayCard(streak.days)}</div>
           </div>
         </div>
-        ${renderStartAction()}
+        <button class="primary start-watch-button" type="button" data-action="open-preflight">Start focus session</button>
       </section>
       <div id="preflight-layer">${preflightOpen ? renderPreflightModal() : ""}</div>
     `;
@@ -1568,27 +1550,15 @@ function resumeLabel(current: CurrentSession): string {
 /** The big countdown and its bar: the session's time, or in a Pomodoro the current round or break. */
 function liveTimer(current: CurrentSession): { label: string; caption: string; percent: number } {
   const pomodoro = current.pomodoro;
-  if (!pomodoro) {
-    const percent = current.duration_seconds
-      ? Math.min(100, Math.round((current.elapsed_seconds / current.duration_seconds) * 100))
-      : 0;
-    return { label: formatDuration(current.remaining_seconds), caption: "Remaining", percent };
-  }
-  if (pomodoro.phase === "work") {
-    const left = pomodoro.phase_remaining_seconds;
-    const last = pomodoro.round >= pomodoro.rounds;
-    return {
-      label: formatDuration(left),
-      caption: last ? "Until done" : "Until break",
-      percent: Math.min(100, Math.round(((pomodoro.work_seconds - left) / pomodoro.work_seconds) * 100)),
-    };
-  }
-  const left = pomodoro.phase_remaining_seconds;
-  return {
-    label: formatDuration(left),
-    caption: pomodoro.phase === "break_over" ? `Until round ${pomodoro.round + 1} starts by itself` : `Until round ${pomodoro.round + 1}`,
-    percent: Math.min(100, Math.round(((pomodoro.break_seconds - left) / pomodoro.break_seconds) * 100)),
-  };
+  const left = pomodoro ? pomodoro.phase_remaining_seconds : current.remaining_seconds;
+  const total = !pomodoro ? current.duration_seconds : pomodoro.phase === "work" ? pomodoro.work_seconds : pomodoro.break_seconds;
+  const done = pomodoro ? total - left : current.elapsed_seconds;
+  const caption = !pomodoro
+    ? "Remaining"
+    : pomodoro.phase === "work"
+      ? pomodoro.round >= pomodoro.rounds ? "Until done" : "Until break"
+      : pomodoro.phase === "break_over" ? `Until round ${pomodoro.round + 1} starts by itself` : `Until round ${pomodoro.round + 1}`;
+  return { label: formatDuration(left), caption, percent: total ? Math.min(100, Math.round((done / total) * 100)) : 0 };
 }
 
 function breakOverLine(pomodoro: PomodoroStatus): string {
@@ -2711,12 +2681,6 @@ function renderHomeTip(): string {
         </div>
       </div>
     </article>
-  `;
-}
-
-function renderStartAction(): string {
-  return `
-    <button class="primary start-watch-button" type="button" data-action="open-preflight">Start focus session</button>
   `;
 }
 
@@ -4420,11 +4384,6 @@ function addMonthsKey(monthStart: string, months: number): string {
   return monthKey(dayKey(date));
 }
 
-/** The Monday on or before the 1st; six rows of seven cover any month. */
-function pickerGridStart(monthStart: string): string {
-  return mondayKey(monthStart);
-}
-
 const PICKER_GRID_DAYS = 42;
 
 /** A month of days, shaded by focused time, with the viewed week outlined; a click picks that
@@ -4434,7 +4393,7 @@ function renderWeekPicker(weekStart: string, oldestMonday: string): string {
   const today = dayKey(new Date());
   const currentMonth = monthKey(today);
   const weekEnd = addDaysKey(weekStart, 6);
-  const gridStart = pickerGridStart(month);
+  const gridStart = mondayKey(month);
   const prevDisabled = month <= monthKey(oldestMonday);
   const nextDisabled = month >= currentMonth;
   const title = parseDayKey(month).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -4482,7 +4441,7 @@ function renderWeekPicker(weekStart: string, oldestMonday: string): string {
 /** Loads the days with sessions for the month the picker shows. */
 async function loadPickerDays(): Promise<void> {
   const month = pickerMonth || monthKey(historyWeekStart || thisMondayKey());
-  const start = pickerGridStart(month);
+  const start = mondayKey(month);
   const request = ++pickerRequest;
   try {
     const days = await invoke<DailyFocus[]>("get_focus_days", { start, end: addDaysKey(start, PICKER_GRID_DAYS) });
@@ -6089,7 +6048,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "toggle-theme") {
     theme = theme === "dark" ? "light" : "dark";
     localStorage.setItem("supervisor-theme", theme);
-    applyTheme();
+    document.documentElement.dataset.theme = theme;
     // Waves are drawn in the theme's ink; the drawn key includes the theme, so they redraw.
     bindVoiceWaveforms();
     // The share cards are drawn in the theme's colours too.
