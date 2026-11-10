@@ -1678,15 +1678,6 @@ button[data-action="cancel-delete-voice"] {
   background: var(--panel);
 }
 
-.evidence-panel {
-  grid-area: evidence;
-}
-
-.evidence-panel .rows {
-  max-height: 260px;
-  overflow: auto;
-}
-
 .start-watch-button {
   width: 100%;
   min-height: 64px;
