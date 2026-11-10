@@ -865,7 +865,7 @@ async function init(): Promise<void> {
     );
     // Every past session is known, except the newest one no report was ever offered for: a
     // session ended by quitting, or finished while the window was away, is offered on launch.
-    const offered = Number(readLocal("review.lastOffered") ?? "0");
+    const offered = Number(localStorage.getItem("review.lastOffered") ?? "0");
     history.forEach((item, index) => {
       if (index > 0 || item.id <= offered) {
         knownHistoryIds.add(item.id);
@@ -877,7 +877,7 @@ async function init(): Promise<void> {
     draft.strictness = loadedSettings.default_strictness;
     draft.voiceId = normalizeStoredVoiceId(loadedSettings.voice_profile);
     // A practice the app closed on: never offered as a report, ended and removed now.
-    const stalePractice = Number(readLocal(PRACTICE_KEY) ?? "0");
+    const stalePractice = Number(localStorage.getItem(PRACTICE_KEY) ?? "0");
     if (stalePractice) {
       practiceIds.add(stalePractice);
       knownHistoryIds.add(stalePractice);
@@ -895,7 +895,7 @@ async function init(): Promise<void> {
       })();
     }
     // The first launch opens the first run; after that it waits on Home's Getting started line.
-    if (appView === "main" && history.length === 0 && readLocal(FIRST_RUN_KEY) !== "1") {
+    if (appView === "main" && history.length === 0 && localStorage.getItem(FIRST_RUN_KEY) !== "1") {
       firstRunOpen = true;
     }
   } catch (error) {
@@ -2464,7 +2464,7 @@ function closeFirstRun(): void {
   firstRunStep = null;
   ruleEditor = null;
   stopClip();
-  writeLocal(FIRST_RUN_KEY, "1");
+  localStorage.setItem(FIRST_RUN_KEY, "1");
   render();
 }
 
@@ -2475,7 +2475,7 @@ function moveFirstRun(by: number): void {
   ruleEditor = null;
   stopClip();
   if (next === "done") {
-    writeLocal(FIRST_RUN_KEY, "1");
+    localStorage.setItem(FIRST_RUN_KEY, "1");
   }
   paintFirstRun();
 }
@@ -2701,7 +2701,7 @@ async function startPractice(): Promise<void> {
     return;
   }
   practice = { id: current.id, caught: false };
-  writeLocal(PRACTICE_KEY, String(current.id));
+  localStorage.setItem(PRACTICE_KEY, String(current.id));
   activeTab = "session";
   render();
 }
@@ -2717,7 +2717,7 @@ async function endPractice(): Promise<void> {
   practiceQuietUntil = Date.now() + 5000;
   if (run.caught) {
     firstRunStep = "done";
-    writeLocal(FIRST_RUN_KEY, "1");
+    localStorage.setItem(FIRST_RUN_KEY, "1");
   }
   if (snapshot?.current?.id === run.id) {
     await invokeSnapshot("stop_session", undefined, false);
@@ -2735,11 +2735,7 @@ async function discardPractice(id: number): Promise<void> {
       // Already gone, or never saved.
     }
   }
-  try {
-    localStorage.removeItem(PRACTICE_KEY);
-  } catch {
-    // Nothing to clear.
-  }
+  localStorage.removeItem(PRACTICE_KEY);
   try {
     snapshot = await invoke<SessionSnapshot>("get_session_snapshot");
     settings = snapshot.settings;
@@ -2760,7 +2756,7 @@ interface HomeTip {
 }
 
 function homeTip(): HomeTip | null {
-  const hidden = (id: string) => readLocal(`tip.${id}`) === "1";
+  const hidden = (id: string) => localStorage.getItem(`tip.${id}`) === "1";
   const recorded = (voiceBackend?.profiles ?? []).some(
     (profile) => !(STARTER_PROFILE_IDS as readonly string[]).includes(profile.profile_id) && Boolean(profile.reference_path),
   );
@@ -6304,7 +6300,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "tip-hide") {
-    writeLocal(`tip.${source?.dataset.tip ?? ""}`, "1");
+    localStorage.setItem(`tip.${source?.dataset.tip ?? ""}`, "1");
     render();
     return;
   }
@@ -6317,14 +6313,14 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
 
   if (action === "tip-webcam") {
     await setWebcamEnabled(true);
-    writeLocal("tip.webcam", "1");
+    localStorage.setItem("tip.webcam", "1");
     showFeedback("Webcam on. Change it in Settings › Webcam");
     render();
     return;
   }
 
   if (action === "tip-share") {
-    writeLocal("tip.share", "1");
+    localStorage.setItem("tip.share", "1");
     document.querySelector<HTMLButtonElement>('nav.tabs [data-tab="history"]')?.click();
     return;
   }
@@ -9615,23 +9611,6 @@ async function runHistorySearch(query: string): Promise<void> {
   paintHistoryBody();
 }
 
-/** Browser storage, which can be absent or throw (private windows, cleared site data). */
-function readLocal(key: string): string | null {
-  try {
-    return localStorage.getItem(key);
-  } catch {
-    return null;
-  }
-}
-
-function writeLocal(key: string, value: string): void {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    // Nothing to do: the report is simply offered again next time.
-  }
-}
-
 /** The newest session not yet seen, left unseen until its report opens (or the caller decides
  *  it never will). Anything older than it is marked seen: only the latest gets a report. */
 function noteNewHistory(items: SessionSummary[]): number | null {
@@ -9674,7 +9653,7 @@ async function openHistoryReport(id: number, review = false): Promise<void> {
     lastError = "";
     knownHistoryIds.add(id);
     if (review) {
-      writeLocal("review.lastOffered", String(id));
+      localStorage.setItem("review.lastOffered", String(id));
     }
   } catch (error) {
     lastError = errorText(error);
@@ -9709,7 +9688,7 @@ async function confirmHistoryAction(): Promise<void> {
     await runHistoryCommand("delete_all_history", undefined, "History cleared", () => {
       knownHistoryIds.clear();
       practiceIds.clear();
-      writeLocal("review.lastOffered", "0");
+      localStorage.setItem("review.lastOffered", "0");
     });
     historyView = "list";
     sessionReport = null;
