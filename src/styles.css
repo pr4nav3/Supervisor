@@ -264,17 +264,45 @@ p {
 .eyebrow {
   margin: 0 0 4px;
   color: var(--sv-ink);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-1);
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .chips,
 .tabs,
 label span,
-dt {
+dt,
+.eyebrow,
+.quote-by,
+.share-hint,
+.share-head span,
+.reminder-mini-buttons > span,
+.practice-live-tag,
+.status-chip,
+.theme-toggle,
+.webcam-metrics dd,
+.state-slab p.webcam-waiting,
+.phrase-editor label span,
+.rule-kind,
+.app-edit-field > span,
+.recap-app-tag,
+.preflight-disclosure summary,
+.line-state,
+.line-audio-label,
+.voice-rename label span,
+.voice-kv span,
+.voice-card-tag,
+.overlay-muted-tag,
+.state-slab.interrupt-alert p.interrupt-voice-who,
+.interrupt-task > span,
+.history-week-nav h2 span,
+.recap-bar-label,
+.trend-hint,
+.trend-avg b,
+.trend-ticks span,
+.trend-empty,
+.trend-pips strong,
+.review-toggle {
   font-family: var(--font-mono);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -665,10 +693,7 @@ h1 {
   padding-top: 12px;
   color: var(--sv-colored-ink);
   opacity: 0.75;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .panel.cal-card {
@@ -897,11 +922,8 @@ button.wp-day {
 .share-hint {
   margin: auto 0;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: 0.62rem;
-  letter-spacing: 0.04em;
   text-align: center;
-  text-transform: uppercase;
 }
 
 .share-card {
@@ -971,12 +993,9 @@ button.share-card:active {
   flex: 0 1 auto;
   max-width: 58%;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
   line-height: 1.25;
   text-align: right;
-  text-transform: uppercase;
 }
 
 .share-strip {
@@ -1226,10 +1245,7 @@ button.share-card:active {
   border-radius: 5px;
   background: var(--sv-soft-white);
   color: var(--sv-ink);
-  font-family: var(--font-mono);
   font-size: 0.5rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .reminder-mini-buttons > span.is-primary {
@@ -1304,10 +1320,7 @@ button.share-card:active {
 
 .practice-live-tag {
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 /* The first run's few cards share the panel's width, so the one that speaks takes its room from
@@ -1366,11 +1379,8 @@ button.share-card:active {
   background: var(--sv-panel);
   box-shadow: var(--shadow-control);
   color: var(--sv-ink);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-1);
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .tabs button,
@@ -1487,10 +1497,7 @@ button[data-action="cancel-delete-voice"] {
   gap: 8px;
   margin: 0;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .webcam-metrics dd::before {
@@ -1562,11 +1569,8 @@ button[data-action="cancel-delete-voice"] {
   max-width: none;
   margin: 0;
   color: var(--sv-colored-ink);
-  font-family: var(--font-mono);
   font-size: 1.35rem;
   font-weight: 400;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 [data-theme="dark"] .state-slab p.webcam-waiting {
@@ -2070,10 +2074,7 @@ dt {
 }
 
 .phrase-editor label span {
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .phrase-editor select {
@@ -2145,12 +2146,9 @@ dt {
   padding: 4px 6px;
   background: var(--sv-yellow);
   color: var(--sv-colored-ink);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   font-weight: 500;
-  letter-spacing: 0.04em;
   line-height: 1;
-  text-transform: uppercase;
 }
 
 .rule-preview-value {
@@ -2181,11 +2179,21 @@ dt {
   content: "";
 }
 
+button.recap-app-row,
+.week-hero-stat,
+button.share-door,
+.report-stat {
+  min-height: 0;
+  height: auto;
+  font: inherit;
+  letter-spacing: normal;
+  text-align: left;
+  text-transform: none;
+}
+
 /* A row that opens its popup: quiet until the mouse is on it, like the list it sits in. */
 button.recap-app-row {
   width: calc(100% + 12px);
-  min-height: 0;
-  height: auto;
   margin: 0 -6px;
   padding: 4px 6px;
   border: 0;
@@ -2193,10 +2201,6 @@ button.recap-app-row {
   background: transparent;
   box-shadow: none;
   color: inherit;
-  font: inherit;
-  letter-spacing: normal;
-  text-align: left;
-  text-transform: none;
   cursor: pointer;
 }
 
@@ -2245,10 +2249,7 @@ button.recap-app-row:active {
 
 .app-edit-field > span {
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .app-edit-field input {
@@ -2274,10 +2275,7 @@ button.recap-app-row:active {
 .recap-app-tag {
   margin-left: 8px;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .app-edit-note,
@@ -2455,11 +2453,8 @@ button.recap-app-row:active {
   min-height: 44px;
   padding: 0 12px;
   cursor: pointer;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
   list-style: none;
-  text-transform: uppercase;
 }
 
 .preflight-disclosure summary::-webkit-details-marker {
@@ -2895,10 +2890,7 @@ button.personality-more:active {
 }
 
 .line-state {
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   color: var(--sv-muted);
   white-space: nowrap;
 }
@@ -3004,10 +2996,7 @@ button.personality-more:active {
 }
 
 .line-audio-label {
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .line-audio {
@@ -3083,10 +3072,7 @@ button.personality-more:active {
 }
 
 .voice-rename label span {
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .voice-rename-status {
@@ -3141,10 +3127,7 @@ button.personality-more:active {
 .voice-kv span {
   display: block;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: 0.62rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .voice-kv strong {
@@ -3287,10 +3270,7 @@ button.personality-more:active {
 }
 
 .voice-card-tag {
-  font-family: var(--font-mono);
   font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   opacity: 0.75;
 }
 
@@ -3630,11 +3610,8 @@ audio {
   border: 1px solid currentColor;
   border-radius: var(--radius-control);
   padding: 2px 6px;
-  font-family: var(--font-mono);
   font-size: 0.68rem;
   line-height: 1.2;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .overlay-slab h2 {
@@ -3889,10 +3866,7 @@ button.overlay-more.is-open::before {
 .state-slab.interrupt-alert p.interrupt-voice-who {
   margin: 0;
   color: #5d564a;
-  font-family: var(--font-mono);
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .interrupt-alert .interrupt-voice-line {
@@ -4023,10 +3997,7 @@ button.voice-orb:active .voice-orb-core {
 
 .interrupt-task > span {
   flex: none;
-  font-family: var(--font-mono);
   font-size: 0.72rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 /* Back to my task on top; the two allowances share the row below. */
@@ -4265,11 +4236,8 @@ button.wp-day.is-future:disabled {
 .history-week-nav h2 span {
   margin-left: 8px;
   color: var(--sv-muted);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .history-search {
@@ -4402,18 +4370,12 @@ button.wp-day.is-future:disabled {
   position: relative;
   display: block;
   min-width: 128px;
-  min-height: 0;
-  height: auto;
   padding: 0;
   border: var(--border);
   border-radius: 6px;
   background: var(--sv-panel);
   box-shadow: var(--shadow-control);
   color: var(--sv-ink);
-  font: inherit;
-  letter-spacing: normal;
-  text-align: left;
-  text-transform: none;
   perspective: 600px;
   cursor: pointer;
 }
@@ -4553,14 +4515,8 @@ button.share-door {
   justify-content: space-between;
   gap: 10px;
   width: 100%;
-  min-height: 0;
-  height: auto;
   padding: 12px 18px;
   color: var(--sv-ink);
-  font: inherit;
-  letter-spacing: normal;
-  text-align: left;
-  text-transform: none;
   cursor: pointer;
   transition: transform 120ms ease-out, box-shadow 120ms ease-out;
 }
@@ -4648,17 +4604,22 @@ button.share-door[aria-disabled="true"] strong {
   aspect-ratio: 648 / 520;
 }
 
+button.share-pick,
+button.trend-spark-track,
+.review-later {
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+}
+
 /* A card that copies on click: no button box of its own, it lifts like the cards beside it. */
 button.share-pick {
   display: block;
   width: 100%;
-  min-height: 0;
   height: auto;
-  padding: 0;
-  border: 0;
   border-radius: 12px;
-  background: none;
-  box-shadow: none;
   cursor: pointer;
   transition: transform 120ms ease-out;
   will-change: transform;
@@ -4813,12 +4774,7 @@ button.trend-spark-track {
   flex: 1;
   align-items: flex-end;
   min-width: 0;
-  min-height: 0;
-  padding: 0;
-  border: 0;
   border-radius: 0;
-  background: none;
-  box-shadow: none;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -5164,11 +5120,8 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .recap-bar-label {
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 /* Trends: three cards in the app's state colours. Focus is the hero (bars, full width);
@@ -5222,10 +5175,7 @@ button.recap-bar-col:active .recap-bar {
 
 .trend-hint {
   margin-top: -4px;
-  font-family: var(--font-mono);
   font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   opacity: 0.7;
 }
 
@@ -5349,11 +5299,8 @@ button.recap-bar-col:active .recap-bar {
   border-radius: 4px;
   background: #141410;
   color: var(--sv-green);
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
   white-space: nowrap;
   transform: translateY(-50%);
 }
@@ -5369,11 +5316,8 @@ button.recap-bar-col:active .recap-bar {
 /* A label may spill into a neighbour's room; only where that neighbour's label is hidden. */
 .trend-ticks span {
   justify-self: center;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
   text-align: center;
-  text-transform: uppercase;
   white-space: nowrap;
   opacity: 0.8;
 }
@@ -5467,11 +5411,8 @@ button.recap-bar-col:active .recap-bar {
   place-items: center;
   min-height: 120px;
   margin: 0;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
   text-align: center;
-  text-transform: uppercase;
   opacity: 0.75;
 }
 
@@ -5572,11 +5513,8 @@ button.recap-bar-col:active .recap-bar {
 
 .trend-pips strong {
   margin-left: 6px;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
 
 .recap-apps h2 {
@@ -5759,18 +5697,12 @@ button.history-item {
 .report-stat {
   display: grid;
   min-width: 0;
-  min-height: 0;
-  height: auto;
   padding: 0;
   border: var(--border);
   border-radius: var(--radius-control);
   background: var(--sv-panel);
   box-shadow: var(--shadow-control);
   color: var(--sv-ink);
-  font: inherit;
-  letter-spacing: normal;
-  text-align: left;
-  text-transform: none;
   perspective: 600px;
 }
 
@@ -6483,10 +6415,7 @@ dt,
   align-items: center;
   gap: 8px;
   padding: 0 11px;
-  font-family: var(--font-mono);
   font-size: var(--sv-type-4);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
 }
 
 .review-toggle > span {
@@ -6538,11 +6467,6 @@ dt,
 }
 
 .review-later {
-  min-height: 0;
-  padding: 0;
-  border: 0;
-  box-shadow: none;
-  background: none;
   color: var(--sv-muted);
   font-size: var(--sv-type-3);
   text-decoration: underline;
