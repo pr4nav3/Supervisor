@@ -4540,8 +4540,8 @@ function renderWeekHero(weekStart: string, recap: WeekRecap | null, animate: boo
           ${note ? `<p class="week-hero-note">${escapeHtml(note)}</p>` : ""}
         </div>
         <div class="week-hero-stats">
-          ${weekStat("Longest stretch", longest, empty ? "Longest run of work in one go, once there is one." : "Longest run of work without a distraction or stepping away.")}
-          ${weekStat("Recovery", recovery, recovery === "None" ? "No distraction this week, so nothing to recover from." : "Typical time back to work after a distraction.")}
+          ${flipStat("week-hero-stat", "Longest stretch", longest, empty ? "Longest run of work in one go, once there is one." : "Longest run of work without a distraction or stepping away.")}
+          ${flipStat("week-hero-stat", "Recovery", recovery, recovery === "None" ? "No distraction this week, so nothing to recover from." : "Typical time back to work after a distraction.")}
         </div>
       </div>
       <div class="recap-bars week-hero-bars ${animate ? "is-animated" : ""}" style="grid-template-columns: repeat(${buckets.length}, minmax(0, 1fr))">
@@ -5364,12 +5364,12 @@ function renderSessionReport(report: SessionReport): string {
         ${renderReportTimeline(report)}
       </section>
       <section class="report-stats" aria-label="Session stats">
-          ${reportStat("Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
-        ${reportStat("Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
-        ${reportStat("Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
-        ${reportStat("Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
+          ${flipStat("report-stat", "Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
+        ${flipStat("report-stat", "Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
+        ${flipStat("report-stat", "Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
+        ${flipStat("report-stat", "Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
         ${pomodoroStat(report)}
-        ${report.phone_seconds > 0 ? reportStat("Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
+        ${report.phone_seconds > 0 ? flipStat("report-stat", "Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
       </section>
       <section class="panel recap-apps">
         <h2 class="eyebrow recap-apps-title">Apps &amp; sites</h2>
@@ -5382,14 +5382,16 @@ function renderSessionReport(report: SessionReport): string {
 /** Stat tiles turned over to their explanation; cleared when another report opens. */
 const flippedStats = new Set<string>();
 
-/** The week card's two tiles turn over like the report's; their keys stay apart from the report's. */
-function weekStat(labelText: string, value: string, help: string): string {
-  const key = `week:${labelText}`;
+/** A report tile, or one of the week card's two, that turns over to its explanation. The week
+ *  card's keys stay apart from the report's. */
+function flipStat(cls: "week-hero-stat" | "report-stat", labelText: string, value: string, help: string): string {
+  const week = cls === "week-hero-stat";
+  const key = week ? `week:${labelText}` : labelText;
   const flipped = flippedStats.has(key);
   return `
-    <button class="week-hero-stat ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(key)}" aria-pressed="${flipped}">
-      <span class="week-hero-stat-face"><span class="eyebrow">${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
-      <span class="week-hero-stat-face week-hero-stat-back">${escapeHtml(help)}</span>
+    <button class="${cls} ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(key)}" aria-pressed="${flipped}">
+      <span class="${cls}-face"><span${week ? ` class="eyebrow"` : ""}>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
+      <span class="${cls}-face ${cls}-back">${escapeHtml(help)}</span>
     </button>
   `;
 }
@@ -5402,17 +5404,7 @@ function pomodoroStat(report: SessionReport): string {
   }
   // Rounds finished: each round end, plus the last one when the session ran its course.
   const finished = report.events.filter((event) => event.kind === "round_over").length + (report.ended_reason === "completed" ? 1 : 0);
-  return reportStat("Rounds", `${Math.min(finished, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
-}
-
-function reportStat(labelText: string, value: string, help: string): string {
-  const flipped = flippedStats.has(labelText);
-  return `
-    <button class="report-stat ${flipped ? "is-flipped" : ""}" type="button" data-stat-flip="${attr(labelText)}" aria-pressed="${flipped}">
-      <span class="report-stat-face"><span>${escapeHtml(labelText)}</span><strong>${escapeHtml(value)}</strong></span>
-      <span class="report-stat-face report-stat-back">${escapeHtml(help)}</span>
-    </button>
-  `;
+  return flipStat("report-stat", "Rounds", `${Math.min(finished, Number(plan[3]))} of ${plan[3]}`, `${plan[1]}-minute rounds, ${plan[2]}-minute breaks. Breaks aren't in the timeline or the duration.`);
 }
 
 /** Pauses are cut out, so the bar is the time the session ran; older sessions recorded before
