@@ -669,7 +669,6 @@ struct GenerationLogRow {
     error: Option<String>,
     profile: String,
     phrases: usize,
-    merge: bool,
     need: u64,
     #[serde(skip_serializing_if = "Option::is_none")]
     available_before: Option<u64>,
@@ -703,11 +702,8 @@ struct GenerationLogRow {
 #[derive(Clone, Debug, Deserialize)]
 pub struct GenerateVoiceClipsInput {
     pub profile_id: String,
-    pub display_name: Option<String>,
     pub reference_audio_path: String,
     pub phrases: Vec<VoicePhraseInput>,
-    pub delete_reference_after_generation: Option<bool>,
-    pub merge_clips: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -723,7 +719,6 @@ pub struct VoiceProfileSummary {
     pub display_name: String,
     pub profile_dir: String,
     pub reference_path: Option<String>,
-    pub reference_retained: bool,
     /// The tone this voice speaks in sessions; `None` until the user picks one.
     pub tone: Option<String>,
     pub clips: Vec<VoiceClipSummary>,
@@ -753,7 +748,6 @@ pub struct SaveVoiceReferenceFromPathInput {
 struct VoiceProfileMetadata {
     profile_id: String,
     display_name: String,
-    reference_retained: bool,
     /// Older profiles have none.
     #[serde(default)]
     tone: Option<String>,
@@ -1074,7 +1068,6 @@ pub fn save_reference_from_path(
     let metadata = VoiceProfileMetadata {
         profile_id: profile_id.clone(),
         display_name,
-        reference_retained: true,
         tone: read_profile_metadata(&dir).and_then(|existing| existing.tone),
     };
     write_json(&dir.join("profile.json"), &metadata)?;
@@ -1208,25 +1201,11 @@ pub fn set_profile_tone(
     profile_id: String,
     tone: String,
 ) -> Result<VoiceProfileSummary, String> {
-    let root = voice_root(app)?;
-    let profile_id = clean_id(&profile_id)?;
-    let dir = profile_dir(&root, &profile_id);
-    if !dir.exists() {
-        return Err("That voice was not found.".to_string());
-    }
     let tone = tone.trim();
     if tone.is_empty() || tone.chars().count() > 80 {
         return Err("A personality name must be 1 to 80 characters.".to_string());
     }
-    let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name: profile_id.clone(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
-    metadata.tone = Some(tone.to_string());
-    write_json(&dir.join("profile.json"), &metadata)?;
-    profile_summary(&dir, &profile_id)
+    edit_profile(app, &profile_id, |metadata| metadata.tone = Some(tone.to_string()))
 }
 
 /// Renames a voice. Starter voices included: the name is the user's, and reseeding keeps it.
@@ -1235,23 +1214,26 @@ pub fn rename_profile(
     profile_id: String,
     display_name: String,
 ) -> Result<VoiceProfileSummary, String> {
-    let root = voice_root(app)?;
-    let profile_id = clean_id(&profile_id)?;
-    let dir = profile_dir(&root, &profile_id);
-    if !dir.exists() {
-        return Err("That voice was not found.".to_string());
-    }
     let name = display_name.trim();
     if name.is_empty() || name.chars().count() > 80 {
         return Err("A voice name must be 1 to 80 characters.".to_string());
     }
-    let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name: profile_id.clone(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
-    metadata.display_name = name.to_string();
+    edit_profile(app, &profile_id, |metadata| metadata.display_name = name.to_string())
+}
+
+fn edit_profile(
+    app: &AppHandle,
+    profile_id: &str,
+    edit: impl FnOnce(&mut VoiceProfileMetadata),
+) -> Result<VoiceProfileSummary, String> {
+    let root = voice_root(app)?;
+    let profile_id = clean_id(profile_id)?;
+    let dir = profile_dir(&root, &profile_id);
+    if !dir.exists() {
+        return Err("That voice was not found.".to_string());
+    }
+    let mut metadata = metadata_or_default(&dir, &profile_id);
+    edit(&mut metadata);
     write_json(&dir.join("profile.json"), &metadata)?;
     profile_summary(&dir, &profile_id)
 }
@@ -1319,7 +1301,6 @@ pub fn generate_clips(
         error: None,
         profile: input.profile_id.clone(),
         phrases: input.phrases.len(),
-        merge: input.merge_clips.unwrap_or(false),
         need: required_ram_for_gate(loaded),
         available_before: available_ram_bytes(),
         available_after: None,
@@ -1355,13 +1336,6 @@ fn generate_clips_inner(
     row: &mut GenerationLogRow,
 ) -> Result<VoiceProfileSummary, String> {
     let profile_id = clean_id(&input.profile_id)?;
-    let display_name = input
-        .display_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(&profile_id)
-        .to_string();
     let reference = supervisor_storage_file(root, &input.reference_audio_path, "recording")?;
     // Size check only: hashing 1.9 GB here added ten seconds to every clip. Install verifies.
     if !model_status_for(&root, false).installed || !voice_runtime::status(&root).installed {
@@ -1403,33 +1377,9 @@ fn generate_clips_inner(
             return Err(message);
         }
     }
-    let merge = input.merge_clips.unwrap_or(false);
-    let install = if merge {
-        merge_generated_clips(&dir, &staging)
-    } else {
-        replace_generated_clips(&dir, &staging)
-    };
-    if let Err(error) = install {
-        let _ = fs::remove_dir_all(&staging);
-        return Err(error);
-    }
-    if !merge {
-        write_phrase_bank(&dir.join("phrases.json"), &phrases)?;
-    }
+    let merged = merge_generated_clips(&dir, &staging);
     let _ = fs::remove_dir_all(&staging);
-
-    let reference_retained = !input.delete_reference_after_generation.unwrap_or(false);
-    if !reference_retained && reference_copy.exists() {
-        fs::remove_file(&reference_copy).map_err(|error| error.to_string())?;
-    }
-
-    let metadata = VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name,
-        reference_retained,
-        tone: read_profile_metadata(&dir).and_then(|existing| existing.tone),
-    };
-    write_json(&dir.join("profile.json"), &metadata)?;
+    merged?;
     profile_summary(&dir, &profile_id)
 }
 
@@ -1724,37 +1674,6 @@ fn clip_phrase_id(stem: &str) -> &str {
         .unwrap_or(stem)
 }
 
-fn replace_generated_clips(profile_dir: &Path, staging_dir: &Path) -> Result<(), String> {
-    let staged_clips = staging_dir.join("clips");
-    if !staged_clips.is_dir() {
-        return Err("The voice engine finished without generating the line. Try again.".to_string());
-    }
-
-    let clips_dir = profile_dir.join("clips");
-    let backup_dir = profile_dir.join(format!("clips.backup-{}", unix_millis()));
-    if backup_dir.exists() {
-        fs::remove_dir_all(&backup_dir).map_err(|error| error.to_string())?;
-    }
-    if clips_dir.exists() {
-        fs::rename(&clips_dir, &backup_dir).map_err(|error| error.to_string())?;
-    }
-
-    match fs::rename(&staged_clips, &clips_dir) {
-        Ok(()) => {
-            if backup_dir.exists() {
-                fs::remove_dir_all(&backup_dir).map_err(|error| error.to_string())?;
-            }
-            Ok(())
-        }
-        Err(error) => {
-            if backup_dir.exists() {
-                let _ = fs::rename(&backup_dir, &clips_dir);
-            }
-            Err(error.to_string())
-        }
-    }
-}
-
 /// Refuses a download that would not fit: `needed` bytes plus a margin, on the disk under `path`.
 pub(crate) fn ensure_free_space(path: &Path, needed: u64) -> Result<(), String> {
     let recommended = needed + EXTRA_DOWNLOAD_HEADROOM_BYTES;
@@ -1797,22 +1716,15 @@ fn profile_summaries(root: &Path) -> Vec<VoiceProfileSummary> {
 }
 
 fn profile_summary(dir: &Path, fallback_id: &str) -> Result<VoiceProfileSummary, String> {
-    let metadata = read_profile_metadata(dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: fallback_id.to_string(),
-        display_name: fallback_id.to_string(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
+    let metadata = metadata_or_default(dir, fallback_id);
     let clips = clip_summaries(&dir.join("clips"))?;
     let reference_path = dir.join("reference.wav");
-    let reference_retained = metadata.reference_retained && reference_path.exists();
 
     Ok(VoiceProfileSummary {
         profile_id: metadata.profile_id,
         display_name: metadata.display_name,
         profile_dir: dir.to_string_lossy().into_owned(),
-        reference_path: reference_retained.then(|| reference_path.to_string_lossy().into_owned()),
-        reference_retained,
+        reference_path: reference_path.exists().then(|| reference_path.to_string_lossy().into_owned()),
         tone: metadata.tone,
         clips,
     })
@@ -1821,6 +1733,14 @@ fn profile_summary(dir: &Path, fallback_id: &str) -> Result<VoiceProfileSummary,
 fn read_profile_metadata(dir: &Path) -> Option<VoiceProfileMetadata> {
     let bytes = fs::read(dir.join("profile.json")).ok()?;
     serde_json::from_slice(&bytes).ok()
+}
+
+fn metadata_or_default(dir: &Path, profile_id: &str) -> VoiceProfileMetadata {
+    read_profile_metadata(dir).unwrap_or_else(|| VoiceProfileMetadata {
+        profile_id: profile_id.to_string(),
+        display_name: profile_id.to_string(),
+        tone: None,
+    })
 }
 
 const MIN_CLIP_BYTES: u64 = 44;
@@ -1873,24 +1793,6 @@ fn same_path(left: &Path, right: &Path) -> bool {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
-}
-
-fn write_phrase_bank(path: &Path, phrases: &[VoicePhraseInput]) -> Result<(), String> {
-    #[derive(Serialize)]
-    struct PhraseBank<'a> {
-        schema_version: u8,
-        description: &'a str,
-        phrases: &'a [VoicePhraseInput],
-    }
-
-    write_json(
-        path,
-        &PhraseBank {
-            schema_version: 1,
-            description: "Supervisor generated voice profile phrase bank.",
-            phrases,
-        },
-    )
 }
 
 fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
@@ -2825,7 +2727,6 @@ fn seed_starter_profiles(root: &Path, app: Option<&AppHandle>) {
                     .filter(|name| !name.is_empty())
                     .unwrap_or(name)
                     .to_string(),
-                reference_retained: true,
                 tone: existing.and_then(|existing| existing.tone),
             },
         );
@@ -3003,7 +2904,6 @@ mod tests {
                 error: Some("Not enough available RAM".into()),
                 profile: "derek".into(),
                 phrases: 4,
-                merge: true,
                 need: 5 * GIBIBYTE,
                 available_before: Some(3 * GIBIBYTE),
                 available_after: Some(3 * GIBIBYTE),
@@ -3211,25 +3111,6 @@ mod tests {
     }
 
     #[test]
-    fn replacing_generated_clips_keeps_only_staged_clips() {
-        let root = test_dir("replace-clips");
-        let profile = root.join("profile");
-        let clips = profile.join("clips");
-        let staging = profile.join(".generation-test");
-        fs::create_dir_all(&clips).unwrap();
-        fs::create_dir_all(staging.join("clips")).unwrap();
-        fs::write(clips.join("old.wav"), b"old").unwrap();
-        fs::write(staging.join("clips").join("new.wav"), b"new").unwrap();
-
-        replace_generated_clips(&profile, &staging).unwrap();
-
-        assert!(!clips.join("old.wav").exists());
-        assert_eq!(fs::read(clips.join("new.wav")).unwrap(), b"new");
-
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
     fn a_profile_keeps_its_tone_and_name_through_reseeding_and_metadata_rewrites() {
         let root = test_dir("tone-keeps");
         let dir = profile_dir(&root, "derek");
@@ -3239,7 +3120,6 @@ mod tests {
             &VoiceProfileMetadata {
                 profile_id: "derek".into(),
                 display_name: "Starter Male".into(),
-                reference_retained: true,
                 tone: Some("stern".into()),
             },
         )

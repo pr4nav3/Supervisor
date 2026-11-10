@@ -370,7 +370,6 @@ interface VoiceProfileSummary {
   display_name: string;
   profile_dir: string;
   reference_path: string | null;
-  reference_retained: boolean;
   /** The tone this voice speaks in sessions; null until the user picks one. */
   tone: string | null;
   clips: VoiceClipSummary[];
@@ -3341,7 +3340,7 @@ function fitVoiceCardNames(): void {
 function renderVoiceCard(voice: VoiceOption, editable = true): string {
   const selected = draft.voiceId === voice.id;
   const profile = voice.profile;
-  const needsGeneration = voice.source === "custom" && Boolean(profile?.reference_retained) && !voice.selectable;
+  const needsGeneration = voice.source === "custom" && Boolean(profile?.reference_path) && !voice.selectable;
   // The selected card still presses like the others; clicking it again changes nothing.
   const pickable = voiceBusy === null && (selected || needsGeneration || voice.selectable);
   const action = needsGeneration ? "set-up-clips" : "select-voice";
@@ -7801,11 +7800,8 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
         const generated = await invoke<VoiceProfileSummary>("generate_voice_clips", {
           input: {
             profile_id: profile.profile_id,
-            display_name: profile.display_name,
             reference_audio_path: reference,
             phrases: [{ id: phrase.id, tone: phrase.tone, text: phrase.text }],
-            delete_reference_after_generation: false,
-            merge_clips: true,
           },
         });
         upsertProfile(generated);
@@ -9165,7 +9161,7 @@ function voiceCardNote(voice: VoiceOption): string {
   if (quietVoice()?.id === voice.id) {
     return `<span class="voice-card-note">${escapeHtml(`Quiet: no ${toneLabel(voiceTone(voice))} lines`)}</span>`;
   }
-  if (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready >= voice.total) {
+  if (voice.source !== "custom" || !voice.profile?.reference_path || voice.ready >= voice.total) {
     return "";
   }
   const words = voice.ready === 0 ? "Lines not generated yet" : `${voice.ready} of ${voice.total} lines ready`;
@@ -9211,7 +9207,7 @@ function quietVoiceText(voice: VoiceOption): string {
  *  gets nothing: the Generate button already says it all then. */
 function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): string {
   const quiet = quietVoice()?.id === voice.id;
-  if (!quiet && (voice.source !== "custom" || !voice.profile?.reference_retained || voice.ready === 0 || voice.ready >= voice.total)) {
+  if (!quiet && (voice.source !== "custom" || !voice.profile?.reference_path || voice.ready === 0 || voice.ready >= voice.total)) {
     return "";
   }
   let words: string;
@@ -9244,7 +9240,7 @@ function availableVoices(): VoiceOption[] {
       .map((profile) => {
       const phrases = effectivePhrases();
       const ready = phrases.filter((phrase) => clipForPhraseId(profile.clips, phrase.id)).length;
-      const hasReference = profile.reference_retained && Boolean(profile.reference_path);
+      const hasReference = Boolean(profile.reference_path);
       return {
         id: voiceOptionId(profile.profile_id),
         name: profile.display_name,
