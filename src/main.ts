@@ -388,6 +388,8 @@ interface VoiceDownloadSnapshot {
   downloaded_bytes: number;
   total_bytes: number;
   eta_seconds: number | null;
+  /** What a running download is doing: a bar that stops still says why. */
+  step: "downloading" | "checking" | "unpacking";
   message: string;
   up_to_date: boolean;
   /** Check for updates could not reach the server; `message` says so. */
@@ -743,6 +745,8 @@ let phraseEditor: PhraseEditor | null = null;
 let hiddenPhrases = new Set<string>();
 let clipsVoiceId = "starter-female";
 let clipsVoiceTouched = false;
+/** A recorded voice clicked before it had its lines: picked for the user once they are made. */
+let pickWhenReady: string | null = null;
 /** The personality forms under the cards: a rename, a delete awaiting its confirm, a new name. */
 let toneRename: { from: VoiceTone; value: string } | null = null;
 let toneDeleteArmed: VoiceTone | null = null;
@@ -1031,7 +1035,9 @@ async function refreshVoiceDownload(shouldRender = true): Promise<void> {
   try {
     const download = await invoke<VoiceDownloadSnapshot>("get_voice_model_download");
     applyDownloadSnapshot(download);
-    if (download.phase === "checking" || download.phase === "downloading" || download.phase === "cancelling") {
+    // A check found running here is the daily one in the background (one the user started
+    // keeps its popup open): only a real fetch is worth showing.
+    if (download.phase === "downloading" || download.phase === "cancelling") {
       voiceBusy = "download-model";
       startDownloadPolling();
     } else if (download.phase === "error" && !voiceError) {
@@ -4274,18 +4280,8 @@ function renderDownloadBusyModal(): string {
       ? "Voice engine ready"
       : phase === "checking"
         ? "Checking installed files"
-        : phase === "cancelling"
-          ? "Cancelling download"
-          : "Downloading the voice engine";
-  const eta = done
-    ? "Done"
-    : phase === "checking"
-      ? "A few seconds"
-      : phase === "cancelling"
-        ? "Deleting partial files"
-        : download?.eta_seconds === null || download?.eta_seconds === undefined
-          ? "Estimating time left"
-          : `${formatDuration(download.eta_seconds)} left`;
+        : downloadWords(download).title;
+  const eta = done ? "Done" : phase === "checking" ? "A few seconds" : downloadWords(download).eta;
   const progressText = checking
     ? "Verifying"
     : total > 0
@@ -6841,20 +6837,9 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "select-voice") {
     const voiceId = source?.dataset.voiceId;
     const voice = voiceId ? availableVoices().find((item) => item.id === voiceId) : null;
-    if (voiceId && voice?.selectable && voiceId !== draft.voiceId) {
-      draft.voiceId = voiceId;
-      // The lines below follow the voice picked; No voice leaves them on the last one.
-      if (voiceId !== "none") {
-        clipsVoiceId = voiceId;
-        clipsVoiceTouched = true;
-        closeToneForms();
-      }
-      render();
-      void updateSelectedVoice(voiceId).then((saved) => {
-        if (saved) {
-          showFeedback(`${voice.name} selected`);
-        }
-      });
+    if (voice?.selectable && voice.id !== draft.voiceId) {
+      pickWhenReady = null;
+      pickVoice(voice);
     }
     return;
   }
@@ -6947,6 +6932,10 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     closeToneForms();
     render();
     document.querySelector(".phrase-panel")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    // The card can't be picked yet; say why, and pick it once its lines are made.
+    const voice = clipsVoice();
+    pickWhenReady = voice.id;
+    showFeedback(`Generate ${voice.name}'s back to work lines below. ${voice.name} is picked once they're ready.`, 5000);
     return;
   }
 
@@ -7623,22 +7612,37 @@ function paintDownloadProgress(): void {
   if (bar) {
     bar.style.width = `${percent}%`;
   }
+  const words = downloadWords(download);
   const title = document.querySelector(".busy-panel h2");
   if (title) {
-    title.textContent = download.phase === "cancelling" ? "Cancelling download" : "Downloading the voice engine";
+    title.textContent = words.title;
   }
   const meta = document.querySelectorAll(".download-meta span");
   if (meta[0]) {
     meta[0].textContent = total > 0 ? `${formatBytes(downloaded)} / ${formatBytes(total)}` : formatBytes(downloaded);
   }
   if (meta[1]) {
-    meta[1].textContent =
-      download.phase === "cancelling"
-        ? "Deleting partial files"
-        : download.eta_seconds === null || download.eta_seconds === undefined
-          ? "Estimating time left"
-          : `${formatDuration(download.eta_seconds)} left`;
+    meta[1].textContent = words.eta;
   }
+}
+
+/** The popup's heading and time text while files arrive. Between files the download hashes
+ *  each one and unpacks the engine: the bar stands still then, so the words say why. */
+function downloadWords(download: VoiceDownloadSnapshot | null): { title: string; eta: string } {
+  if (download?.phase === "cancelling") {
+    return { title: "Cancelling download", eta: "Deleting partial files" };
+  }
+  if (download?.step === "checking") {
+    return { title: "Checking the download", eta: "A few seconds" };
+  }
+  if (download?.step === "unpacking") {
+    return { title: "Unpacking the voice engine", eta: "Under a minute" };
+  }
+  const seconds = download?.eta_seconds;
+  return {
+    title: "Downloading the voice engine",
+    eta: seconds === null || seconds === undefined ? "Estimating time left" : `${formatDuration(seconds)} left`,
+  };
 }
 
 function applyDownloadSnapshot(download: VoiceDownloadSnapshot): void {
@@ -7861,13 +7865,18 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
   await refreshVoiceStatus(false);
   if (finished && finished.phase === "working" && finished.index >= finished.phraseIds.length) {
     const now = clipsVoice();
-    showFeedback(
-      now.source === "custom" && now.selectable
-        ? `${now.name} is ready to select`
-        : finished.phraseIds.length === 1
-          ? "Line ready"
-          : "Lines ready",
-    );
+    if (now.selectable && pickWhenReady === now.id) {
+      pickWhenReady = null;
+      pickVoice(now);
+    } else {
+      showFeedback(
+        now.source === "custom" && now.selectable
+          ? `${now.name} is ready to select`
+          : finished.phraseIds.length === 1
+            ? "Line ready"
+            : "Lines ready",
+      );
+    }
   }
   const reopen = reopenLineAfterQueue;
   reopenLineAfterQueue = null;
@@ -7881,6 +7890,22 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
   }
   render();
   return true;
+}
+
+function pickVoice(voice: VoiceOption): void {
+  draft.voiceId = voice.id;
+  // The lines below follow the voice picked; No voice leaves them on the last one.
+  if (voice.id !== "none") {
+    clipsVoiceId = voice.id;
+    clipsVoiceTouched = true;
+    closeToneForms();
+  }
+  render();
+  void updateSelectedVoice(voice.id).then((saved) => {
+    if (saved) {
+      showFeedback(`${voice.name} selected`);
+    }
+  });
 }
 
 async function setVoiceTone(voice: VoiceOption, tone: VoiceTone): Promise<void> {

@@ -1,4 +1,4 @@
-use crate::voice_runtime;
+use crate::voice_runtime::{self, DownloadStep};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 use serde::{Deserialize, Serialize};
@@ -64,6 +64,7 @@ pub struct VoiceDownloadSnapshot {
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
     pub eta_seconds: Option<u64>,
+    pub step: DownloadStep,
     pub message: String,
     /// Complete, and nothing needed fetching.
     pub up_to_date: bool,
@@ -81,6 +82,7 @@ pub struct VoiceDownloadState {
     started_downloaded_bytes: u64,
     total_bytes: u64,
     current_file: Option<String>,
+    step: DownloadStep,
     started_at: Option<Instant>,
     error: Option<String>,
     cancel: Option<Arc<AtomicBool>>,
@@ -95,6 +97,7 @@ impl Default for VoiceDownloadState {
             started_downloaded_bytes: 0,
             total_bytes: required_model_bytes(),
             current_file: None,
+            step: DownloadStep::Downloading,
             started_at: None,
             error: None,
             cancel: None,
@@ -864,6 +867,7 @@ pub fn start_model_download(
         download.started_downloaded_bytes = 0;
         download.total_bytes = required_bytes.max(required_model_bytes());
         download.current_file = None;
+        download.step = DownloadStep::Checking;
         download.started_at = None;
         download.error = None;
         download.up_to_date = false;
@@ -890,6 +894,7 @@ pub fn start_model_download(
                             download.total_bytes = total_bytes;
                         }
                         download.current_file = progress.current_file;
+                        download.step = progress.step;
                     }
                 }
             })
@@ -901,6 +906,8 @@ pub fn start_model_download(
             download.cancel = None;
             match result {
                 Ok(fetched) => {
+                    // A finished download is today's update check: none runs right after it.
+                    mark_update_checked_at(&root_for_worker);
                     download.phase = VoiceDownloadPhase::Complete;
                     download.up_to_date = !fetched;
                     download.downloaded_bytes = pack_required_bytes(&root_for_worker);
@@ -952,9 +959,13 @@ pub fn update_check_due(app: &AppHandle) -> bool {
 
 pub fn mark_update_checked(app: &AppHandle) {
     if let Ok(root) = voice_root(app) {
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
-        let _ = fs::write(root.join(UPDATE_CHECK_FILE), now.to_string());
+        mark_update_checked_at(&root);
     }
+}
+
+fn mark_update_checked_at(root: &Path) {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let _ = fs::write(root.join(UPDATE_CHECK_FILE), now.to_string());
 }
 
 /// For a check nobody asked for: `None` while it runs, then whether it fetched anything. A
@@ -1458,6 +1469,7 @@ struct VoiceDownloadProgress {
     downloaded_bytes: u64,
     total_bytes: Option<u64>,
     current_file: Option<String>,
+    step: DownloadStep,
 }
 
 fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSnapshot {
@@ -1469,7 +1481,10 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         .downloaded_bytes
         .saturating_sub(state.started_downloaded_bytes);
     let eta_seconds =
-        if state.phase == VoiceDownloadPhase::Downloading && transferred > 0 && elapsed_seconds > 0
+        if state.phase == VoiceDownloadPhase::Downloading
+            && state.step == DownloadStep::Downloading
+            && transferred > 0
+            && elapsed_seconds > 0
         {
             let remaining = state.total_bytes.saturating_sub(state.downloaded_bytes);
             let bytes_per_second = transferred / elapsed_seconds.max(1);
@@ -1483,6 +1498,7 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         downloaded_bytes: state.downloaded_bytes,
         total_bytes: state.total_bytes,
         eta_seconds,
+        step: state.step,
         message: match state.phase {
             VoiceDownloadPhase::Idle => "No download is running.".to_string(),
             VoiceDownloadPhase::Checking => "Checking the installed voice engine.".to_string(),
@@ -1539,6 +1555,7 @@ fn download_pack_to_with_progress(
             downloaded_bytes: model_start_bytes + runtime_progress.downloaded_bytes,
             total_bytes: Some(required_model_bytes() + runtime_progress.total_bytes),
             current_file: runtime_progress.current_file,
+            step: runtime_progress.step,
         });
     })
     .map_err(|error| {
@@ -1556,6 +1573,7 @@ fn download_pack_to_with_progress(
             downloaded_bytes: runtime_bytes + model_progress.downloaded_bytes,
             total_bytes: Some(runtime_bytes + required_model_bytes()),
             current_file: model_progress.current_file,
+            step: model_progress.step,
         })
     })?;
     Ok(fetched || fetched_model)
@@ -1599,12 +1617,21 @@ fn download_model_files(
         let target = dir.join(file.path);
         // One hash per file: a valid one is counted and skipped. The hash stops on cancel.
         let size_ok = fs::metadata(&target).map(|meta| meta.len() == file.bytes).unwrap_or(false);
+        if size_ok {
+            progress(VoiceDownloadProgress {
+                downloaded_bytes: completed_bytes,
+                total_bytes: Some(total),
+                current_file: None,
+                step: DownloadStep::Checking,
+            });
+        }
         if size_ok && sha256_file_until(&target, Some(&cancel))? == file.sha256 {
             completed_bytes += file.bytes;
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes,
                 total_bytes: Some(total),
                 current_file: None,
+                step: DownloadStep::Checking,
             });
             continue;
         }
@@ -1620,8 +1647,15 @@ fn download_model_files(
                 downloaded_bytes: completed_bytes + bytes,
                 total_bytes: Some(total),
                 current_file: Some(file.path.to_string()),
+                step: DownloadStep::Downloading,
             });
         })?;
+        progress(VoiceDownloadProgress {
+            downloaded_bytes: completed_bytes + file.bytes,
+            total_bytes: Some(total),
+            current_file: None,
+            step: DownloadStep::Checking,
+        });
         let hash = sha256_file_until(&tmp, Some(&cancel))?;
         if cancel.load(Ordering::SeqCst) {
             let _ = fs::remove_file(&tmp);
@@ -1640,6 +1674,7 @@ fn download_model_files(
             downloaded_bytes: completed_bytes,
             total_bytes: Some(total),
             current_file: None,
+            step: DownloadStep::Checking,
         });
     }
 

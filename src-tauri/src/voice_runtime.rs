@@ -50,6 +50,19 @@ pub struct VoiceRuntimeDownloadProgress {
     pub downloaded_bytes: u64,
     pub total_bytes: u64,
     pub current_file: Option<String>,
+    pub step: DownloadStep,
+}
+
+/// What the download is doing right now, so the popup says so instead of a bar that stops.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DownloadStep {
+    #[default]
+    Downloading,
+    /// Hashing a file against its known checksum.
+    Checking,
+    /// Checking and unpacking the engine's zip.
+    Unpacking,
 }
 
 pub struct WorkerLaunch {
@@ -164,8 +177,15 @@ pub fn install_runtime(
             downloaded_bytes: downloaded,
             total_bytes: asset.bytes,
             current_file: Some(file_label.clone()),
+            step: DownloadStep::Downloading,
         });
     })?;
+    progress(VoiceRuntimeDownloadProgress {
+        downloaded_bytes: asset.bytes,
+        total_bytes: asset.bytes,
+        current_file: None,
+        step: DownloadStep::Unpacking,
+    });
 
     install_archive(
         root,
@@ -203,6 +223,7 @@ fn report_installed(
         downloaded_bytes: current.required_bytes.unwrap_or(0),
         total_bytes: current.required_bytes.unwrap_or(0),
         current_file: None,
+        step: DownloadStep::Checking,
     });
     current
 }
