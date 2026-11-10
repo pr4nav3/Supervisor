@@ -1,7 +1,7 @@
 import type { ReportSpan, SessionReport } from "../core/types";
 import { formatDuration, formatHours, formatMinutes, formatSpan } from "../core/format";
-import { allowedInReport, renderAppColumns } from "../main";
 import { attr, escapeHtml, label } from "../core/dom";
+import { allowedInReport, renderAppColumns } from "./history";
 
 export function renderSessionReport(report: SessionReport): string {
   const recorded = report.spans.reduce((sum, span) => sum + span.seconds, 0);

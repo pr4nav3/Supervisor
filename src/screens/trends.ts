@@ -4,10 +4,10 @@ import {
   addDaysKey, averageOf, dayKey, formatHours, formatMinutes, formatRecovery, formatWeekStart,
   medianOf, parseDayKey, smartBarHeight,
 } from "../core/format";
-import { historyView, pendingAnimations, takeAnimation } from "../main";
 import { appView, attr, errorText, escapeHtml } from "../core/dom";
 import { activeTab, setLastError } from "../core/state";
 import { render } from "../core/shell";
+import { historyView, pendingAnimations, takeAnimation } from "./history";
 
 /** Trends need this many completed weeks before week-over-week lines mean anything. */
 const TRENDS_UNLOCK_WEEKS = 2;
