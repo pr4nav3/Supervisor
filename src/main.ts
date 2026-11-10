@@ -451,15 +451,9 @@ interface RecordedVoice {
 
 interface WebcamFrame {
   face_in_frame: boolean;
-  person_in_frame?: boolean;
   present?: boolean;
   phone_in_frame: boolean;
-  looking_at_phone: boolean;
-  phone_count: number;
-  phone_confidence?: number;
   jpeg?: string;
-  device?: string;
-  provider?: string;
   error?: string | null;
   /** False on a preview picture sent between detections; its labels are the last detection's. */
   detected?: boolean;
@@ -8318,7 +8312,7 @@ function paintWebcamDom(): void {
 }
 
 function webcamWouldAlert(frame: WebcamFrame | null): boolean {
-  return frame !== null && webcamSettings.phoneUse && frame.looking_at_phone;
+  return frame !== null && webcamSettings.phoneUse && frame.phone_in_frame;
 }
 
 /** Red with a phone out, green with someone in frame, plain otherwise. */
