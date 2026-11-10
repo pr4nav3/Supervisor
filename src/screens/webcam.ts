@@ -1,9 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CurrentSession, SessionSettings, WebcamFrame } from "../core/types";
-import { captureAccess } from "../main";
 import { errorText, escapeHtml, showFeedback } from "../core/dom";
 import { activeTab, setSettings, setSettingsView, settings, settingsView, snapshot } from "../core/state";
 import { render } from "../core/shell";
+import { captureAccess } from "./firstRun";
 
 let webcamFrame: WebcamFrame | null = null;
 export let webcamError = "";
