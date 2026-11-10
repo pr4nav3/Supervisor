@@ -7,7 +7,7 @@ long). Output: src-tauri/voices/<voice>/<line id>.wav. Without --ids every clip 
 the list is removed.
 
 --intros makes each voice's hello instead, played from its card: src-tauri/voices/<voice>-intro.wav.
-The text per voice is in STARTER_INTROS in src/main.ts, repeated in INTROS here.
+The text per voice is in STARTER_INTROS in src/screens/voice.ts, repeated in INTROS here.
 
     .venv-voice-runtime-windows/Scripts/python scripts/make_starter_clips.py --model-dir ... --work ...
     .venv-voice-runtime-windows/Scripts/python scripts/make_starter_clips.py ... --ids mom_grounded

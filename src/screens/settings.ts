@@ -1,9 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SessionSettings, Strictness } from "../core/types";
-import {
-  dismissVoiceInfo, quietVoice, quietVoiceText, refreshVoiceStatus, renderVoiceSettings,
-  selectedVoice, voiceBackend, voiceTone,
-} from "../main";
 import { errorText, escapeHtml, label, showFeedback } from "../core/dom";
 import {
   draft, lastError, setLastError, setSettings, setSettingsView, settings, settingsView, theme,
@@ -12,6 +8,10 @@ import { invokeSnapshot, render } from "../core/shell";
 import { renderWebcamSettings, stopWebcamPreview } from "./webcam";
 import { renderRuleManager } from "./rules";
 import { leaveVoiceScreen, setPhraseEditor, toneLabel } from "./lines";
+import {
+  dismissVoiceInfo, quietVoice, quietVoiceText, refreshVoiceStatus, renderVoiceSettings,
+  selectedVoice, voiceBackend, voiceTone,
+} from "./voice";
 
 /** Report a problem: the form, with the details a report needs already in its last box.
  *  Everything in it is on screen in the browser before anything is sent. */

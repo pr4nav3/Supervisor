@@ -4,6 +4,10 @@ import type {
   ClipQueue, PhraseDefinition, PhraseEditor, PhraseLibraryState, PhraseMoment, VoiceOption,
   VoiceProfileSummary, VoiceTone,
 } from "../core/types";
+import { formatQueueTime } from "../core/format";
+import { appView, attr, composing, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
+import { activeTab, settingsView } from "../core/state";
+import { editorIsOpen, paintSlot, render } from "../core/shell";
 import {
   bumpClipAsset, canEditPhrases, cleanSlug, clipBelongsToPhrase, clipForPhrase, clipForPhraseId,
   clipGenerateLockTitle, clipsVoice, dismissVoiceInfo, isCustomTone, MINI_ORB, momentPhrases,
@@ -11,11 +15,7 @@ import {
   releaseVoiceWorker, renameVoice, renderVoiceGapNotice, runVoiceBusy, sameTone, setPickWhenReady,
   setVoiceError, stopClip, stopVoicePreview, tonePhrases, upsertProfile, voiceBackend, voiceBusy,
   voiceError, voiceTone,
-} from "../main";
-import { formatQueueTime } from "../core/format";
-import { appView, attr, composing, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
-import { activeTab, settingsView } from "../core/state";
-import { editorIsOpen, paintSlot, render } from "../core/shell";
+} from "./voice";
 
 /** Every personality has lines for each moment. The two that repeat all session want a few. */
 export const MOMENTS: { id: PhraseMoment; label: string; when: string; often: boolean }[] = [

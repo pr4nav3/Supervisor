@@ -1,14 +1,15 @@
 import type { AppRule, Strictness } from "../core/types";
-import {
-  allowChip, animateOnArrival, refreshVoiceStatus, renderVoiceGapNotice, selectedVoice,
-  setClipsVoiceId, updateSelectedVoice, voiceOptions,
-} from "../main";
+import { allowChip, animateOnArrival } from "../main";
 import { attr, composing, escapeHtml, modal, showFeedback } from "../core/dom";
 import { clearLastError, draft, setActiveTab, setSettingsView, settings } from "../core/state";
 import { invokeSnapshot, paintSlot, render, runAction } from "../core/shell";
 import { renderAccessNotice } from "./firstRun";
 import { cloneRules, permanentRules, renderRuleEditor, ruleEditor, sameRule, setRuleEditor } from "./rules";
 import { STRICTNESS_HELP, strictnessOptions } from "./settings";
+import {
+  refreshVoiceStatus, renderVoiceGapNotice, selectedVoice, setClipsVoiceId, updateSelectedVoice,
+  voiceOptions,
+} from "./voice";
 
 /** Work / break rhythms on the start screen. */
 const POMODORO_RHYTHMS = [
