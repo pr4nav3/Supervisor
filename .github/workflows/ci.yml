@@ -1,7 +1,7 @@
 # Every push is checked on both ship targets, so a change made on Windows cannot quietly
 # break the Mac (or the other way round). Tests and the UI check on both; the Mac job also
 # bundles a debug Supervisor.app, since bundling is where Mac-only config bites.
-# The Python workers are not built here: their models are not in git.
+# The Python workers are not built here (their models are not in git); their model-free tests run.
 name: ci
 
 on:
@@ -30,6 +30,13 @@ jobs:
       - run: npm run check
       - run: cargo test
         working-directory: src-tauri
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: webcam_worker/requirements.txt
+      - run: pip install -r webcam_worker/requirements.txt
+      - run: python -m unittest discover -s webcam_worker && python -m unittest scripts/test_build_voice_runtime_manifest.py
       - name: Bundle the debug app (macOS)
         if: runner.os == 'macOS'
         run: npx tauri build --debug --bundles app --config '{"bundle":{"active":true,"targets":["app"]}}'
