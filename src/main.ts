@@ -402,9 +402,6 @@ interface VoiceDownloadSnapshot {
 interface VoiceOption {
   id: string;
   name: string;
-  kind: string;
-  detail: string;
-  coverage: string;
   /** Lines with audio, and lines in all, for the current personality. */
   ready: number;
   total: number;
@@ -511,9 +508,6 @@ const phraseBank = starterLines.phrases as PhraseDefinition[];
 const noneVoice: VoiceOption = {
   id: "none",
   name: "No voice",
-  kind: "",
-  detail: "",
-  coverage: "",
   ready: 0,
   total: 0,
   source: "none",
@@ -532,21 +526,16 @@ const STARTER_INTROS: Record<string, string> = {
 
 function starterVoiceOptions(): VoiceOption[] {
   return [
-    starterVoiceCard("starter-male", "derek", "Derek", "Starter voice. Its lines come ready."),
-    starterVoiceCard("starter-female", "elise", "Elise", "Warmer starter voice. Its lines come ready."),
+    starterVoiceCard("starter-male", "derek", "Derek"),
+    starterVoiceCard("starter-female", "elise", "Elise"),
   ];
 }
 
-function starterVoiceCard(id: string, profileId: string, name: string, detail: string): VoiceOption {
+function starterVoiceCard(id: string, profileId: string, name: string): VoiceOption {
   const profile = profileById(profileId);
-  const phrases = effectivePhrases();
-  const ready = phrases.filter((phrase) => clipForPhraseId(profile?.clips ?? [], phrase.id)).length;
   return {
     id,
     name: profile?.display_name || name,
-    kind: "Bundled",
-    detail,
-    coverage: `${ready}/${phrases.length} lines ready`,
     ...ownLineCount(profile),
     source: "starter",
     selectable: profile ? profileToneReady(profile) : true,
@@ -9173,26 +9162,14 @@ function availableVoices(): VoiceOption[] {
   const customVoices =
     voiceBackend?.profiles
       .filter((profile) => !(STARTER_PROFILE_IDS as readonly string[]).includes(profile.profile_id))
-      .map((profile) => {
-      const phrases = effectivePhrases();
-      const ready = phrases.filter((phrase) => clipForPhraseId(profile.clips, phrase.id)).length;
-      const hasReference = profile.reference_retained && Boolean(profile.reference_path);
-      return {
+      .map((profile) => ({
         id: voiceOptionId(profile.profile_id),
         name: profile.display_name,
-        kind: ready > 0 ? "Ready" : hasReference ? "Recorded" : "Incomplete",
-        detail: ready > 0
-          ? "Its lines are generated and play in sessions."
-          : hasReference
-            ? "Recorded. Generate its lines before using this voice."
-            : "The recording is missing. Delete this voice or record it again.",
-        coverage: `${ready}/${phrases.length} lines ready`,
         ...ownLineCount(profile),
         source: "custom" as VoiceSource,
         selectable: profileToneReady(profile),
         profile,
-      };
-    }) ?? [];
+      })) ?? [];
 
   return [noneVoice, ...starterVoiceOptions(), ...customVoices];
 }
