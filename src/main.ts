@@ -1236,6 +1236,12 @@ function closeTopLayer(): void {
     paintModalLayer();
     return;
   }
+  // The delete confirm sits over the engine popup: it closes first.
+  if (modelDeleteOpen) {
+    modelDeleteOpen = false;
+    paintVoiceLayer();
+    return;
+  }
   if (voiceHelpOpen || modelInfoOpen || memoryInfoOpen) {
     voiceHelpOpen = false;
     modelInfoOpen = false;
@@ -1288,11 +1294,6 @@ function closeTopLayer(): void {
   }
   if (voiceInfoId) {
     dismissVoiceInfo();
-    paintVoiceLayer();
-    return;
-  }
-  if (modelDeleteOpen) {
-    modelDeleteOpen = false;
     paintVoiceLayer();
     return;
   }
@@ -2271,6 +2272,7 @@ function updateDistractionLatch(current: CurrentSession | null): void {
   if (!current || current.status !== "active") {
     distractionLatchKey = "";
     distractionLatchLabel = "";
+    distractionLatchRule = null;
     return;
   }
   const key = distractionIdentity(current);
@@ -2288,6 +2290,7 @@ function updateDistractionLatch(current: CurrentSession | null): void {
   if (distractionLatchKey === PHONE_LATCH || distractionDismissedFor === PHONE_LATCH) {
     distractionLatchKey = "";
     distractionLatchLabel = "";
+    distractionLatchRule = null;
     distractionDismissedFor = "";
   }
   const focus = current.focus;
@@ -2312,6 +2315,7 @@ function updateDistractionLatch(current: CurrentSession | null): void {
   if (focus.state === "focused" || focus.state === "idle") {
     distractionLatchKey = "";
     distractionLatchLabel = "";
+    distractionLatchRule = null;
     distractionDismissedFor = "";
   }
 }
@@ -6311,6 +6315,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     distractionDismissedFor = distractionLatchKey || (live ? distractionIdentity(live) : "");
     distractionLatchKey = "";
     distractionLatchLabel = "";
+    distractionLatchRule = null;
     overlayMoreOpen = false;
     render();
     return;
@@ -8788,11 +8793,9 @@ function clipForPhraseId(clips: VoiceClipSummary[], phraseId: string): VoiceClip
   return clips.find((clip) => clip.bytes >= 44 && clipBelongsToPhrase(clip, phraseId)) ?? null;
 }
 
+// Exact id: `custom_gentle_come_on_back` is a different line from `gentle_come_on_back`.
 function clipBelongsToPhrase(clip: VoiceClipSummary, phraseId: string): boolean {
-  if (clip.phrase_id === phraseId) {
-    return true;
-  }
-  return clip.clip_id === phraseId || clip.clip_id.endsWith(`_${phraseId}`);
+  return clip.phrase_id === phraseId;
 }
 
 /** The clip a play button started, so that button shows the speaking orb; a second click stops it. */

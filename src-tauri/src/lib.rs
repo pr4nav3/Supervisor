@@ -337,26 +337,22 @@ fn open_problem_form(url: String) -> Result<(), String> {
     if !url.starts_with(PROBLEM_FORM) || url.contains(|c: char| c.is_whitespace() || c == '"') {
         return Err("That is not the problem form.".to_string());
     }
-    #[cfg(target_os = "macos")]
-    let mut command = {
-        let mut command = std::process::Command::new("open");
-        command.arg(&url);
-        command
-    };
+    // Straight to the shell: `cmd /C start` would cut the address at its first `&`.
     #[cfg(target_os = "windows")]
-    let mut command = {
-        // `start` is a cmd built-in; the empty first argument is the window title it expects.
-        let mut command = std::process::Command::new("cmd");
-        command.args(["/C", "start", "", &url]);
-        command
-    };
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    let mut command = {
-        let mut command = std::process::Command::new("xdg-open");
-        command.arg(&url);
-        command
-    };
-    command.status().map(drop).map_err(|error| error.to_string())
+    {
+        use windows::core::{w, HSTRING};
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+        let result = unsafe { ShellExecuteW(None, w!("open"), &HSTRING::from(url), None, None, SW_SHOWNORMAL) };
+        // Above 32 is success.
+        if result.0 as isize > 32 { Ok(()) } else { Err("Could not open the browser.".to_string()) }
+    }
+    #[cfg(not(target_os = "windows"))]
+    std::process::Command::new(if cfg!(target_os = "macos") { "open" } else { "xdg-open" })
+        .arg(&url)
+        .status()
+        .map(drop)
+        .map_err(|error| error.to_string())
 }
 
 #[tauri::command]

@@ -4114,7 +4114,8 @@ button.overlay-more.is-open::before {
   min-width: 0;
 }
 
-.interrupt-alert .interrupt-voice-who {
+/* `p.` so the slab's later ink rule (`.state-slab :is(...)`, same weight without it) doesn't win. */
+.state-slab.interrupt-alert p.interrupt-voice-who {
   margin: 0;
   color: #5d564a;
   font-family: var(--font-mono);
@@ -4883,7 +4884,8 @@ button.share-door[aria-disabled="true"] strong {
   padding: 20px 22px 22px;
 }
 
-.share-head {
+/* The popup's head only: the card's own head keeps its baseline row. */
+.modal-head.share-head {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;

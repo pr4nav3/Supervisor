@@ -265,6 +265,7 @@
       recT = setTimeout(function () { recbox.classList.remove("building"); recbox.classList.add("ready"); $("rec-state").textContent = "Ready to speak"; recT = setTimeout(recRun, 4200); }, 1400);
     })();
   }
+  $("rec-orb").addEventListener("click", function () { if (!reduce) recRun(); });
   if (reduce) { recbox.classList.add("ready"); for (var rb = 0; rb < recBars; rb++) addBar(rb); $("rec-t").textContent = "0:20"; $("rec-state").textContent = "Ready to speak"; }
   document.querySelectorAll(".vrow .words").forEach(function (el) { setWords(el, el.textContent); el.classList.remove("developing"); });
   document.querySelectorAll(".vrow").forEach(function (r) {
