@@ -9,9 +9,10 @@ export let applySnapshot: typeof Main.applySnapshot;
 export let bindEvents: typeof Main.bindEvents;
 export let refreshSnapshotNow: typeof Main.refreshSnapshotNow;
 export let render: typeof Main.render;
+export let runAction: typeof Main.runAction;
 
-export function wire(parts: Pick<typeof Main, "applySnapshot" | "bindEvents" | "refreshSnapshotNow" | "render">): void {
-  ({ applySnapshot, bindEvents, refreshSnapshotNow, render } = parts);
+export function wire(parts: Pick<typeof Main, "applySnapshot" | "bindEvents" | "refreshSnapshotNow" | "render" | "runAction">): void {
+  ({ applySnapshot, bindEvents, refreshSnapshotNow, render, runAction } = parts);
 }
 
 let pollId: number | null = null;

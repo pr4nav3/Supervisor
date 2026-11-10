@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, RuleEditor, RulePreview, RulesSaved } from "../core/types";
-import { paintPreflightLayer, paintSessionRulesLayer, preflightOpen, sessionRulesOpen } from "../main";
+import { paintSessionRulesLayer, sessionRulesOpen } from "../main";
 import { attr, errorText, escapeHtml, formValue, showFeedback } from "../core/dom";
 import { appNames, setLastError, setSiteNames, siteNames } from "../core/state";
 import { render } from "../core/shell";
 import { firstRunOpen, paintFirstRun } from "./firstRun";
+import { paintPreflightLayer, preflightOpen } from "./preflight";
 
 export let permanentRules: AppRule[] = [];
 export function setPermanentRules(value: AppRule[]): void {
