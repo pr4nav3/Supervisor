@@ -634,243 +634,73 @@ impl SessionStorage {
             .conn
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .map_err(|error| error.to_string())?;
-        if version > SCHEMA_VERSION {
+        // Every release started at schema 14; anything from 1 to 13 is a pre-release build's.
+        if version > SCHEMA_VERSION || (1..14).contains(&version) {
             return Err(format!("unsupported database schema version {version}"));
         }
-        // Each step is one transaction, so a crash mid-migration leaves the previous version intact.
-        if version < 1 {
-            self.conn
-                .execute_batch(
-                    "
-                    BEGIN;
-                    CREATE TABLE session (
-                      id INTEGER PRIMARY KEY,
-                      goal TEXT NOT NULL,
-                      strictness TEXT NOT NULL,
-                      started_at TEXT NOT NULL,
-                      ended_at TEXT,
-                      planned_seconds INTEGER NOT NULL,
-                      ended_reason TEXT,
-                      focused_seconds INTEGER NOT NULL DEFAULT 0,
-                      distracted_seconds INTEGER NOT NULL DEFAULT 0,
-                      idle_seconds INTEGER NOT NULL DEFAULT 0,
-                      away_seconds INTEGER NOT NULL DEFAULT 0,
-                      phone_seconds INTEGER NOT NULL DEFAULT 0,
-                      drift_count INTEGER NOT NULL DEFAULT 0,
-                      nudge_count INTEGER NOT NULL DEFAULT 0,
-                      longest_stretch_seconds INTEGER NOT NULL DEFAULT 0,
-                      median_stretch_seconds INTEGER NOT NULL DEFAULT 0
-                    );
-
-                    CREATE TABLE span (
-                      id INTEGER PRIMARY KEY,
-                      session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE,
-                      app TEXT NOT NULL,
-                      context TEXT,
-                      category TEXT NOT NULL,
-                      state TEXT NOT NULL,
-                      started_offset_seconds INTEGER NOT NULL,
-                      seconds INTEGER NOT NULL
-                    );
-                    CREATE INDEX span_session ON span(session_id, started_offset_seconds);
-
-                    CREATE TABLE event (
-                      id INTEGER PRIMARY KEY,
-                      session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE,
-                      at_offset_seconds INTEGER NOT NULL,
-                      kind TEXT NOT NULL,
-                      detail TEXT
-                    );
-
-                    CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-
-                    CREATE TABLE rule (
-                      id INTEGER PRIMARY KEY,
-                      target TEXT NOT NULL,
-                      value TEXT NOT NULL,
-                      classification TEXT NOT NULL,
-                      source TEXT NOT NULL
-                    );
-
-                    PRAGMA user_version = 1;
-                    COMMIT;
-                    ",
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        if version < 2 {
-            // Timer seconds at close (pauses excluded). NULL for sessions that never closed cleanly.
-            self.conn
-                .execute_batch(
-                    "
-                    BEGIN;
-                    ALTER TABLE session ADD COLUMN elapsed_seconds INTEGER;
-                    PRAGMA user_version = 2;
-                    COMMIT;
-                    ",
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        if version < 3 {
-            self.migrate_to_activity_identity()
-                .map_err(|error| error.to_string())?;
-        }
-        if version < 4 {
-            // Names the user gave sites. Kept apart from rules so deleting a rule keeps the name.
-            self.conn
-                .execute_batch(
-                    "
-                    BEGIN;
-                    CREATE TABLE site_name (key TEXT PRIMARY KEY, name TEXT NOT NULL);
-                    PRAGMA user_version = 4;
-                    COMMIT;
-                    ",
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        if version < 5 {
+        if version == 0 {
+            // Schema 14 as the old upgrade steps left it, unused columns included, so a fresh
+            // database matches an upgraded one. span.category has no default: inserts write ''.
             self.conn.execute_batch(
                 "BEGIN;
+                 CREATE TABLE session (
+                   id INTEGER PRIMARY KEY,
+                   goal TEXT NOT NULL,
+                   strictness TEXT NOT NULL,
+                   started_at TEXT NOT NULL,
+                   ended_at TEXT,
+                   planned_seconds INTEGER NOT NULL,
+                   ended_reason TEXT,
+                   focused_seconds INTEGER NOT NULL DEFAULT 0,
+                   distracted_seconds INTEGER NOT NULL DEFAULT 0,
+                   idle_seconds INTEGER NOT NULL DEFAULT 0,
+                   away_seconds INTEGER NOT NULL DEFAULT 0,
+                   phone_seconds INTEGER NOT NULL DEFAULT 0,
+                   drift_count INTEGER NOT NULL DEFAULT 0,
+                   nudge_count INTEGER NOT NULL DEFAULT 0,
+                   longest_stretch_seconds INTEGER NOT NULL DEFAULT 0,
+                   median_stretch_seconds INTEGER NOT NULL DEFAULT 0,
+                   elapsed_seconds INTEGER
+                 );
+                 CREATE TABLE span (
+                   id INTEGER PRIMARY KEY,
+                   session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+                   app TEXT NOT NULL,
+                   category TEXT NOT NULL,
+                   state TEXT NOT NULL,
+                   started_offset_seconds INTEGER NOT NULL,
+                   seconds INTEGER NOT NULL,
+                   kind TEXT NOT NULL DEFAULT 'app',
+                   activity_key TEXT NOT NULL DEFAULT '',
+                   label TEXT NOT NULL DEFAULT '',
+                   source TEXT NOT NULL DEFAULT 'app'
+                 );
+                 CREATE INDEX span_session ON span(session_id, started_offset_seconds);
+                 CREATE TABLE event (
+                   id INTEGER PRIMARY KEY,
+                   session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE,
+                   at_offset_seconds INTEGER NOT NULL,
+                   kind TEXT NOT NULL,
+                   detail TEXT
+                 );
+                 CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+                 CREATE TABLE rule (
+                   id INTEGER PRIMARY KEY,
+                   target TEXT NOT NULL,
+                   value TEXT NOT NULL,
+                   classification TEXT NOT NULL,
+                   source TEXT NOT NULL
+                 );
+                 CREATE TABLE site_name (key TEXT PRIMARY KEY, name TEXT NOT NULL);
                  CREATE TABLE app_name (key TEXT PRIMARY KEY, name TEXT NOT NULL);
-                 PRAGMA user_version = 5;
-                 COMMIT;",
-            ).map_err(|error| error.to_string())?;
-        }
-        if version < 6 {
-            // v6 recomputed stretches; v7 below recomputes every metric, so only the version moves.
-            self.conn.execute_batch("PRAGMA user_version = 6;").map_err(|error| error.to_string())?;
-        }
-        if version < 7 {
-            // The score becomes Relevant time only, and unrated time gets its own total.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            tx.execute_batch(
-                "ALTER TABLE session ADD COLUMN neutral_seconds INTEGER NOT NULL DEFAULT 0;
-                 ALTER TABLE session ADD COLUMN unrated_seconds INTEGER NOT NULL DEFAULT 0;",
-            ).map_err(|error| error.to_string())?;
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 7;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 8 {
-            // Supervisor's own window stopped counting as focus (see `rated_state`).
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 8;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 9 {
-            // A browser's own pages ("Google Chrome pages") are the browser app now: same row,
-            // same rules. Their key and app were already the browser's app id.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            tx.execute_batch(
-                "UPDATE span SET kind = 'app', label = CASE
-                     WHEN label LIKE '% local pages' THEN substr(label, 1, length(label) - 12)
-                     WHEN label LIKE '% pages' THEN substr(label, 1, length(label) - 6)
-                     ELSE label END
-                 WHERE kind IN ('browser_pages', 'browser_local');",
-            ).map_err(|error| error.to_string())?;
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 9;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 10 {
-            // Browsers became always Neutral: their unrated time is Neutral now (see `ratable`).
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 10;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 11 {
-            // Apps are known by native identity (see `app_identity`). Existing keys stay as they
-            // are: the first identity that fits one takes it over when it is next seen.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            tx.execute_batch(
-                "CREATE TABLE IF NOT EXISTS app_identity (
+                 CREATE TABLE app_identity (
                    identity TEXT PRIMARY KEY,
                    key TEXT NOT NULL UNIQUE,
                    label TEXT NOT NULL DEFAULT ''
-                 );",
+                 );
+                 PRAGMA user_version = 14;
+                 COMMIT;",
             ).map_err(|error| error.to_string())?;
-            self.map_app_rules_to_keys()?;
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 11;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 12 {
-            // V2: a rule is a distraction and everything else is work. Relevant and Neutral
-            // rules go; time recorded as neutral was work; the unrated and neutral totals go.
-            // Rules never rewrite history again, so this is the last rescore.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            tx.execute_batch(
-                "DELETE FROM rule WHERE classification != 'distracting';
-                 UPDATE span SET state = 'focused' WHERE state = 'neutral';",
-            ).map_err(|error| error.to_string())?;
-            for column in ["neutral_seconds", "unrated_seconds"] {
-                if self.session_has_column(column)? {
-                    tx.execute_batch(&format!("ALTER TABLE session DROP COLUMN {column};"))
-                        .map_err(|error| error.to_string())?;
-                }
-            }
-            self.rescore_history()?;
-            tx.execute_batch("PRAGMA user_version = 12;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 13 {
-            // macOS names some apps with an invisible left-to-right mark ("\u{200e}WhatsApp").
-            // Until 2026-10-25 it went into app keys and labels, so a rule typed as "whatsapp"
-            // never matched and History showed a stray mark. Capture strips it now; this cleans
-            // what was stored before. A mark whose clean key already belongs to another app is
-            // left alone everywhere, so no row moves to the wrong app.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            let taken: std::collections::HashSet<String> = {
-                let mut stmt = self.conn
-                    .prepare("SELECT key FROM app_identity UNION SELECT key FROM app_name")
-                    .map_err(|error| error.to_string())?;
-                let rows = stmt.query_map([], |row| row.get::<_, String>(0)).map_err(|error| error.to_string())?;
-                rows.collect::<Result<_, _>>().map_err(|error| error.to_string())?
-            };
-            // User-typed names (app_name.name) are not touched: they may hold joiners on purpose.
-            for (table, column) in [
-                ("app_identity", "key"),
-                ("app_identity", "label"),
-                ("span", "app"),
-                ("span", "activity_key"),
-                ("span", "label"),
-                ("rule", "value"),
-                ("app_name", "key"),
-            ] {
-                self.strip_direction_marks(table, column, &taken)?;
-            }
-            tx.execute_batch("PRAGMA user_version = 13;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
-        }
-        if version < 14 {
-            // Pauses used to be recorded as "paused" spans on the wall clock. They are cut out
-            // now: each one goes and everything after it moves back by its length. Latest
-            // first, so an earlier pause's offset is never moved before it is cut.
-            let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
-            // A span that began inside a pause (its stored length ran past the resume) moves
-            // back only as far as the pause's start, like an event.
-            let pauses: Vec<(i64, i64, i64, i64)> = {
-                let mut stmt = self.conn
-                    .prepare("SELECT id, session_id, started_offset_seconds, seconds FROM span
-                              WHERE state = 'paused' ORDER BY session_id, started_offset_seconds DESC, id DESC")
-                    .map_err(|error| error.to_string())?;
-                let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)))
-                    .map_err(|error| error.to_string())?;
-                rows.collect::<Result<_, _>>().map_err(|error| error.to_string())?
-            };
-            for (id, session, start, seconds) in pauses {
-                tx.execute("DELETE FROM span WHERE id = ?1", params![id]).map_err(|error| error.to_string())?;
-                tx.execute("UPDATE span SET started_offset_seconds = MAX(?2, started_offset_seconds - ?3)
-                            WHERE session_id = ?1 AND started_offset_seconds > ?2",
-                    params![session, start, seconds]).map_err(|error| error.to_string())?;
-                tx.execute("UPDATE event SET at_offset_seconds = MAX(?2, at_offset_seconds - ?3)
-                            WHERE session_id = ?1 AND at_offset_seconds > ?2",
-                    params![session, start, seconds]).map_err(|error| error.to_string())?;
-            }
-            tx.execute_batch("PRAGMA user_version = 14;").map_err(|error| error.to_string())?;
-            tx.commit().map_err(|error| error.to_string())?;
         }
         if version < 15 {
             // Events were read per session with a full table scan: years of history held the
@@ -882,164 +712,6 @@ impl SessionStorage {
                  PRAGMA user_version = 15;
                  COMMIT;",
             ).map_err(|error| error.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn strip_direction_marks(
-        &self,
-        table: &str,
-        column: &str,
-        taken: &std::collections::HashSet<String>,
-    ) -> Result<(), String> {
-        const MARKS: [char; 4] = ['\u{200b}', '\u{200e}', '\u{200f}', '\u{feff}'];
-        let values: Vec<String> = {
-            let mut stmt = self
-                .conn
-                .prepare(&format!("SELECT DISTINCT {column} FROM {table}"))
-                .map_err(|error| error.to_string())?;
-            let rows = stmt
-                .query_map([], |row| row.get::<_, String>(0))
-                .map_err(|error| error.to_string())?;
-            rows.collect::<Result<_, _>>().map_err(|error| error.to_string())?
-        };
-        for value in values {
-            let clean: String = value.chars().filter(|ch| !MARKS.contains(ch)).collect();
-            let clean = clean.trim().to_string();
-            if clean == value || clean.is_empty() || taken.contains(&clean) {
-                continue;
-            }
-            self.conn
-                .execute(
-                    &format!("UPDATE OR IGNORE {table} SET {column} = ?2 WHERE {column} = ?1"),
-                    params![value, clean],
-                )
-                .map_err(|error| error.to_string())?;
-        }
-        Ok(())
-    }
-
-    fn session_has_column(&self, column: &str) -> Result<bool, String> {
-        let mut stmt = self.conn.prepare("PRAGMA table_info(session)").map_err(|error| error.to_string())?;
-        let names = stmt
-            .query_map([], |row| row.get::<_, String>(1))
-            .map_err(|error| error.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|error| error.to_string())?;
-        Ok(names.iter().any(|name| name == column))
-    }
-
-    /// v3: spans name an app or website key instead of keeping window titles, and rules
-    /// target an app or a website. Old browser time can't be split by site, so it becomes
-    /// Other websites; title rules that don't name a site or an app are dropped.
-    fn migrate_to_activity_identity(&self) -> rusqlite::Result<()> {
-        let tx = self.conn.unchecked_transaction()?;
-        let browsers = website::BROWSERS
-            .iter()
-            .map(|name| format!("'{name}'"))
-            .collect::<Vec<_>>()
-            .join(", ");
-        tx.execute_batch(&format!(
-            "
-            ALTER TABLE span ADD COLUMN kind TEXT NOT NULL DEFAULT 'app';
-            ALTER TABLE span ADD COLUMN activity_key TEXT NOT NULL DEFAULT '';
-            ALTER TABLE span ADD COLUMN label TEXT NOT NULL DEFAULT '';
-            ALTER TABLE span ADD COLUMN source TEXT NOT NULL DEFAULT 'app';
-            UPDATE span SET activity_key = lower(app), label = app;
-            UPDATE span SET source = 'none' WHERE app = 'Untracked';
-            UPDATE span SET kind = 'other_websites', activity_key = 'other-websites',
-                            label = 'Other websites', source = 'none'
-              WHERE lower(app) IN ({browsers});
-            ALTER TABLE span DROP COLUMN context;
-            "
-        ))?;
-
-        let legacy = {
-            let mut stmt = tx.prepare("SELECT target, value, classification, source FROM rule ORDER BY id")?;
-            let rows = stmt.query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, String>(2)?,
-                    row.get::<_, String>(3)?,
-                ))
-            })?;
-            rows.collect::<rusqlite::Result<Vec<_>>>()?
-        };
-        tx.execute("DELETE FROM rule", [])?;
-        let mut seen = std::collections::HashSet::new();
-        for (target, value, classification, source) in legacy {
-            if classification != "distracting" {
-                continue;
-            }
-            let rule = match target.as_str() {
-                "app_name" => Some(AppRule::app(&value)),
-                "window_title" => AppRule::from_input(&value),
-                _ => None,
-            };
-            let Some(rule) = rule.filter(|rule| !rule.value.is_empty()) else {
-                continue;
-            };
-            if seen.insert(rule.value.to_lowercase()) {
-                tx.execute(
-                    "INSERT INTO rule (target, value, classification, source) VALUES (?1, ?2, ?3, ?4)",
-                    params![rule_target_key(&rule.target), rule.value, "distracting", source],
-                )?;
-            }
-        }
-        tx.pragma_update(None, "user_version", 3)?;
-        tx.commit()
-    }
-
-    /// v11: app rules written as a name ("Visual Studio Code") become a rule on that app's key
-    /// when exactly one recorded app goes by the name, so the rule can't reach another app that
-    /// later takes the same name. A name two apps share, or no recorded app has, stays as it is.
-    /// Callers hold a transaction.
-    fn map_app_rules_to_keys(&self) -> Result<(), String> {
-        let latest: Vec<(String, String)> = {
-            let mut stmt = self.conn.prepare(
-                "SELECT activity_key, label FROM span WHERE id IN (
-                     SELECT MAX(id) FROM span
-                     WHERE kind = 'app' AND source != 'none' AND activity_key != ''
-                     GROUP BY activity_key)",
-            ).map_err(|error| error.to_string())?;
-            let rows = stmt.query_map([], |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)))
-                .map_err(|error| error.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?
-                .into_iter()
-                .filter(|(key, _)| ratable("app", key) && !legacy_unidentified_window(key))
-                .collect()
-        };
-        let rules: Vec<(i64, String)> = {
-            let mut stmt = self.conn.prepare("SELECT id, value FROM rule WHERE target = 'app' ORDER BY id")
-                .map_err(|error| error.to_string())?;
-            let rows = stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-                .map_err(|error| error.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?
-        };
-        let mut seen = std::collections::HashSet::new();
-        for (id, value) in rules {
-            let lower = value.trim().to_lowercase();
-            let mapped = if latest.iter().any(|(key, _)| *key == lower) {
-                Some(lower)
-            } else {
-                let named: Vec<&String> = latest.iter()
-                    .filter(|(_, label)| label.eq_ignore_ascii_case(value.trim()))
-                    .map(|(key, _)| key)
-                    .collect();
-                match named.as_slice() {
-                    [key] => Some((*key).clone()),
-                    _ => None,
-                }
-            };
-            let value_now = mapped.unwrap_or_else(|| value.clone());
-            // The earlier rule already decided this app; a later duplicate never applied.
-            if !seen.insert(value_now.to_lowercase()) {
-                self.conn.execute("DELETE FROM rule WHERE id = ?1", [id]).map_err(|error| error.to_string())?;
-            } else if value_now != value {
-                self.conn.execute("UPDATE rule SET value = ?2 WHERE id = ?1", params![id, value_now])
-                    .map_err(|error| error.to_string())?;
-            }
         }
         Ok(())
     }
@@ -1232,7 +904,7 @@ impl SessionStorage {
     fn read_rules(&self) -> Result<Vec<AppRule>, String> {
         let mut stmt = self
             .conn
-            .prepare("SELECT target, value FROM rule WHERE classification = 'distracting' ORDER BY id ASC")
+            .prepare("SELECT target, value FROM rule ORDER BY id ASC")
             .map_err(|error| error.to_string())?;
         let rows = stmt
             .query_map([], |row| {
@@ -1249,35 +921,15 @@ impl SessionStorage {
         tx.execute("DELETE FROM rule", [])
             .map_err(|error| error.to_string())?;
         for rule in rules {
-            let source = rule_source_label(rule);
             tx.execute(
-                "INSERT INTO rule (target, value, classification, source) VALUES (?1, ?2, ?3, ?4)",
-                params![rule_target_key(&rule.target), rule.value, "distracting", source],
+                "INSERT INTO rule (target, value, classification, source) VALUES (?1, ?2, 'distracting', 'user')",
+                params![rule_target_key(&rule.target), rule.value],
             )
             .map_err(|error| error.to_string())?;
         }
         tx.execute("INSERT OR REPLACE INTO setting (key, value) VALUES ('rules.initialized', 'true')", [])
             .map_err(|error| error.to_string())?;
         tx.commit().map_err(|error| error.to_string())
-    }
-
-    /// Recomputes the cached metrics of every finished session (migrations only) and returns
-    /// the ones that changed. Callers hold a transaction.
-    fn rescore_history(&self) -> Result<Vec<u64>, String> {
-        let ids = {
-            let mut stmt = self.conn.prepare("SELECT id FROM session WHERE ended_at IS NOT NULL")
-                .map_err(|error| error.to_string())?;
-            let rows = stmt.query_map([], |row| row.get::<_, u64>(0))
-                .map_err(|error| error.to_string())?;
-            rows.collect::<Result<Vec<_>, _>>().map_err(|error| error.to_string())?
-        };
-        let mut changed = Vec::new();
-        for id in ids {
-            if self.recompute_session_metrics(id)? {
-                changed.push(id);
-            }
-        }
-        Ok(changed)
     }
 
     pub fn insert_session(
@@ -1446,8 +1098,7 @@ impl SessionStorage {
         self.repaired_seconds.get()
     }
 
-    /// Returns whether any saved figure changed; unchanged sessions are not rewritten.
-    pub fn recompute_session_metrics(&self, session_id: u64) -> Result<bool, String> {
+    pub fn recompute_session_metrics(&self, session_id: u64) -> Result<(), String> {
         let spans = self.load_spans_for_session(session_id)?;
         let events = self.load_events_for_session(session_id)?;
 
@@ -1458,8 +1109,7 @@ impl SessionStorage {
 
         for span in &spans {
             match span.state.as_str() {
-                // "neutral" is a pre-V2 state; v12 rewrote it, and it reads as work if ever seen.
-                "focused" | "neutral" => focused_seconds += span.seconds,
+                "focused" => focused_seconds += span.seconds,
                 "suspicious" | "distracted" => distracted_seconds += span.seconds,
                 // Phone time is distracted time, also shown on its own.
                 "phone" => {
@@ -1479,27 +1129,6 @@ impl SessionStorage {
         let stretches = focused_stretches(&spans);
         let longest_stretch_seconds = stretches.iter().copied().max().unwrap_or(0);
         let median_stretch_seconds = median(&stretches);
-
-        let metrics = [
-            focused_seconds,
-            distracted_seconds,
-            idle_seconds,
-            nudge_count,
-            longest_stretch_seconds,
-            median_stretch_seconds,
-            phone_seconds,
-        ];
-        let saved = self.conn.query_row(
-            "SELECT focused_seconds, distracted_seconds, idle_seconds, nudge_count,
-                    longest_stretch_seconds, median_stretch_seconds, phone_seconds
-             FROM session WHERE id = ?1",
-            [session_id],
-            |row| (0..metrics.len()).map(|index| row.get::<_, i64>(index).map(|value| value as u64))
-                .collect::<rusqlite::Result<Vec<u64>>>(),
-        ).map_err(|error| error.to_string())?;
-        if saved == metrics {
-            return Ok(false);
-        }
 
         self.conn
             .execute(
@@ -1524,7 +1153,7 @@ impl SessionStorage {
                 ],
             )
             .map_err(|error| error.to_string())?;
-        Ok(true)
+        Ok(())
     }
 
     pub fn list_history(&self, limit: usize) -> Result<Vec<SessionSummary>, String> {
@@ -1565,9 +1194,8 @@ impl SessionStorage {
             .prepare(
                 "SELECT kind, activity_key, MAX(label), SUM(seconds) AS total
                  FROM span
-                 WHERE session_id = ?1 AND state NOT IN ('paused', 'unknown')
+                 WHERE session_id = ?1 AND state NOT IN ('unknown', 'idle')
                    AND NOT (kind = 'app' AND activity_key IN ('untracked', 'supervisor'))
-                   AND state != 'idle'
                  GROUP BY kind, activity_key
                  ORDER BY total DESC, activity_key ASC
                  LIMIT 3",
@@ -2150,7 +1778,7 @@ impl SessionStorage {
 }
 
 /// The inverse of `focus_state_key`. `None` for markers that are not focus states
-/// ("paused", "unknown") and for read-time states ("unrated").
+/// ("unknown") and for read-time states ("unrated").
 pub fn focus_state_from_key(key: &str) -> Option<crate::focus::FocusState> {
     use crate::focus::FocusState;
     match key {
@@ -2173,7 +1801,7 @@ pub fn focus_state_key(state: crate::focus::FocusState) -> &'static str {
 }
 
 /// An app a rule could name: not a browser and not one of Supervisor's own markers.
-fn ratable(kind: &str, key: &str) -> bool {
+pub fn ratable(kind: &str, key: &str) -> bool {
     match kind {
         "website" => true,
         "app" => ![SUPERVISOR_KEY, UNKNOWN_KEY, PHONE_KEY].contains(&key) && !website::is_browser(key),
@@ -2183,7 +1811,7 @@ fn ratable(kind: &str, key: &str) -> bool {
 
 /// Spans that are not drift: they extend a focus stretch and end a drift.
 fn on_task(state: &str) -> bool {
-    matches!(state, "focused" | "neutral")
+    state == "focused"
 }
 
 /// Rows written by the old window-class fallback have no trustworthy app identity.
@@ -2417,9 +2045,9 @@ fn median(values: &[u64]) -> u64 {
 fn apps_from_spans(spans: &[ReportSpan]) -> Vec<RecapApp> {
     const GROUP_ORDER: [&str; 3] = ["Distractions", "Work", "Away"];
     let mut totals = std::collections::HashMap::<(&'static str, &str, &str), (&str, u64)>::new();
-    for span in spans.iter().filter(|span| span.state != "paused") {
+    for span in spans {
         let group = match span.state.as_str() {
-            "focused" | "neutral" => "Work",
+            "focused" => "Work",
             "suspicious" | "distracted" | "phone" => "Distractions",
             _ => "Away",
         };
@@ -2458,7 +2086,7 @@ fn summary_segments(spans: &[ReportSpan]) -> Vec<SummarySegment> {
         if span.seconds == 0 {
             continue;
         }
-        let state = if span.state == "neutral" { "focused" } else { span.state.as_str() };
+        let state = span.state.as_str();
         if let Some(last) = segments.last_mut() {
             let touching = last.started_offset_seconds + last.seconds >= span.started_offset_seconds;
             if last.state == state && touching {
@@ -2517,15 +2145,6 @@ fn parse_rule_target(value: String) -> RuleTarget {
     match value.as_str() {
         "website" => RuleTarget::Website,
         _ => RuleTarget::App,
-    }
-}
-
-fn rule_source_label(rule: &AppRule) -> &'static str {
-    let starter = starter_rules();
-    if starter.iter().any(|starter_rule| starter_rule == rule) {
-        "starter"
-    } else {
-        "user"
     }
 }
 
@@ -2629,7 +2248,7 @@ mod tests {
     fn summary_segments_merge_touching_runs_and_keep_gaps() {
         let spans = [
             span_at(0, 60, "focused"),
-            span_at(60, 30, "neutral"),
+            span_at(60, 30, "focused"),
             span_at(90, 20, "distracted"),
             // A 10 s gap with nothing recorded, then work again.
             span_at(120, 40, "focused"),
@@ -2691,26 +2310,6 @@ mod tests {
     }
 
     #[test]
-    fn version_nine_folds_browser_pages_into_the_browser() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Pages", Strictness::Normal, "2026-09-22T12:00:00Z", 600).unwrap();
-        storage.insert_span(id, &app("chrome"), "neutral", 0, 60).unwrap();
-        storage.close_session(id, "2026-09-22T12:01:00Z", "stopped", 60).unwrap();
-        storage.conn.execute_batch(
-            "UPDATE span SET kind = 'browser_pages', label = 'Google Chrome pages';
-             INSERT INTO span (session_id, app, kind, activity_key, label, source, category, state,
-                               started_offset_seconds, seconds)
-               SELECT session_id, app, 'browser_local', activity_key, 'Google Chrome local pages',
-                      source, '', state, 60, 30 FROM span;
-             PRAGMA user_version = 8;",
-        ).unwrap();
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let spans = reopened.load_spans_for_session(id).unwrap();
-        assert!(spans.iter().all(|span| span.kind == "app" && span.activity_key == "chrome"));
-        assert!(spans.iter().all(|span| span.label == "Google Chrome"));
-    }
-
-    #[test]
     fn an_app_rule_naming_a_browser_never_scores_it() {
         let storage = SessionStorage::open_in_memory().unwrap();
         storage.replace_rules(&[AppRule::app("chrome")]).unwrap();
@@ -2764,89 +2363,6 @@ mod tests {
     }
 
     #[test]
-    fn version_twelve_makes_neutral_time_work_and_keeps_only_distractions() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Old", Strictness::Normal, "2026-09-22T12:00:00Z", 300).unwrap();
-        storage.insert_span(id, &app("Editor"), "focused", 0, 60).unwrap();
-        storage.insert_span(id, &app("Editor"), "focused", 180, 60).unwrap();
-        storage.insert_span(id, &app("Notes"), "neutral", 240, 60).unwrap();
-        storage.close_session(id, "2026-09-22T12:05:00Z", "stopped", 180).unwrap();
-        // A v11 database: three kinds of rule, neutral time apart from focus, cached totals.
-        storage.conn.execute_batch(
-            "ALTER TABLE session ADD COLUMN neutral_seconds INTEGER NOT NULL DEFAULT 0;
-             ALTER TABLE session ADD COLUMN unrated_seconds INTEGER NOT NULL DEFAULT 0;
-             UPDATE session SET focused_seconds = 120, unrated_seconds = 60;
-             DELETE FROM rule;
-             INSERT INTO rule (target, value, classification, source) VALUES
-               ('app', 'editor', 'focused', 'user'),
-               ('app', 'slack', 'neutral', 'user'),
-               ('website', 'youtube.com', 'distracting', 'starter');
-             PRAGMA user_version = 11;",
-        ).unwrap();
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let report = reopened.get_session_report(id).unwrap();
-        assert_eq!(report.spans[2].state, "focused");
-        assert_eq!(report.focused_seconds, 180);
-        assert_eq!(reopened.read_rules().unwrap(), vec![AppRule::website("youtube.com")]);
-        let columns: Vec<String> = {
-            let mut stmt = reopened.conn.prepare("PRAGMA table_info(session)").unwrap();
-            let rows = stmt.query_map([], |row| row.get::<_, String>(1)).unwrap();
-            rows.collect::<Result<_, _>>().unwrap()
-        };
-        assert!(!columns.iter().any(|column| column == "neutral_seconds" || column == "unrated_seconds"));
-    }
-
-    #[test]
-    fn version_thirteen_leaves_a_mark_alone_when_the_clean_key_is_another_app() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Old", Strictness::Normal, "2026-10-24T12:00:00Z", 60).unwrap();
-        storage.insert_span(id, &app("\u{200e}Notes"), "focused", 0, 60).unwrap();
-        storage.close_session(id, "2026-10-24T12:01:00Z", "stopped", 60).unwrap();
-        storage.conn.execute_batch(
-            "INSERT INTO app_identity (identity, key, label) VALUES
-               ('bundle:com.apple.notes', 'notes', 'Notes'),
-               ('bundle:com.other.notes', '\u{200e}notes', '\u{200e}Notes');
-             INSERT INTO app_name (key, name) VALUES ('notes', '👨\u{200d}💻 Work');
-             PRAGMA user_version = 12;",
-        ).unwrap();
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let other: String = reopened.conn.query_row(
-            "SELECT key FROM app_identity WHERE identity = 'bundle:com.other.notes'", [], |row| row.get(0),
-        ).unwrap();
-        assert_eq!(other, "\u{200e}notes");
-        let span_key: String = reopened.conn.query_row(
-            "SELECT activity_key FROM span WHERE session_id = ?1", [id], |row| row.get(0),
-        ).unwrap();
-        assert_eq!(span_key, "\u{200e}notes", "the other app's history must not move to notes");
-        let name: String = reopened.conn.query_row("SELECT name FROM app_name WHERE key = 'notes'", [], |row| row.get(0)).unwrap();
-        assert_eq!(name, "👨\u{200d}💻 Work");
-    }
-
-    #[test]
-    fn version_thirteen_strips_the_invisible_mark_from_stored_app_names() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Old", Strictness::Normal, "2026-10-24T12:00:00Z", 60).unwrap();
-        storage.insert_span(id, &app("\u{200e}WhatsApp"), "focused", 0, 60).unwrap();
-        storage.close_session(id, "2026-10-24T12:01:00Z", "stopped", 60).unwrap();
-        storage.conn.execute_batch(
-            "INSERT INTO app_identity (identity, key, label) VALUES
-               ('bundle:net.whatsapp.whatsapp', '\u{200e}whatsapp', '\u{200e}WhatsApp');
-             INSERT INTO rule (target, value, classification, source) VALUES
-               ('app', '\u{200e}whatsapp', 'distracting', 'user');
-             PRAGMA user_version = 12;",
-        ).unwrap();
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let (key, label): (String, String) = reopened.conn.query_row(
-            "SELECT key, label FROM app_identity WHERE identity = 'bundle:net.whatsapp.whatsapp'",
-            [], |row| Ok((row.get(0)?, row.get(1)?)),
-        ).unwrap();
-        assert_eq!((key.as_str(), label.as_str()), ("whatsapp", "WhatsApp"));
-        let report = reopened.get_session_report(id).unwrap();
-        assert_eq!(report.spans[0].label, "WhatsApp");
-        assert!(reopened.read_rules().unwrap().contains(&AppRule::app("whatsapp")));
-    }
-
-    #[test]
     fn a_rule_added_later_leaves_the_report_alone() {
         let storage = SessionStorage::open_in_memory().unwrap();
         storage.replace_rules(&[]).unwrap();
@@ -2891,42 +2407,6 @@ mod tests {
         activity.key = key.to_string();
         activity.app_id = key.to_string();
         activity
-    }
-
-    #[test]
-    fn version_eleven_maps_name_rules_to_keys_only_when_unambiguous() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Old", Strictness::Normal, "2026-09-22T12:00:00Z", 600).unwrap();
-        storage.insert_span(id, &app_span("code", "Visual Studio Code"), "neutral", 0, 60).unwrap();
-        storage.insert_span(id, &app_span("gl", "Game Launcher"), "neutral", 60, 60).unwrap();
-        storage.insert_span(id, &app_span("gamelauncher", "Game Launcher"), "neutral", 120, 60).unwrap();
-        storage.insert_span(id, &app_span("notes", "Notes"), "neutral", 180, 60).unwrap();
-        storage.close_session(id, "2026-09-22T12:04:00Z", "stopped", 240).unwrap();
-        storage.replace_rules(&[
-            AppRule::app("Visual Studio Code"),
-            AppRule::app("Game Launcher"),
-            AppRule::app("Notes"),
-            AppRule::app("Spotify"),
-            // Mapped onto the same app as the first rule, which always won.
-            AppRule::app("code"),
-        ]).unwrap();
-        storage.conn.execute_batch("DROP TABLE app_identity; PRAGMA user_version = 10;").unwrap();
-
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let rules: Vec<String> = reopened.read_rules().unwrap().into_iter().map(|rule| rule.value).collect();
-        assert_eq!(rules, vec![
-            "code".to_string(),
-            // Two recorded apps carry this name: neither is chosen for it.
-            "Game Launcher".to_string(),
-            "notes".to_string(),
-            // No recorded app has this name yet; it still waits for one.
-            "Spotify".to_string(),
-        ]);
-        // History is untouched: what was recorded stands (v12 reads the old neutral time as work).
-        let report = reopened.get_session_report(id).unwrap();
-        let keys: Vec<&str> = report.spans.iter().map(|span| span.activity_key.as_str()).collect();
-        assert_eq!(keys, ["code", "gl", "gamelauncher", "notes"]);
-        assert_eq!((report.focused_seconds, report.distracted_seconds), (240, 0));
     }
 
     #[test]
@@ -3503,81 +2983,6 @@ mod tests {
     }
 
     #[test]
-    fn version_1_database_migrates_titles_out_and_keeps_history() {
-        let dir = std::env::temp_dir().join(format!(
-            "supervisor-storage-migrate-{}",
-            std::process::id()
-        ));
-        let path = dir.join("sessions.db");
-        let _ = std::fs::remove_dir_all(&dir);
-        let id = {
-            let (storage, _) = SessionStorage::open(&path).expect("open db");
-            let id = storage
-                .insert_session("Old", Strictness::Normal, "2026-09-01T12:00:00Z", 1500)
-                .expect("insert session");
-            storage
-                .close_session(id, "2026-09-01T12:30:00Z", "stopped", 999)
-                .expect("close session");
-            // Rebuild the v1 layout: titles in `span.context`, title and path rules.
-            storage
-                .conn
-                .execute_batch(&format!(
-                    r"
-                    ALTER TABLE span DROP COLUMN kind;
-                    ALTER TABLE span DROP COLUMN activity_key;
-                    ALTER TABLE span DROP COLUMN label;
-                    ALTER TABLE span DROP COLUMN source;
-                    ALTER TABLE span ADD COLUMN context TEXT;
-                    ALTER TABLE session DROP COLUMN elapsed_seconds;
-                    DROP TABLE site_name;
-                    DROP TABLE app_name;
-                    INSERT INTO span (session_id, app, context, category, state, started_offset_seconds, seconds)
-                      VALUES ({id}, 'Code', 'main.rs', 'work', 'focused', 0, 420),
-                             ({id}, 'chrome', 'Inbox - Gmail', 'browse', 'neutral', 420, 60);
-                    DELETE FROM rule;
-                    INSERT INTO rule (target, value, classification, source) VALUES
-                      ('window_title', 'YouTube', 'distracting', 'starter'),
-                      ('app_name', 'Slack', 'neutral', 'user'),
-                      ('window_title', 'Watch Later - YouTube', 'distracting', 'user'),
-                      ('process_path', 'C:\x.exe', 'focused', 'user'),
-                      ('window_title', 'Notes', 'focused', 'user');
-                    PRAGMA user_version = 1;
-                    "
-                ))
-                .expect("downgrade to v1");
-            id
-        };
-
-        let (storage, state) = SessionStorage::open(&path).expect("migrate db");
-        let version: i32 = storage
-            .conn
-            .query_row("PRAGMA user_version", [], |row| row.get(0))
-            .expect("version");
-        assert_eq!(version, SCHEMA_VERSION);
-        assert_eq!(state.history.len(), 1);
-        assert_eq!(state.history[0].duration_seconds, 480);
-
-        let spans: Vec<(String, String)> = storage
-            .get_session_report(id)
-            .expect("report")
-            .spans
-            .into_iter()
-            .map(|span| (span.kind, span.label))
-            .collect();
-        assert_eq!(
-            spans,
-            vec![
-                ("app".to_string(), "Code".to_string()),
-                ("other_websites".to_string(), "Other websites".to_string()),
-            ]
-        );
-        // Only distractions are rules now; the Neutral and Focused ones from v1 are dropped.
-        assert_eq!(storage.load_rules().expect("rules"), vec![AppRule::website("youtube.com")]);
-        drop(storage);
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-
-    #[test]
     fn corrupt_database_is_moved_aside_and_replaced() {
         let dir = std::env::temp_dir().join(format!(
             "supervisor-storage-corrupt-{}",
@@ -3625,19 +3030,22 @@ mod tests {
     }
 
     #[test]
-    fn a_newer_database_is_preserved_instead_of_reset() {
-        let path = std::env::temp_dir().join(format!("supervisor-newer-schema-{}.db", std::process::id()));
-        let conn = Connection::open(&path).unwrap();
-        conn.execute_batch("PRAGMA user_version = 999; CREATE TABLE IF NOT EXISTS keep_me (value TEXT);").unwrap();
-        drop(conn);
-        let (opened, notice) = open_or_reset(Ok(path.clone()));
-        assert!(opened.is_none());
-        assert!(matches!(notice, Some(StorageNotice::Off { .. })));
-        let conn = Connection::open(&path).unwrap();
-        assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0)).unwrap(), 999);
-        assert_eq!(conn.query_row("SELECT COUNT(*) FROM keep_me", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
-        drop(conn);
-        std::fs::remove_file(path).unwrap();
+    fn a_newer_or_pre_release_database_is_preserved_instead_of_reset() {
+        // Pre-release builds left schemas 1 to 13; they are refused like a newer one.
+        for version in [999, 13] {
+            let path = std::env::temp_dir().join(format!("supervisor-schema-{version}-{}.db", std::process::id()));
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(&format!("PRAGMA user_version = {version}; CREATE TABLE IF NOT EXISTS keep_me (value TEXT);")).unwrap();
+            drop(conn);
+            let (opened, notice) = open_or_reset(Ok(path.clone()));
+            assert!(opened.is_none());
+            assert_eq!(notice, Some(StorageNotice::Off { reason: format!("unsupported database schema version {version}") }));
+            let conn = Connection::open(&path).unwrap();
+            assert_eq!(conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0)).unwrap(), version);
+            assert_eq!(conn.query_row("SELECT COUNT(*) FROM keep_me", [], |row| row.get::<_, i64>(0)).unwrap(), 0);
+            drop(conn);
+            std::fs::remove_file(path).unwrap();
+        }
     }
 
     #[test]
@@ -3712,36 +3120,60 @@ mod tests {
     }
 
     #[test]
-    fn version_fourteen_cuts_old_pauses_out_of_the_timeline() {
-        let storage = SessionStorage::open_in_memory().unwrap();
-        let id = storage.insert_session("Old", Strictness::Normal, "2026-09-22T12:00:00Z", 900).unwrap();
-        storage.insert_span(id, &app("Code"), "focused", 0, 100).unwrap();
-        storage.insert_span(id, &app("Paused"), "paused", 100, 50).unwrap();
-        storage.insert_span(id, &app("Code"), "focused", 150, 100).unwrap();
-        storage.insert_span(id, &app("Paused"), "paused", 250, 30).unwrap();
-        storage.insert_span(id, &site("youtube.com"), "distracted", 280, 20).unwrap();
-        storage.insert_event(id, 160, "nudge", None).unwrap();
-        storage.conn.execute_batch("PRAGMA user_version = 13;").unwrap();
-        let reopened = SessionStorage::from_connection(storage.conn).unwrap();
-        let report = reopened.get_session_report(id).unwrap();
-        let spans: Vec<_> = report.spans.iter()
-            .map(|span| (span.started_offset_seconds, span.seconds, span.state.as_str())).collect();
-        assert_eq!(spans, vec![(0, 100, "focused"), (100, 100, "focused"), (200, 20, "distracted")]);
-        assert_eq!(report.events[0].at_offset_seconds, 110);
-    }
-
-    #[test]
     fn version_fifteen_indexes_events_by_session() {
         let has_index = |storage: &SessionStorage| -> bool {
             let mut stmt = storage.conn.prepare("SELECT name FROM pragma_index_list('event')").unwrap();
             let names: Vec<String> = stmt.query_map([], |row| row.get(0)).unwrap().map(Result::unwrap).collect();
             names.iter().any(|name| name == "event_session")
         };
+        let version = |storage: &SessionStorage| -> i32 {
+            storage.conn.query_row("PRAGMA user_version", [], |row| row.get(0)).unwrap()
+        };
         let storage = SessionStorage::open_in_memory().unwrap();
         assert!(has_index(&storage));
+        let id = storage.insert_session("Kept", Strictness::Normal, "2026-11-01T12:00:00Z", 600).unwrap();
+        storage.insert_span(id, &app("Code"), "focused", 0, 60).unwrap();
+        storage.insert_event(id, 30, "nudge", None).unwrap();
+        storage.close_session(id, "2026-11-01T12:01:00Z", "stopped", 60).unwrap();
         storage.conn.execute_batch("DROP INDEX event_session; PRAGMA user_version = 14;").unwrap();
         let reopened = SessionStorage::from_connection(storage.conn).unwrap();
         assert!(has_index(&reopened));
+        assert_eq!(version(&reopened), 15);
+        // A v15 database opens as it is.
+        let again = SessionStorage::from_connection(reopened.conn).unwrap();
+        assert_eq!(version(&again), 15);
+        let report = again.get_session_report(id).unwrap();
+        assert_eq!((report.focused_seconds, report.events.len()), (60, 1));
+    }
+
+    /// Fresh schema as the v1-v14 upgrade chain built it, before that chain was replaced.
+    #[test]
+    fn a_fresh_database_has_the_schema_the_old_upgrades_built() {
+        let storage = SessionStorage::open_in_memory().unwrap();
+        let mut stmt = storage.conn.prepare("SELECT type, name, tbl_name, sql FROM sqlite_master ORDER BY name").unwrap();
+        let tidy = |sql: String| sql.split_whitespace().collect::<Vec<_>>().join(" ")
+            .replace("( ", "(").replace(" )", ")").replace(" ,", ",");
+        let schema: Vec<String> = stmt.query_map([], |row| Ok(format!("{} {} {} {}",
+            row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, String>(2)?,
+            tidy(row.get::<_, Option<String>>(3)?.unwrap_or_default())))).unwrap().map(Result::unwrap).collect();
+        assert_eq!(schema, [
+            "table app_identity app_identity CREATE TABLE app_identity (identity TEXT PRIMARY KEY, key TEXT NOT NULL UNIQUE, label TEXT NOT NULL DEFAULT '')",
+            "table app_name app_name CREATE TABLE app_name (key TEXT PRIMARY KEY, name TEXT NOT NULL)",
+            "table event event CREATE TABLE event (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE, at_offset_seconds INTEGER NOT NULL, kind TEXT NOT NULL, detail TEXT)",
+            "index event_session event CREATE INDEX event_session ON event(session_id, at_offset_seconds)",
+            "table rule rule CREATE TABLE rule (id INTEGER PRIMARY KEY, target TEXT NOT NULL, value TEXT NOT NULL, classification TEXT NOT NULL, source TEXT NOT NULL)",
+            "table session session CREATE TABLE session (id INTEGER PRIMARY KEY, goal TEXT NOT NULL, strictness TEXT NOT NULL, started_at TEXT NOT NULL, ended_at TEXT, planned_seconds INTEGER NOT NULL, ended_reason TEXT, focused_seconds INTEGER NOT NULL DEFAULT 0, distracted_seconds INTEGER NOT NULL DEFAULT 0, idle_seconds INTEGER NOT NULL DEFAULT 0, away_seconds INTEGER NOT NULL DEFAULT 0, phone_seconds INTEGER NOT NULL DEFAULT 0, drift_count INTEGER NOT NULL DEFAULT 0, nudge_count INTEGER NOT NULL DEFAULT 0, longest_stretch_seconds INTEGER NOT NULL DEFAULT 0, median_stretch_seconds INTEGER NOT NULL DEFAULT 0, elapsed_seconds INTEGER)",
+            "table setting setting CREATE TABLE setting (key TEXT PRIMARY KEY, value TEXT NOT NULL)",
+            "table site_name site_name CREATE TABLE site_name (key TEXT PRIMARY KEY, name TEXT NOT NULL)",
+            "table span span CREATE TABLE span (id INTEGER PRIMARY KEY, session_id INTEGER NOT NULL REFERENCES session(id) ON DELETE CASCADE, app TEXT NOT NULL, category TEXT NOT NULL, state TEXT NOT NULL, started_offset_seconds INTEGER NOT NULL, seconds INTEGER NOT NULL, kind TEXT NOT NULL DEFAULT 'app', activity_key TEXT NOT NULL DEFAULT '', label TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT 'app')",
+            "index span_session span CREATE INDEX span_session ON span(session_id, started_offset_seconds)",
+            "index sqlite_autoindex_app_identity_1 app_identity ",
+            "index sqlite_autoindex_app_identity_2 app_identity ",
+            "index sqlite_autoindex_app_name_1 app_name ",
+            "index sqlite_autoindex_setting_1 setting ",
+            "index sqlite_autoindex_site_name_1 site_name ",
+        ]);
+        assert_eq!(storage.conn.query_row("PRAGMA user_version", [], |row| row.get::<_, i32>(0)).unwrap(), 15);
     }
 
     #[test]

@@ -225,12 +225,7 @@ impl SessionManager {
         let rules = self.rules();
         let mut apps: Vec<_> = self.session_report(id)?.apps.into_iter()
             .filter(|app| app.group == "Work" && app.seconds >= 120)
-            .filter(|app| match app.kind.as_str() {
-                "website" => true,
-                "app" => !website::is_browser(&app.key)
-                    && ![crate::attribution::SUPERVISOR_KEY, "untracked", "phone"].contains(&app.key.as_str()),
-                _ => false,
-            })
+            .filter(|app| crate::storage::ratable(&app.kind, &app.key))
             .filter(|app| !known.contains(&app.key))
             .filter(|app| !rules.iter().any(|rule| rule.value.eq_ignore_ascii_case(&app.key)))
             .collect();
