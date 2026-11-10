@@ -19,16 +19,6 @@
   --sv-colored-ink: #141410;
   --sv-soft-white: #fff7df;
   --sv-grid-line: rgba(16, 16, 16, 0.1);
-  --paper: var(--sv-canvas);
-  --panel: var(--sv-panel);
-  --ink: var(--sv-ink);
-  --muted: var(--sv-muted);
-  --line: var(--sv-border);
-  --acid: var(--sv-green);
-  --cobalt: var(--sv-ink);
-  --warning: var(--sv-yellow);
-  --danger: var(--sv-coral);
-  --white-soft: var(--sv-soft-white);
   --shadow: 4px 4px 0 var(--sv-shadow-color);
   --shadow-control: 2px 2px 0 var(--sv-shadow-color);
   --radius-card: 7px;
@@ -159,8 +149,8 @@ input,
 textarea {
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
 }
 
 button,
@@ -172,8 +162,8 @@ select {
 /* The same drawn arrow on every OS. A native select ignores the border and background on a
    Mac and paints a glossy macOS pop-up button inside the box instead. */
 select option {
-  background: var(--panel);
-  color: var(--ink);
+  background: var(--sv-panel);
+  color: var(--sv-ink);
 }
 
 select {
@@ -183,8 +173,8 @@ select {
   white-space: nowrap;
   padding: 0 34px 0 12px;
   background-image:
-    linear-gradient(45deg, transparent 50%, var(--ink) 50%),
-    linear-gradient(135deg, var(--ink) 50%, transparent 50%);
+    linear-gradient(45deg, transparent 50%, var(--sv-ink) 50%),
+    linear-gradient(135deg, var(--sv-ink) 50%, transparent 50%);
   background-position:
     calc(100% - 19px) 50%,
     calc(100% - 13px) 50%;
@@ -235,7 +225,7 @@ input[type="checkbox"] {
   width: 22px;
   min-height: 22px;
   justify-self: end;
-  accent-color: var(--acid);
+  accent-color: var(--sv-green);
 }
 
 h1,
@@ -273,7 +263,7 @@ p {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-1);
   font-weight: 500;
@@ -324,7 +314,7 @@ h1 {
   border: var(--border);
   border-radius: var(--radius-control);
   padding: 0 8px;
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .tabs {
@@ -335,11 +325,11 @@ h1 {
 }
 
 .tabs button {
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .tabs button.active {
-  background: var(--warning);
+  background: var(--sv-yellow);
 }
 
 .notice {
@@ -347,7 +337,7 @@ h1 {
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 12px 14px;
-  background: var(--danger);
+  background: var(--sv-coral);
   box-shadow: var(--shadow-control);
   font-size: var(--sv-type-3);
 }
@@ -361,7 +351,7 @@ h1 {
   border: var(--border);
   border-radius: var(--radius-control);
   padding: 8px 10px;
-  background: var(--acid);
+  background: var(--sv-green);
   box-shadow: var(--shadow-control);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
@@ -594,7 +584,7 @@ h1 {
 }
 
 .no-session-rules {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .session-rules-card > button {
@@ -709,7 +699,7 @@ h1 {
 
 .streak-rule {
   margin: -4px 0 0;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-4);
   opacity: 0.8;
 }
@@ -746,7 +736,7 @@ h1 {
 .cal-day.is-out {
   border-color: var(--sv-border);
   background: transparent;
-  color: var(--ink);
+  color: var(--sv-ink);
   opacity: 0.6;
 }
 
@@ -771,7 +761,7 @@ h1 {
   border-style: dashed;
   border-color: var(--sv-border);
   background: transparent;
-  color: var(--ink);
+  color: var(--sv-ink);
   opacity: 0.6;
 }
 
@@ -892,7 +882,7 @@ button.wp-day {
 
 .cal-card .eyebrow {
   margin: 0;
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 /* The hint sits centred between the card and the panel's edge: the same 10px gap above as
@@ -929,7 +919,7 @@ button.wp-day {
     linear-gradient(90deg, var(--sv-grid-line) 1px, transparent 1px);
   background-size: 14px 14px;
   box-shadow: 3px 3px 0 var(--sv-shadow-color);
-  color: var(--ink);
+  color: var(--sv-ink);
   font: inherit;
   letter-spacing: 0;
   text-align: left;
@@ -1026,7 +1016,7 @@ button.share-card:active {
   margin-left: -5px;
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
-  border-top: 7px solid var(--ink);
+  border-top: 7px solid var(--sv-ink);
 }
 
 .share-stats {
@@ -1046,7 +1036,7 @@ button.share-card:active {
   border: var(--border);
   border-radius: 5px;
   padding: 7px 8px 8px;
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow-control);
 }
 
@@ -1192,8 +1182,8 @@ button.share-card:active {
   padding: 6px;
   border: var(--border);
   border-radius: 5px;
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
 }
 
 .reminder-mini-voice i {
@@ -1234,8 +1224,8 @@ button.share-card:active {
   height: 22px;
   border: var(--border);
   border-radius: 5px;
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: 0.5rem;
   letter-spacing: 0.04em;
@@ -1271,7 +1261,7 @@ button.share-card:active {
 .reminder-preview-foot {
   margin: 0;
   padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--ink) 25%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--sv-ink) 25%, transparent);
   color: var(--sv-muted);
   font-size: var(--sv-type-4);
 }
@@ -1285,7 +1275,7 @@ button.share-card:active {
   padding: 12px 14px;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .practice-live i {
@@ -1375,7 +1365,7 @@ button.share-card:active {
   padding: 0 12px;
   background: var(--sv-panel);
   box-shadow: var(--shadow-control);
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-1);
   font-weight: 500;
@@ -1509,11 +1499,11 @@ button[data-action="cancel-delete-voice"] {
   height: 9px;
   border: var(--border);
   border-radius: 50%;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .webcam-metrics .is-good dd {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .webcam-metrics .is-good dd::before {
@@ -1521,7 +1511,7 @@ button[data-action="cancel-delete-voice"] {
 }
 
 .webcam-metrics .is-bad dd {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .webcam-metrics .is-bad dd::before {
@@ -1539,7 +1529,7 @@ button[data-action="cancel-delete-voice"] {
 .webcam-frame-wrap,
 .webcam-frame-wrap img,
 .webcam-waiting {
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .webcam-frame-wrap {
@@ -1611,7 +1601,7 @@ button[data-action="cancel-delete-voice"] {
 .state-slab {
   min-height: 258px;
   padding: 18px;
-  background: var(--warning);
+  background: var(--sv-yellow);
 }
 
 .state-slab h2 {
@@ -1689,7 +1679,7 @@ button[data-action="cancel-delete-voice"] {
 .modal-panel {
   min-width: 0;
   padding: 16px;
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .start-watch-button {
@@ -1707,8 +1697,8 @@ button[data-action="cancel-delete-voice"] {
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 12px;
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
   font-size: var(--sv-type-3);
 }
 
@@ -1719,7 +1709,7 @@ label {
 
 label span,
 dt {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-4);
   font-weight: 500;
 }
@@ -1779,7 +1769,7 @@ dt {
   padding: 10px 14px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .defaults-help {
@@ -1795,11 +1785,11 @@ dt {
 .default-control > select {
   width: 148px;
   flex: 0 0 auto;
-  background-color: var(--paper);
+  background-color: var(--sv-canvas);
 }
 
 .explain {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-3);
   font-weight: 400;
   letter-spacing: 0;
@@ -1868,7 +1858,7 @@ dt {
 }
 
 .setting-row span {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .setting-row strong {
@@ -1901,7 +1891,7 @@ dt {
   height: 28px;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: var(--shadow-control);
 }
 
@@ -1913,21 +1903,21 @@ dt {
   height: 18px;
   border: var(--border);
   border-radius: 3px;
-  background: var(--danger);
+  background: var(--sv-coral);
   transition: transform 120ms ease, background 120ms ease;
 }
 
 .toggle-input:checked + .toggle-track {
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .toggle-input:checked + .toggle-track .toggle-knob {
   transform: translateX(20px);
-  background: var(--ink);
+  background: var(--sv-ink);
 }
 
 .toggle-input:focus-visible + .toggle-track {
-  outline: 2px solid var(--cobalt);
+  outline: 2px solid var(--sv-ink);
   outline-offset: 2px;
 }
 
@@ -1947,7 +1937,7 @@ dt {
 }
 
 .voice-card span {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   text-transform: uppercase;
@@ -1994,7 +1984,7 @@ dt {
 /* A distraction allowed for the session about to start. */
 .rule-chip.is-allowed {
   background: var(--sv-soft-white);
-  color: var(--ink);
+  color: var(--sv-ink);
   text-decoration: line-through;
 }
 
@@ -2066,7 +2056,7 @@ dt {
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 10px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .phrase-editor {
@@ -2153,7 +2143,7 @@ dt {
   border: var(--border);
   border-radius: 4px;
   padding: 4px 6px;
-  background: var(--warning);
+  background: var(--sv-yellow);
   color: var(--sv-colored-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
@@ -2187,7 +2177,7 @@ dt {
   flex: 0 0 auto;
   border: 1px solid var(--sv-border);
   border-radius: 3px;
-  background: var(--danger);
+  background: var(--sv-coral);
   content: "";
 }
 
@@ -2276,7 +2266,7 @@ button.recap-app-row:active {
 }
 
 .app-edit-field .mode-tabs button.active[data-counts="distraction"] {
-  background: var(--danger);
+  background: var(--sv-coral);
   color: var(--sv-colored-ink);
 }
 
@@ -2329,7 +2319,7 @@ button.recap-app-row:active {
   width: min(980px, 100%);
   max-height: calc(100vh - 36px);
   overflow: auto;
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .modal-head {
@@ -2438,7 +2428,7 @@ button.recap-app-row:active {
   position: relative;
   height: 12px;
   margin: -4px 40px 0;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: 0.65rem;
 }
@@ -2453,7 +2443,7 @@ button.recap-app-row:active {
   overflow: hidden;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: var(--shadow-control);
 }
 
@@ -2516,7 +2506,7 @@ button.recap-app-row:active {
   width: 100%;
   min-height: 46px;
   margin-top: 14px;
-  box-shadow: var(--shadow-control), 0 0 0 10px var(--panel), 0 24px 0 10px var(--panel);
+  box-shadow: var(--shadow-control), 0 0 0 10px var(--sv-panel), 0 24px 0 10px var(--sv-panel);
 }
 
 .modal-actions {
@@ -2564,9 +2554,9 @@ button.recap-app-row:active {
   padding: 10px 12px 10px 16px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow-control);
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .voice-tile .eyebrow {
@@ -2598,7 +2588,7 @@ button.recap-app-row:active {
   min-width: 40px;
   min-height: 40px;
   padding: 0;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   font-family: var(--font-sans);
   font-size: 1.1rem;
   line-height: 1;
@@ -2718,7 +2708,7 @@ button.personality-more {
   min-height: 28px;
   padding: 0;
   transform: translateY(-50%);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   font-family: var(--font-sans);
   font-size: 1rem;
   letter-spacing: 0;
@@ -2746,7 +2736,7 @@ button.personality-more:active {
   padding: 8px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow);
 }
 
@@ -2763,7 +2753,7 @@ button.personality-more:active {
   padding: 10px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: var(--shadow-control);
 }
 
@@ -2804,7 +2794,7 @@ button.personality-more:active {
   padding: 12px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: var(--shadow-control);
 }
 
@@ -2876,7 +2866,7 @@ button.personality-more:active {
   padding: 8px 12px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow-control);
 }
 
@@ -2993,7 +2983,7 @@ button.personality-more:active {
 }
 
 .clips-hint.is-ready {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .line-popup {
@@ -3028,13 +3018,13 @@ button.personality-more:active {
   padding: 10px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .line-audio-wave {
   width: 100%;
   height: 36px;
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .line-audio.is-stale .line-audio-wave {
@@ -3145,7 +3135,7 @@ button.personality-more:active {
   padding: 8px 10px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .voice-kv span {
@@ -3236,7 +3226,7 @@ button.personality-more:active {
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 10px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .voice-card strong {
@@ -3344,7 +3334,7 @@ button.personality-more:active {
 
 /* The buttons take the panel's colour, in both themes; the orb keeps its green. */
 .voice-card-foot button:not(.is-playing) {
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .voice-card-foot button.voice-play {
@@ -3461,7 +3451,7 @@ button.voice-preview-play.is-playing {
 }
 
 .voice-card.selected {
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .voice-card.selected,
@@ -3473,7 +3463,7 @@ button.voice-preview-play.is-playing {
 
 .voice-card.selected button,
 .voice-card.selected button.voice-play svg {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .voice-play svg {
@@ -3510,7 +3500,7 @@ audio {
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 14px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .recording-stage {
@@ -3523,7 +3513,7 @@ audio {
   height: 92px;
   border-radius: 50%;
   padding: 0;
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .mic-button span {
@@ -3531,15 +3521,15 @@ audio {
   height: 46px;
   border: var(--border);
   border-radius: 18px 18px 12px 12px;
-  background: var(--ink);
+  background: var(--sv-ink);
 }
 
 .mic-button.recording {
-  background: var(--danger);
+  background: var(--sv-coral);
 }
 
 .recording-error {
-  color: var(--danger);
+  color: var(--sv-coral);
   font-size: var(--sv-type-3);
 }
 
@@ -3570,14 +3560,14 @@ audio {
   margin-top: 14px;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .loading-bar span {
   display: block;
   width: 38%;
   height: 100%;
-  background: var(--ink);
+  background: var(--sv-ink);
   animation: loading-sweep 1.1s linear infinite;
 }
 
@@ -3591,7 +3581,7 @@ audio {
   justify-content: space-between;
   gap: 12px;
   margin-top: 8px;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   text-transform: uppercase;
@@ -3792,7 +3782,7 @@ button.overlay-more.is-open::before {
 
 .overlay-more-body > p {
   margin: 0;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-4);
 }
 
@@ -3861,23 +3851,23 @@ button.overlay-more.is-open::before {
 [data-theme="dark"] .interrupt-voice,
 [data-theme="dark"] .interrupt-task,
 [data-theme="dark"] .interrupt-actions button:not(.primary) {
-  background: var(--panel);
-  color: var(--ink);
+  background: var(--sv-panel);
+  color: var(--sv-ink);
 }
 
 /* Scoped to the slab so the slab's own ink rule (`.state-slab :is(p, ...)`) doesn't win. */
 [data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-who {
-  color: var(--muted);
+  color: var(--sv-muted);
 }
 
 [data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-line,
 [data-theme="dark"] .state-slab.interrupt-alert .interrupt-task :is(strong, span) {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 [data-theme="dark"] .voice-orb-core {
   background: #62615b;
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .interrupt-voice {
@@ -4110,7 +4100,7 @@ button.history-week-label {
 button.history-week-label:hover,
 button.history-week-label:focus-visible {
   border-color: var(--sv-border);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 button.history-week-label.is-open {
@@ -4171,7 +4161,7 @@ button.history-week-label.is-open h2 span {
   min-width: 30px;
   min-height: 30px;
   padding: 0;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .week-picker-grid {
@@ -4195,7 +4185,7 @@ button.wp-day {
   padding: 0;
   border: 1.5px solid var(--sv-border);
   border-radius: 4px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: none;
   font-size: 0.7rem;
   letter-spacing: 0;
@@ -4212,11 +4202,11 @@ button.wp-day.is-out {
 }
 
 button.wp-day.l1 {
-  background: color-mix(in srgb, var(--sv-green) 35%, var(--white-soft));
+  background: color-mix(in srgb, var(--sv-green) 35%, var(--sv-soft-white));
 }
 
 button.wp-day.l2 {
-  background: color-mix(in srgb, var(--sv-green) 65%, var(--white-soft));
+  background: color-mix(in srgb, var(--sv-green) 65%, var(--sv-soft-white));
 }
 
 button.wp-day.l3 {
@@ -4292,7 +4282,7 @@ button.wp-day.is-future:disabled {
   padding: 0 14px;
   border: var(--border);
   border-radius: 6px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 /* The search box's frame shades as a whole; its input inside stays clear. */
@@ -4417,9 +4407,9 @@ button.wp-day.is-future:disabled {
   padding: 0;
   border: var(--border);
   border-radius: 6px;
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow-control);
-  color: var(--ink);
+  color: var(--sv-ink);
   font: inherit;
   letter-spacing: normal;
   text-align: left;
@@ -4566,7 +4556,7 @@ button.share-door {
   min-height: 0;
   height: auto;
   padding: 12px 18px;
-  color: var(--ink);
+  color: var(--sv-ink);
   font: inherit;
   letter-spacing: normal;
   text-align: left;
@@ -4588,7 +4578,7 @@ button.share-door:active {
 
 button.share-door:hover .trend-door-go,
 button.share-door:focus-visible .trend-door-go {
-  color: var(--ink);
+  color: var(--sv-ink);
   transform: translateX(2px);
 }
 
@@ -4756,7 +4746,7 @@ button.share-pick:active {
 
 .panel.trend-door:hover:not(:has(.trend-spark:hover)) .trend-door-go,
 .panel.trend-door:focus-visible .trend-door-go {
-  color: var(--ink);
+  color: var(--sv-ink);
   transform: translateX(2px);
 }
 
@@ -4864,7 +4854,7 @@ button.trend-spark-track:focus-visible .week-tip {
   min-height: 0;
   border: var(--border);
   border-radius: 5px;
-  background: color-mix(in srgb, var(--sv-ink) 38%, var(--panel));
+  background: color-mix(in srgb, var(--sv-ink) 38%, var(--sv-panel));
   transition: transform 100ms ease-out;
 }
 
@@ -4894,7 +4884,7 @@ button.trend-spark-track:focus-visible .week-tip {
 
 .trend-spark-bar.is-running.is-viewed {
   border-color: var(--sv-ink);
-  background: color-mix(in srgb, var(--sv-ink) 18%, var(--panel));
+  background: color-mix(in srgb, var(--sv-ink) 18%, var(--sv-panel));
 }
 
 /* A label under every bar: its week, "So far" for this one, bold for the one being viewed. */
@@ -4919,7 +4909,7 @@ button.trend-spark-track:focus-visible .week-tip {
 }
 
 .trend-spark-labels .is-viewed {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-weight: 700;
 }
 
@@ -5004,7 +4994,7 @@ button.trend-spark-track:focus-visible .week-tip {
 .week-app-foot button {
   min-height: 32px;
   padding: 0 10px;
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .span-card {
@@ -5013,7 +5003,7 @@ button.trend-spark-track:focus-visible .week-tip {
   gap: 6px;
   min-height: 0;
   padding: 16px 18px 12px;
-  background: var(--warning);
+  background: var(--sv-yellow);
   color: var(--sv-colored-ink);
 }
 
@@ -5044,7 +5034,7 @@ button.trend-spark-track:focus-visible .week-tip {
   margin: 0 0 8px;
   font-size: var(--sv-type-1);
   font-weight: 500;
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .recap-apps {
@@ -5117,8 +5107,8 @@ button.recap-bar-col:active {
   padding: 3px 7px;
   border: var(--border);
   border-radius: 4px;
-  background: var(--panel);
-  color: var(--ink);
+  background: var(--sv-panel);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   letter-spacing: 0.04em;
@@ -5170,7 +5160,7 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .recap-bar.is-on {
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .recap-bar-label {
@@ -5200,11 +5190,11 @@ button.recap-bar-col:active .recap-bar {
 
 .trend-focus {
   grid-column: 1 / -1;
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .trend-span {
-  background: var(--warning);
+  background: var(--sv-yellow);
 }
 
 .trend-focus :is(p, span),
@@ -5213,7 +5203,7 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .trend-recovery {
-  --plot-ink: var(--ink);
+  --plot-ink: var(--sv-ink);
 }
 
 /* On the dark panel the line reads as a grey mark, not a cream border. */
@@ -5337,7 +5327,7 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .trend-bars .week-tip {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 /* Placed at the same height a bar of the average would reach (see renderTrendBars), and drawn
@@ -5448,7 +5438,7 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .trend-point .week-tip {
-  color: var(--ink);
+  color: var(--sv-ink);
   transform: translate(-50%, 6px);
   transition: opacity 100ms ease-out, transform 100ms ease-out;
 }
@@ -5504,8 +5494,8 @@ button.recap-bar-col:active .recap-bar {
 
 /* Same look as the other dark-mode tags (RAM stamp, status chip). */
 [data-theme="dark"] .trend-card .trend-pill.is-good {
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
 }
 
 .trend-pill.is-bad {
@@ -5577,7 +5567,7 @@ button.recap-bar-col:active .recap-bar {
 }
 
 .trend-pips span.is-on {
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
 .trend-pips strong {
@@ -5606,7 +5596,7 @@ button.recap-bar-col:active .recap-bar {
   padding: 12px;
   border: var(--border);
   border-radius: var(--radius-card);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: none;
 }
 
@@ -5692,7 +5682,7 @@ button.history-item {
 
 .history-item p {
   margin-top: 4px;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-3);
 }
 
@@ -5724,7 +5714,7 @@ button.history-item {
   position: relative;
   overflow: hidden;
   height: 10px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--sv-border);
   border-radius: 2px;
 }
 
@@ -5774,9 +5764,9 @@ button.history-item {
   padding: 0;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--panel);
+  background: var(--sv-panel);
   box-shadow: var(--shadow-control);
-  color: var(--ink);
+  color: var(--sv-ink);
   font: inherit;
   letter-spacing: normal;
   text-align: left;
@@ -5834,7 +5824,7 @@ button.history-item {
 
 /* The card's dark text is for its yellow; the tiles follow the theme, so their text does too. */
 .report-slab .report-stat :is(span, strong) {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .report-stat-face > span,
@@ -5884,7 +5874,7 @@ button.history-item {
   padding: 8px 10px;
   border: var(--border);
   border-radius: var(--radius-card);
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
   box-shadow: none;
 }
 
@@ -5915,7 +5905,7 @@ button.history-item {
 }
 
 .legend-swatch span {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 500;
@@ -5999,7 +5989,7 @@ button.history-item {
 .voice-info-times {
   display: flex;
   justify-content: space-between;
-  color: var(--muted);
+  color: var(--sv-muted);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
 }
@@ -6111,21 +6101,21 @@ button.history-item {
 
 /* The voice row a shade off the card behind it, its play button lighter again. */
 .session-over-card .interrupt-voice {
-  background: var(--paper);
-  color: var(--ink);
+  background: var(--sv-canvas);
+  color: var(--sv-ink);
 }
 
 .session-over-card .state-slab.interrupt-alert .interrupt-voice-who {
-  color: var(--muted);
+  color: var(--sv-muted);
 }
 
 .session-over-card .state-slab.interrupt-alert .interrupt-voice-line {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 .session-over-card .voice-orb-core {
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
 }
 
 /* While the line plays the orb is green here too, as on every other card. */
@@ -6136,7 +6126,7 @@ button.history-item {
 }
 
 .confirm-panel p {
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: var(--sv-type-3);
 }
 
@@ -6148,7 +6138,7 @@ button.history-item {
    Scoped to the card so `.state-slab p` doesn't win. */
 .report-slab .report-meta {
   margin-top: 8px;
-  color: var(--ink);
+  color: var(--sv-ink);
   font-size: 1.2rem;
   font-weight: 550;
 }
@@ -6173,8 +6163,8 @@ button.history-item {
 .timeline-empty span {
   border-radius: var(--radius-control);
   padding: 2px 8px;
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
   text-transform: uppercase;
@@ -6263,7 +6253,7 @@ button.history-item {
   height: 40px;
   border: var(--border);
   border-radius: 5px;
-  background: var(--white-soft);
+  background: var(--sv-soft-white);
 }
 
 .timeline-span {
@@ -6380,7 +6370,7 @@ button.history-item {
 }
 
 .state-slab .empty {
-  color: var(--ink);
+  color: var(--sv-ink);
 }
 
 :is(.timeline-bar, .mini-timeline) .state-focused,
@@ -6465,7 +6455,7 @@ dt,
   border: var(--border);
   border-radius: var(--radius-control);
   box-shadow: var(--shadow-control);
-  background: var(--panel);
+  background: var(--sv-panel);
 }
 
 .review-chip.is-distraction {
@@ -6484,7 +6474,7 @@ dt,
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  color: var(--ink);
+  color: var(--sv-ink);
   transform: none;
 }
 
@@ -6530,7 +6520,7 @@ dt,
   border-radius: 0;
   outline: 0;
   background: var(--sv-soft-white);
-  color: var(--ink);
+  color: var(--sv-ink);
   font-family: var(--font-mono);
   font-size: var(--sv-type-4);
 }
@@ -6553,7 +6543,7 @@ dt,
   border: 0;
   box-shadow: none;
   background: none;
-  color: var(--muted);
+  color: var(--sv-muted);
   font-size: var(--sv-type-3);
   text-decoration: underline;
   text-underline-offset: 3px;
@@ -6813,8 +6803,8 @@ dt,
   padding: 10px 12px;
   border: var(--border);
   border-radius: var(--radius-control);
-  background: var(--white-soft);
-  color: var(--ink);
+  background: var(--sv-soft-white);
+  color: var(--sv-ink);
   font-size: var(--sv-type-3);
   line-height: 1.45;
   text-align: left;
