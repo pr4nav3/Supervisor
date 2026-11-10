@@ -555,11 +555,9 @@ window.addEventListener("storage", (event) => {
   applyTheme();
   bindVoiceWaveforms();
 });
-window.addEventListener("resize", fitQuote);
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeTopLayer();
-    return;
   }
 });
 
@@ -706,8 +704,6 @@ let settings: SessionSettings = {
 };
 let history: SessionSummary[] = [];
 const EMPTY_RECAP: FocusRecap = { start: "", end: "", focus_seconds: 0, session_count: 0 };
-/** Order of the groups `apps_from_spans` produces; they sum to the scores. */
-/** How the groups and scores are decided, under every Apps & sites list. */
 /** False until the first get_trends answers: the calendar waits for it before popping in. */
 let trendsLoaded = false;
 /** Trends: every week and month from the first session through now (null until opened), which
@@ -822,7 +818,6 @@ let clipQueue: ClipQueue | null = null;
 let clipQueueTicker: number | null = null;
 /** A one-line job started from the line popup reopens that line when its clip lands. */
 let reopenLineAfterQueue: string | null = null;
-let ignoreVoiceWorkerError = false;
 const clipAssetRevision = new Map<string, number>();
 let voiceHelpOpen = false;
 let modelInfoOpen = false;
@@ -1433,9 +1428,9 @@ function viewKey(): string {
     settingsView,
     historyView,
     weekRecap?.start ?? "",
-    // Other tabs show the session only in the status chip (painted in place) and the
-    // permission notice, so a focus change doesn't rebuild History or Settings.
-    appView === "overlay" || activeTab === "session" ? sessionViewKey(current) : permissionNotice(current),
+    // Other tabs show the session only in the status chip (painted in place), so a focus
+    // change doesn't rebuild History or Settings.
+    appView === "overlay" || activeTab === "session" ? sessionViewKey(current) : "",
     current && cameraDown(current) ? 1 : 0,
     settings.status_window_on_top ? 1 : 0,
     settings.status_window_enabled ? 1 : 0,
@@ -1581,7 +1576,6 @@ function render(): void {
       ${lastError ? `<section class="notice" id="last-error">${escapeHtml(lastError)}</section>` : ""}
       ${renderStorageNotice(snapshot?.storage_notice ?? null)}
       ${voiceError && activeTab === "settings" ? `<section class="notice">${escapeHtml(voiceError)}</section>` : ""}
-      ${permissionNotice(current)}
 
       ${activeTab === "session" ? renderSession(current) : ""}
       ${activeTab === "settings" ? renderSettings() : ""}
@@ -3331,8 +3325,6 @@ function renderVoiceSettings(): string {
     </section>
   `;
 }
-/** The biggest quote that still fits its card: short quotes grow, long ones shrink. */
-/** A stat value never wraps or clips: it steps down (to a floor) until it fits its tile. */
 window.addEventListener("resize", () =>
   requestAnimationFrame(() => {
     fitShareStats();
@@ -4908,8 +4900,6 @@ function editableApp(app: RecapApp): boolean {
   return (app.kind === "website" || app.kind === "app") && !["untracked", "supervisor", "phone"].includes(app.key);
 }
 
-/** Apps & sites, in a report or a week: Work beside Distractions, each an eyebrow with its
- *  total and its rows in a box; any Away time and the hint on a line underneath. */
 /** What the session allowed once, at any point: "website:youtube.com", "app:slack". */
 function allowedInReport(report: SessionReport): Set<string> {
   return new Set(report.events.filter((event) => event.kind === "allowed" && event.detail).map((event) => (event.detail ?? "").toLowerCase()));
@@ -5554,7 +5544,6 @@ function weekStat(labelText: string, value: string, help: string): string {
   `;
 }
 
-/** A stat tile that turns over on click to say, in plain words, what the number is. */
 /** "4 × 25 min" for a Pomodoro session, from the event its start wrote ("25/5x4"). */
 function pomodoroStat(report: SessionReport): string {
   const plan = report.events.find((event) => event.kind === "pomodoro")?.detail?.match(/^(\d+)\/(\d+)x(\d+)$/);
@@ -6100,10 +6089,6 @@ function bindPreflight(root: ParentNode): void {
   });
 }
 
-/**
- * Opening or closing the preflight repaints only its layer. Home underneath keeps its calendar,
- * quote and scroll position instead of being rebuilt behind the modal.
- */
 /**
  * Redraws one slot and wires it with the same bindEvents a full render uses; the rest of the page
  * stays as it is (its animations, hover and focus). A slot that isn't on the page has nothing to
@@ -7726,14 +7711,9 @@ async function runVoiceBusy(kind: Exclude<VoiceBusy, null>, task: () => Promise<
     voiceError = "";
     return true;
   } catch (error) {
-    if (ignoreVoiceWorkerError) {
-      ignoreVoiceWorkerError = false;
-      return false;
-    }
     voiceError = errorText(error);
     return false;
   } finally {
-    ignoreVoiceWorkerError = false;
     voiceBusy = null;
     if (redrawAfter) {
       render();
@@ -8449,12 +8429,6 @@ function playWebcamAlarm(): void {
   oscillator.stop(context.currentTime + 0.28);
 }
 
-function permissionNotice(_current: CurrentSession | null): string {
-  // macOS Accessibility is a Getting started step instead: a banner here would push Home past
-  // the window, which is sized to fit it exactly.
-  return "";
-}
-
 /** Minutes today still needs to count toward the streak (0 once it counts). */
 function streakMinutesLeft(): number {
   const seconds = dayFocusMap().get(dayKey(new Date())) ?? 0;
@@ -8632,7 +8606,6 @@ async function playMomentLine(moment: PhraseMoment, turn: number): Promise<boole
 /** The bars of the speaking orb, for a play button while its clip plays. */
 const MINI_ORB = `<span class="mini-orb" aria-hidden="true"><i></i><i></i><i></i><i></i></span>`;
 
-/** Plays a line; true if it started. */
 /**
  * Every recording and line plays at one level. A voice's recording is about 6 dB louder than
  * its generated lines (measured on the starter voices: speech near -19 dBFS against -25), so the
@@ -9136,19 +9109,9 @@ function drawWaveform(canvas: HTMLCanvasElement, peaks: number[], progress: numb
     const x = index * (barWidth + gap);
     const y = (height - barHeight) / 2;
     ctx.fillStyle = timed ? (index < playedUntil ? played : rest) : ink;
-    if (typeof ctx.roundRect === "function") {
-      ctx.beginPath();
-      ctx.roundRect(
-        x,
-        y,
-        barWidth,
-        barHeight,
-        Math.min(Math.round((window.devicePixelRatio || 1) * 2), barWidth / 2),
-      );
-      ctx.fill();
-    } else {
-      ctx.fillRect(x, y, barWidth, barHeight);
-    }
+    ctx.beginPath();
+    ctx.roundRect(x, y, barWidth, barHeight, Math.min(Math.round((window.devicePixelRatio || 1) * 2), barWidth / 2));
+    ctx.fill();
   });
 }
 
@@ -9415,16 +9378,6 @@ function voiceOptionId(profileId: string): string {
   return `profile:${profileId}`;
 }
 
-function voiceIdForProfile(profileId: string): string {
-  if (profileId === "derek") {
-    return "starter-male";
-  }
-  if (profileId === "elise") {
-    return "starter-female";
-  }
-  return voiceOptionId(profileId);
-}
-
 function normalizeStoredVoiceId(value: string): string {
   if (value === "none" || value === "starter-male" || value === "starter-female" || value.startsWith("profile:")) {
     return value;
@@ -9555,8 +9508,6 @@ function voiceBusyTitle(): string {
       return "Downloading the voice engine";
     case "delete-model":
       return "Deleting the voice engine";
-    case "generate-clips":
-      return "Generating a line";
     case "delete-voice":
       return "Deleting voice";
     default:
@@ -9565,9 +9516,6 @@ function voiceBusyTitle(): string {
 }
 
 function voiceBusyCopy(): string {
-  if (voiceBusy === "generate-clips") {
-    return "A few minutes the first time, then seconds, all on this computer. Generated lines play without the voice engine.";
-  }
   if (voiceBusy === "download-model") {
     return "The voice engine is large. Supervisor goes back to using little memory once the line is generated.";
   }
@@ -10272,7 +10220,6 @@ function fitCanvasText(ctx: CanvasRenderingContext2D, text: string, weight: numb
 const STRIP_GREEN = "#a8eb37";
 const STRIP_RED = "#ff684f";
 
-/** Draws the card to a canvas and puts the PNG on the clipboard, in the current theme's colours. */
 /** The Enter that confirms Japanese or Chinese input is not a submit. WebKit reports it
  *  with isComposing false, so keyCode 229 (an IME key) is checked too. */
 function composing(event: KeyboardEvent): boolean {
