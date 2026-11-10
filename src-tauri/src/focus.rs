@@ -319,6 +319,16 @@ pub enum RuleTarget {
     Website,
 }
 
+impl RuleTarget {
+    /// How the target is stored and named: the same word serde uses.
+    pub fn key(self) -> &'static str {
+        match self {
+            RuleTarget::App => "app",
+            RuleTarget::Website => "website",
+        }
+    }
+}
+
 impl AppRule {
     pub fn app(value: &str) -> Self {
         Self { target: RuleTarget::App, value: value.trim().to_string() }

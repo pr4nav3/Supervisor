@@ -11,7 +11,6 @@ mod macos;
 mod webcam;
 mod website;
 
-use activity::ActivitySample;
 use session::{
     SessionManager, SessionSettings, SessionSnapshot, SessionSummary, SettingsUpdate,
     StartSessionInput, SupervisorIdentity,
@@ -110,7 +109,7 @@ async fn start_session(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
 
     sessions.start(input, now);
@@ -131,14 +130,14 @@ async fn start_session(
 
 #[tauri::command]
 fn get_session_snapshot(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let sessions = lock_sessions(&state)?;
+    let sessions = sessions(&state);
     let now = state.started_at.elapsed();
     Ok(sessions.snapshot(now))
 }
 
 #[tauri::command]
 fn pause_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let snapshot = sessions.pause(now);
     drop(sessions);
@@ -148,7 +147,7 @@ fn pause_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSn
 
 #[tauri::command]
 fn resume_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let snapshot = sessions.resume(now);
     drop(sessions);
@@ -158,14 +157,14 @@ fn resume_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionS
 
 #[tauri::command]
 fn snooze_session(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     Ok(sessions.snooze(now, 5 * 60))
 }
 
 #[tauri::command]
 fn stop_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let ended = sessions.has_current();
     let snapshot = sessions.stop(now);
@@ -182,7 +181,7 @@ fn stop_session(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSna
 
 #[tauri::command]
 async fn flag_current_distracting(app: AppHandle, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let snapshot = sessions.flag_current(now);
     // The timer window changed the rules; the main window's Rules list reloads on this.
@@ -192,82 +191,82 @@ async fn flag_current_distracting(app: AppHandle, state: State<'_, AppState>) ->
 
 #[tauri::command]
 async fn allow_current_for_session(rule: Option<focus::AppRule>, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     Ok(sessions.allow_current_for_session(rule, now))
 }
 
 #[tauri::command]
 fn get_history(state: State<'_, AppState>) -> Result<Vec<SessionSummary>, String> {
-    Ok(lock_sessions(&state)?.history())
+    Ok(sessions(&state).history())
 }
 
 #[tauri::command]
 fn get_session_report(id: u64, state: State<'_, AppState>) -> Result<SessionReport, String> {
-    lock_sessions(&state)?.session_report(id)
+    sessions(&state).session_report(id)
 }
 
 #[tauri::command]
 fn get_trends(state: State<'_, AppState>) -> Result<TrendsData, String> {
-    lock_sessions(&state)?.trends()
+    sessions(&state).storage()?.get_trends()
 }
 
 #[tauri::command]
 fn get_trend_periods(unit: TrendUnit, state: State<'_, AppState>) -> Result<Vec<TrendPeriod>, String> {
-    lock_sessions(&state)?.trend_periods(unit)
+    sessions(&state).storage()?.get_trend_periods(unit)
 }
 
 #[tauri::command]
 fn get_focus_days(start: String, end: String, state: State<'_, AppState>) -> Result<Vec<DailyFocus>, String> {
-    lock_sessions(&state)?.focus_days(start, end)
+    sessions(&state).storage()?.get_focus_days(&start, &end)
 }
 
 #[tauri::command]
 fn get_history_week(week_start: String, state: State<'_, AppState>) -> Result<HistoryWeek, String> {
-    lock_sessions(&state)?.history_week(week_start)
+    sessions(&state).storage()?.get_history_week(&week_start)
 }
 
 #[tauri::command]
 fn search_sessions(query: String, state: State<'_, AppState>) -> Result<Vec<SessionSummary>, String> {
-    lock_sessions(&state)?.search_sessions(query)
+    sessions(&state).storage()?.search_sessions(&query)
 }
 
 #[tauri::command]
 fn get_week_recap(start: String, state: State<'_, AppState>) -> Result<WeekRecap, String> {
-    lock_sessions(&state)?.week_recap(start)
+    sessions(&state).storage()?.get_week_recap(&start)
 }
 
 /// The calendar month containing `start`, for the share card.
 #[tauri::command]
 fn get_month_recap(start: String, state: State<'_, AppState>) -> Result<MonthRecap, String> {
-    lock_sessions(&state)?.month_recap(start)
+    sessions(&state).storage()?.get_month_recap(&start)
 }
 
 #[tauri::command]
 fn delete_session(id: u64, state: State<'_, AppState>) -> Result<(), String> {
-    lock_sessions(&state)?.delete_session(id)
+    sessions(&state).delete_session(id)
 }
 
 #[tauri::command]
 fn get_history_size(state: State<'_, AppState>) -> Result<u64, String> {
-    lock_sessions(&state)?.history_bytes()
+    sessions(&state).storage()?.history_bytes()
 }
 
 #[tauri::command]
 fn delete_all_history(state: State<'_, AppState>) -> Result<(), String> {
-    lock_sessions(&state)?.delete_all_history()
+    sessions(&state).delete_all_history()
 }
 
 #[tauri::command]
 fn dismiss_storage_notice(state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     Ok(sessions.dismiss_storage_notice(now))
 }
 
 #[tauri::command]
 fn get_settings(state: State<'_, AppState>) -> Result<SessionSettings, String> {
-    Ok(lock_sessions(&state)?.settings())
+    Ok(sessions(&state).settings())
 }
 
 #[derive(serde::Serialize)]
@@ -387,13 +386,13 @@ fn system_line_from(os: &str, version: &str, arch: &str) -> String {
 
 #[tauri::command]
 fn get_rules(state: State<'_, AppState>) -> Result<Vec<focus::AppRule>, String> {
-    Ok(lock_sessions(&state)?.rules())
+    Ok(sessions(&state).rules())
 }
 
 /// Turns what the user typed into a website or app rule, or says why it can't be one.
 #[tauri::command]
 fn resolve_rule_input(text: String, state: State<'_, AppState>) -> Result<focus::AppRule, String> {
-    let names = lock_sessions(&state)?.app_names().unwrap_or_default();
+    let names = sessions(&state).storage().and_then(|storage| storage.app_names()).unwrap_or_default();
     let rule = focus::AppRule::from_input_with_apps(&text, &names)?;
     if rule.names_a_browser() {
         let name = names.get(&rule.value).cloned().unwrap_or_else(|| text.trim().to_string());
@@ -406,7 +405,7 @@ fn resolve_rule_input(text: String, state: State<'_, AppState>) -> Result<focus:
 
 #[tauri::command]
 fn get_site_names(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
-    Ok(lock_sessions(&state)?.site_names())
+    Ok(sessions(&state).site_names())
 }
 
 #[tauri::command]
@@ -415,17 +414,17 @@ fn set_site_name(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<HashMap<String, String>, String> {
-    lock_sessions(&state)?.set_site_name(&key, &name)
+    sessions(&state).set_site_name(&key, &name)
 }
 
 #[tauri::command]
 fn get_app_names(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
-    lock_sessions(&state)?.app_names()
+    sessions(&state).storage()?.app_names()
 }
 
 #[tauri::command]
 fn review_candidates(id: u64, state: State<'_, AppState>) -> Result<Vec<storage::RecapApp>, String> {
-    lock_sessions(&state)?.review_candidates(id)
+    sessions(&state).review_candidates(id)
 }
 
 #[tauri::command]
@@ -435,14 +434,14 @@ fn review_session(
     work: Vec<String>,
     state: State<'_, AppState>,
 ) -> Result<session::RulesSaved, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     sessions.review_session(id, distractions, work, now)
 }
 
 #[tauri::command]
 fn set_session_exception(rule: focus::AppRule, allowed: bool, state: State<'_, AppState>) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     Ok(sessions.set_session_exception(rule, allowed, now))
 }
@@ -455,7 +454,7 @@ fn reclassify_session_app(
     distraction: bool,
     state: State<'_, AppState>,
 ) -> Result<SessionReport, String> {
-    lock_sessions(&state)?.reclassify_session_app(id, kind, key, distraction)
+    sessions(&state).reclassify_session_app(id, kind, key, distraction)
 }
 
 #[tauri::command]
@@ -464,7 +463,7 @@ fn set_app_name(
     name: String,
     state: State<'_, AppState>,
 ) -> Result<HashMap<String, String>, String> {
-    lock_sessions(&state)?.set_app_name(&key, &name)
+    sessions(&state).set_app_name(&key, &name)
 }
 
 #[tauri::command]
@@ -473,7 +472,7 @@ async fn update_rules(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<session::RulesSaved, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let saved = sessions.update_rules(rules, now);
     let _ = app.emit(RULES_CHANGED_EVENT, ());
@@ -482,7 +481,7 @@ async fn update_rules(
 
 #[tauri::command]
 fn get_phrase_library(state: State<'_, AppState>) -> Result<StoredPhraseLibrary, String> {
-    lock_sessions(&state)?.load_phrase_library()
+    sessions(&state).storage()?.load_phrase_library()
 }
 
 #[tauri::command]
@@ -490,7 +489,7 @@ fn update_phrase_library(
     library: StoredPhraseLibrary,
     state: State<'_, AppState>,
 ) -> Result<StoredPhraseLibrary, String> {
-    lock_sessions(&state)?.save_phrase_library(library)
+    sessions(&state).storage()?.save_phrase_library(library)
 }
 
 #[tauri::command]
@@ -499,7 +498,7 @@ fn update_settings(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SessionSettings, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let before = sessions.settings();
     let settings = sessions.update_settings(update);
     drop(sessions);
@@ -524,7 +523,7 @@ fn set_status_window_enabled(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let snapshot = sessions.set_status_window_enabled(enabled, now);
     drop(sessions);
@@ -544,7 +543,7 @@ fn set_status_window_on_top(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     let snapshot = sessions.set_status_window_on_top(enabled, now);
     drop(sessions);
@@ -714,9 +713,9 @@ fn delete_voice_clip(
 // Runs off the main thread: on macOS it can wait for the camera permission prompt.
 #[tauri::command(async)]
 fn start_webcam_preview(app: AppHandle, state: State<'_, AppState>) -> Result<(), String> {
-    let settings = lock_sessions(&state)?.settings();
+    let settings = sessions(&state).settings();
     let gpu = settings.webcam_gpu && !state.webcam.gpu_failed();
-    webcam::start_worker(app, &state.webcam, gpu, settings.webcam_camera, true, on_webcam_frame)
+    webcam::start_worker(app, &state.webcam, gpu, settings.webcam_camera, true)
 }
 
 /// Enumeration can take a moment on a slow driver, so it runs off the main thread.
@@ -733,6 +732,8 @@ fn stop_webcam_preview(app: AppHandle, state: State<'_, AppState>) -> Result<(),
     Ok(())
 }
 
+/// Called for every reading, preview or not. Frames themselves never leave the webcam module
+/// except as the preview JPEG, which only the Settings page asks for and nothing stores.
 fn on_webcam_frame(app: &AppHandle, frame: &webcam::WebcamFrame) {
     if frame.error.is_none() {
         with_sessions(app, |sessions, now| {
@@ -746,8 +747,9 @@ fn on_webcam_frame(app: &AppHandle, frame: &webcam::WebcamFrame) {
 /// prompt), and waits a while after a failure instead of retrying every second.
 fn sync_session_webcam(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let Ok((wants, settings)) = lock_sessions(&state).map(|sessions| (sessions.wants_webcam(), sessions.settings())) else {
-        return;
+    let (wants, settings) = {
+        let sessions = sessions(&state);
+        (sessions.wants_webcam(), sessions.settings())
     };
     let gpu = settings.webcam_gpu;
     let camera = settings.webcam_camera;
@@ -765,7 +767,7 @@ fn sync_session_webcam(app: &AppHandle) {
             let app = app.clone();
             std::thread::spawn(move || {
                 let state = app.state::<AppState>();
-                if let Err(error) = webcam::start_worker(app.clone(), &state.webcam, gpu, camera, false, on_webcam_frame) {
+                if let Err(error) = webcam::start_worker(app.clone(), &state.webcam, gpu, camera, false) {
                     eprintln!("webcam: {error}");
                     webcam::report_error(&app, error);
                 }
@@ -776,11 +778,9 @@ fn sync_session_webcam(app: &AppHandle) {
     }
 }
 
-fn lock_sessions<'a>(
-    state: &'a State<'_, AppState>,
-) -> Result<std::sync::MutexGuard<'a, SessionManager>, String> {
+fn sessions(state: &AppState) -> std::sync::MutexGuard<'_, SessionManager> {
     // A panic under the lock must not take the whole app down with it.
-    Ok(state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner()))
+    state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn database_path(app: &tauri::App) -> Result<PathBuf, String> {
@@ -961,7 +961,7 @@ pub fn run() {
                 let state = app.state::<AppState>();
                 // Quitting mid-session ends it as stopped, saving its last seconds, rather than
                 // leaving it open for the next launch to mark abandoned.
-                let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                let mut sessions = sessions(&state);
                 let now = state.started_at.elapsed();
                 sessions.stop(now);
                 drop(sessions);
@@ -1278,22 +1278,17 @@ fn show_main_window(app: &tauri::AppHandle) {
 
 fn show_status_window_internal(app: &AppHandle) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) {
-        let pin = app
-            .state::<AppState>()
-            .sessions
-            .lock()
-            .map(|sessions| sessions.status_window_on_top())
-            .unwrap_or(true);
+        let pin = sessions(&app.state::<AppState>()).status_window_on_top();
         unhide_app(app);
         let _ = window.unminimize();
         let _ = window.set_always_on_bottom(false);
         window
             .set_always_on_top(pin)
             .map_err(|error| error.to_string())?;
-        position_status_window(app)?;
+        place_status_window(app, None, false)?;
         window.show().map_err(|error| error.to_string())?;
         // The frame can only be measured once it is on screen.
-        position_status_window(app)?;
+        place_status_window(app, None, false)?;
     }
     Ok(())
 }
@@ -1301,15 +1296,7 @@ fn show_status_window_internal(app: &AppHandle) -> Result<(), String> {
 fn set_status_window_on_top_internal(app: &AppHandle, enabled: bool) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) {
         let _ = window.set_always_on_bottom(false);
-        if enabled {
-            window
-                .set_always_on_top(true)
-                .map_err(|error| error.to_string())?;
-        } else {
-            window
-                .set_always_on_top(false)
-                .map_err(|error| error.to_string())?;
-        }
+        window.set_always_on_top(enabled).map_err(|error| error.to_string())?;
     }
     Ok(())
 }
@@ -1372,7 +1359,7 @@ const QUIT_REQUESTED_EVENT: &str = "quit-requested";
 
 fn quit(app: &AppHandle) {
     let state = app.state::<AppState>();
-    let running = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner()).has_current();
+    let running = sessions(&state).has_current();
     if !running {
         app.exit(0);
         return;
@@ -1406,7 +1393,7 @@ fn set_status_window_size(
     // window is hidden the rest of the time, so it comes out for the card and goes back after.
     let timer_shown = app
         .try_state::<AppState>()
-        .map(|state| state.sessions.lock().map(|sessions| sessions.status_window_enabled()).unwrap_or(true))
+        .map(|state| sessions(&state).status_window_enabled())
         .unwrap_or(true);
     if center {
         // Show desktop (Win+D) can still minimize it, and on a Mac Hide (Cmd-H) or another
@@ -1489,10 +1476,6 @@ fn size_page_exactly(window: &tauri::WebviewWindow) {
     let Ok(inner) = window.inner_size() else { return };
     let logical: tauri::LogicalSize<f64> = inner.to_logical(scale);
     let _ = window.set_size(tauri::LogicalSize::new(logical.width, logical.height + inset));
-}
-
-fn position_status_window(app: &AppHandle) -> Result<(), String> {
-    place_status_window(app, None, false)
 }
 
 /// AppKit's screen list is main-thread only. A sync command is already there; an async one
@@ -1635,7 +1618,7 @@ fn start_voice_update_check(app: AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(120));
         let state = app.state::<AppState>();
-        let in_session = lock_sessions(&state).map(|sessions| sessions.should_poll_activity()).unwrap_or(true);
+        let in_session = sessions(&state).should_poll_activity();
         if in_session
             || state.voice_worker.is_busy()
             || voice::download_active(&state.voice_download)
@@ -1675,6 +1658,16 @@ const NUDGE_EVENT: &str = "session-nudge";
 
 /// Whether the snapshot has a nudge the main window hasn't been told about. `seen` is the last
 /// announced (session id, nudge count).
+/// Tells the windows about a reminder or a Pomodoro moment that `snapshot` is the first to show.
+fn announce(app: &AppHandle, snapshot: &SessionSnapshot, nudges_seen: &mut (u64, u64), moments_seen: &mut (u64, u64)) {
+    if new_nudge(nudges_seen, snapshot) {
+        let _ = app.emit(NUDGE_EVENT, ());
+    }
+    if let Some(phase) = new_moment(moments_seen, snapshot) {
+        let _ = app.emit(MOMENT_EVENT, phase);
+    }
+}
+
 fn new_nudge(seen: &mut (u64, u64), snapshot: &SessionSnapshot) -> bool {
     let Some(current) = snapshot.current.as_ref() else {
         return false;
@@ -1776,7 +1769,7 @@ fn start_session_ticker(app: AppHandle) {
             let state = app.state::<AppState>();
             // The lock first, then the clock: a command holding the lock for long (a VACUUM)
             // must not read as the machine having slept.
-            let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut sessions = sessions(&state);
             let now = state.started_at.elapsed();
             // This loop runs every second; a long silence means the machine slept or froze.
             if now.saturating_sub(last_loop) > session::LOST_TIME_AFTER {
@@ -1792,12 +1785,7 @@ fn start_session_ticker(app: AppHandle) {
             was_running = had_current;
             let snapshot = sessions.tick(now);
             // A phone nudge can come from a webcam frame or this tick; both show up here.
-            if new_nudge(&mut nudges_seen, &snapshot) {
-                let _ = app.emit(NUDGE_EVENT, ());
-            }
-            if let Some(phase) = new_moment(&mut moments_seen, &snapshot) {
-                let _ = app.emit(MOMENT_EVENT, phase);
-            }
+            announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
             (
                 had_current && matches!(snapshot.status, session::SessionStatus::Idle),
                 sessions.should_poll_activity(),
@@ -1813,13 +1801,10 @@ fn start_session_ticker(app: AppHandle) {
             continue;
         }
 
-        let Ok(sample) = ({
-            let state = app.state::<AppState>();
-            current_activity_sample(&state)
-        }) else {
+        let Ok(sample) = activity::current_activity_sample() else {
             let ended = {
                 let state = app.state::<AppState>();
-                let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+                let mut sessions = sessions(&state);
                 let now = state.started_at.elapsed();
                 last_loop = now;
                 sessions.record_capture_gap(now);
@@ -1836,18 +1821,13 @@ fn start_session_ticker(app: AppHandle) {
         let ended = {
             let state = app.state::<AppState>();
             let identity = state.identity.clone();
-            let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            let mut sessions = sessions(&state);
             let now = state.started_at.elapsed();
             let was_polling = sessions.should_poll_activity();
             let snapshot = sessions.record_sample(sample, now, &identity);
             // A slow capture (a hung Accessibility read) is not the machine sleeping.
             last_loop = now;
-            if new_nudge(&mut nudges_seen, &snapshot) {
-                let _ = app.emit(NUDGE_EVENT, ());
-            }
-            if let Some(phase) = new_moment(&mut moments_seen, &snapshot) {
-                let _ = app.emit(MOMENT_EVENT, phase);
-            }
+            announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
             was_polling && matches!(snapshot.status, session::SessionStatus::Idle)
         };
 
@@ -1855,10 +1835,6 @@ fn start_session_ticker(app: AppHandle) {
             session_ended(&app);
         }
     });
-}
-
-fn current_activity_sample(_state: &State<'_, AppState>) -> Result<ActivitySample, String> {
-    activity::current_activity_sample()
 }
 
 fn supervisor_identity() -> SupervisorIdentity {
@@ -1877,7 +1853,7 @@ fn with_sessions(
     let state = app.state::<AppState>();
     // The lock first, then the clock (see the commands); and a panic under the lock must not
     // make every tray action and webcam frame vanish for the rest of the run.
-    let mut sessions = state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut sessions = sessions(&state);
     let now = state.started_at.elapsed();
     action(&mut sessions, now);
 }
