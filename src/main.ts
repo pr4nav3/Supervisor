@@ -139,12 +139,6 @@ interface CameraStatus {
   phone_distracted: boolean;
 }
 
-interface EvidenceEvent {
-  at_seconds: number;
-  label: string;
-  value: string;
-}
-
 interface CurrentSession {
   id: number;
   goal: string;
@@ -155,7 +149,6 @@ interface CurrentSession {
   status: SessionStatus;
   snoozed_until_seconds: number | null;
   metrics: SessionMetrics;
-  evidence: EvidenceEvent[];
   focus: FocusSnapshot | null;
   /** Supervisor's own window is in front: `focus` is the place the user came from, its clock
    *  held, and this time counts as work. */
@@ -1496,7 +1489,7 @@ function paintLive(current: CurrentSession | null): void {
     });
 }
 
-const PRESERVE_SCROLL = [".voice-list", ".evidence-panel .rows", ".modal-panel"] as const;
+const PRESERVE_SCROLL = [".voice-list", ".modal-panel"] as const;
 
 function captureUiState(): {
   winX: number;
