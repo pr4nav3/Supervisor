@@ -418,10 +418,6 @@ h1 {
   min-height: 280px;
 }
 
-.active-state-card .eyebrow {
-  color: var(--sv-colored-ink);
-}
-
 /* Two groups: "Current session" with the state under it, then the goal label with the goal.
    `.state-slab.` outranks the shared `.state-slab h2` rule further down, which otherwise
    wins the tie and pushes the state 30px away from its label. */
@@ -669,7 +665,6 @@ h1 {
   flex: 1 1 auto;
   flex-direction: column;
   background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
   min-height: 150px;
   padding: 14px 18px 16px;
   /* The card takes the room the column leaves; its own text never asks for more. Without this,
@@ -691,7 +686,6 @@ h1 {
 .quote-by {
   margin-top: auto;
   padding-top: 12px;
-  color: var(--sv-colored-ink);
   opacity: 0.75;
   font-size: var(--sv-type-4);
 }
@@ -1468,7 +1462,6 @@ button[data-action="cancel-delete-voice"] {
 
 .webcam-stage {
   min-height: 258px;
-  color: var(--sv-colored-ink);
 }
 
 .webcam-side .quiet {
@@ -1718,10 +1711,6 @@ dt {
   font-weight: 500;
 }
 
-.primary,
-.danger,
-.tabs button.active,
-.quote-card,
 .state-focused,
 .state-distracted {
   color: var(--sv-colored-ink);
@@ -2014,7 +2003,6 @@ dt {
 
 .rule-chip-distracting {
   background: var(--sv-coral);
-  color: #141410;
 }
 
 .add-target-button {
@@ -3434,13 +3422,6 @@ button.voice-preview-play.is-playing {
   background: var(--sv-green);
 }
 
-.voice-card.selected,
-.voice-card.selected strong,
-.voice-card.selected > span,
-.voice-card.selected .voice-card-top span {
-  color: var(--sv-colored-ink);
-}
-
 .voice-card.selected button,
 .voice-card.selected button.voice-play svg {
   color: var(--sv-ink);
@@ -3687,7 +3668,6 @@ audio {
 
 .overlay-pause {
   background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
 }
 
 button.overlay-more {
@@ -3784,7 +3764,6 @@ button.overlay-more.is-open::before {
 
 .overlay-marks .mark-distraction {
   background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
 }
 
 .interrupt-alert {
@@ -3792,7 +3771,6 @@ button.overlay-more.is-open::before {
   padding: 14px 16px 0;
   overflow: hidden;
   background: var(--sv-coral);
-  color: var(--sv-colored-ink);
 }
 
 .interrupt-alert h2 {
@@ -3803,11 +3781,6 @@ button.overlay-more.is-open::before {
   font-weight: 750;
   letter-spacing: -0.035em;
   line-height: 1.05;
-}
-
-.interrupt-kicker,
-.interrupt-alert p {
-  color: var(--sv-colored-ink);
 }
 
 .interrupt-kicker {
@@ -4969,7 +4942,6 @@ button.trend-spark-track:focus-visible .week-tip {
   min-height: 0;
   padding: 16px 18px 12px;
   background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
 }
 
 .span-value {
@@ -5906,7 +5878,6 @@ button.history-item {
   padding: 0;
   border-radius: 50%;
   background: var(--sv-green);
-  color: #141410;
 }
 
 .voice-preview-icon {
@@ -6170,11 +6141,6 @@ button.history-item {
   outline: 2px solid var(--sv-border);
   outline-offset: 4px;
   border-radius: 6px;
-}
-
-.active-session-grid .state-slab,
-.overlay-shell .state-slab {
-  color: #141410;
 }
 
 @media (max-width: 900px) {
