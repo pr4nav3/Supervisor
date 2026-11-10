@@ -1,8 +1,5 @@
 /* The live site's styles. Edited by hand; notes/plans/landing-mockups is history, not the source. */
 
-/* Shared base for the landing-page mock-ups: the app's tokens, the app's cards, the app's
-   motion. Each direction adds only its own composition on top. */
-
 @font-face {
   font-family: Inter;
   src: url("assets/fonts/inter-variable.woff2") format("woff2");
@@ -50,12 +47,6 @@
   --sv-shadow-color: #0b0b09;
   --sv-soft-white: #4c4b46;
   --sv-grid-line: rgba(255, 255, 255, 0.12);
-  --sv-theme-panel: var(--sv-panel);
-  --sv-theme-soft-white: var(--sv-soft-white);
-  --sv-theme-ink: var(--sv-ink);
-  --sv-theme-muted: var(--sv-muted);
-  --sv-theme-border: var(--sv-border);
-  --sv-theme-shadow: var(--sv-shadow-color);
 }
 /* the plain button under a popup sits in the frame, not on the card: the inner card colour in light, the outer card grey in dark */
 [data-theme="dark"] .win .btn:not(.primary) { background: var(--sv-panel); }
@@ -161,8 +152,6 @@ a {
   padding: 0 22px;
   font-size: 0.84rem;
 }
-
-/* ---- a card that lifts like the app's share card: slides, never scales ---- */
 
 /* ---- arrival: the app's cal-pop, with a stagger ---- */
 
@@ -443,7 +432,7 @@ button.orb:active .orb-core {
   /* After the demo the page ends in three stacked cards: each one is sticky near the top, so
      the next slides up over it and stops in the same place, like a deck being dealt. */
   /* room to breathe: a long run after the demo before the first row, and a long run between rows */
-  .stack { position: relative; display: grid; row-gap: 85vh; width: min(100%, 880px); padding: 45vh 24px var(--tail, 24px); }
+  .stack { position: relative; display: grid; row-gap: 85vh; width: min(100%, 880px); padding: 45vh 24px 0; }
   /* a deal is one sticky row: one card, or two cards side by side, all the same height */
   .deal { position: sticky; top: var(--top, calc(104px + var(--i) * 18px)); display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 18px; }
   .pane { display: grid; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); overflow: hidden; transform-origin: 50% 0; transition: box-shadow 200ms ease, opacity 240ms ease, transform 320ms var(--ease-out); }
@@ -530,7 +519,6 @@ button.orb:active .orb-core {
   .fcard.cream .tag .p, .fcard.cream .orb-core { background: var(--sv-soft-white); }
   /* while speaking, every orb is green with dark ink, the plain-card ones included */
   .fcard.is-speaking .orb-core, .vrow.is-speaking .orb-core { background: var(--sv-green); color: #141410; }
-  /* in the dark theme the orbs on the coloured cards go dark too, with a light glyph; green while speaking, with a dark one */
   /* ---- 2 · the demo ---- */
   .scene { position: relative; height: 420vh; }
   /* the bar is fixed over the top 72px (plus its 18px soft edge), so the screen's content is
@@ -699,15 +687,12 @@ button.orb:active .orb-core {
   /* ---- 5 · get it: one choice, two ways ---- */
   .get-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px 32px; align-items: center; padding: 32px; align-content: center; }
   .os { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
-  .os .vcard { text-align: left; }
-  .os .vcard.on { background: var(--sv-yellow); }
   .way { display: grid; gap: 12px; padding: 18px 20px 20px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 2px 2px 0 var(--sv-shadow-color); grid-column: 1 / -1; } /* a card inside a card: the smaller shadow, as in the app */
   .way[hidden] { display: none; }
   .way p { margin: 0; font-size: 0.98rem; }
   .cmd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; border: var(--border); border-radius: 6px; padding: 6px 6px 6px 12px; background: var(--sv-soft-white); }
   .cmd code { font: 400 0.7rem/1.5 var(--font-mono); white-space: nowrap; overflow-x: auto; scrollbar-width: none; } /* the line still scrolls; Copy is the way to take it */
   .cmd .btn { min-height: 34px; font-size: 0.68rem; }
-  /* the card ends with its credit line: who made it, and a way to write back */
   /* the last line: who, and a way to write back */
   footer { width: min(100%, 880px); margin: 0 auto; padding: 18px 24px 0; }
   footer .card-line { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 18px; border: var(--border); border-radius: 7px; background: var(--sv-panel); box-shadow: 4px 4px 0 var(--sv-shadow-color); }
