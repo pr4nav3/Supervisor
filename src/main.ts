@@ -18,7 +18,7 @@ import {
   STREAK_DAY_SECONDS, streakLabel, thisMondayKey,
 } from "./core/format";
 import {
-  afterPointer, app, appView, attr, composing, confirmModal, errorText, escapeHtml, label, modal,
+  afterPointer, app, appView, attr, composing, confirmModal, errorText, escapeHtml, modal,
   showFeedback,
 } from "./core/dom";
 import { playVolume } from "./core/audio";
@@ -42,8 +42,8 @@ import {
   trendsLoaded,
 } from "./screens/trends";
 import {
-  applyWebcamFrame, CAMERA_DOWN_COPY, cameraDown, paintWebcamDom, renderWebcamSettings,
-  setWebcamCamera, setWebcamEnabled, setWebcamGpu, stopWebcamPreview, webcamAction, webcamError,
+  applyWebcamFrame, CAMERA_DOWN_COPY, cameraDown, paintWebcamDom, setWebcamCamera, setWebcamEnabled,
+  setWebcamGpu, stopWebcamPreview, webcamAction, webcamError,
 } from "./screens/webcam";
 import {
   distractionDismissedFor, distractionIsActive, distractionLatchKey, momentCardActive,
@@ -65,6 +65,9 @@ import {
 import {
   bindPreflight, preflightAction, preflightOpen, renderPreflightModal, setPreflightOpen,
 } from "./screens/preflight";
+import {
+  renderSettings, settingsAction, updateDefaultStrictness, updateStatusWindowEnabled,
+} from "./screens/settings";
 
 wire({ applySnapshot, bindEvents, refreshSnapshotNow, render, runAction });
 
@@ -200,6 +203,9 @@ let customPhrases: PhraseDefinition[] = [];
 let customPhraseSets: string[] = [];
 let phraseOverrides: Record<string, PhraseDefinition> = {};
 let phraseEditor: PhraseEditor | null = null;
+export function setPhraseEditor(value: PhraseEditor | null): void {
+  phraseEditor = value;
+}
 let hiddenPhrases = new Set<string>();
 let clipsVoiceId = "starter-female";
 export function setClipsVoiceId(value: string): void {
@@ -222,7 +228,7 @@ const clipAssetRevision = new Map<string, number>();
 /** The voice page's info popup, named as its open- and close- actions name it. */
 let voiceDialog: "voice-help" | "model-info" | "memory-info" | null = null;
 let modelDeleteOpen = false;
-let voiceBackend: VoiceBackendStatus | null = null;
+export let voiceBackend: VoiceBackendStatus | null = null;
 let voiceDownload: VoiceDownloadSnapshot | null = null;
 let voiceBusy: VoiceBusy = null;
 let voiceDeleteTargetId: string | null = null;
@@ -1316,104 +1322,7 @@ function renderHomeTip(): string {
   `;
 }
 
-/** Report a problem: the form, with the details a report needs already in its last box.
- *  Everything in it is on screen in the browser before anything is sent. */
-const PROBLEM_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSdFLtxXlAqQrppIOcciOPrVoa8T7u0MYt-1i2qRd9feXOybVA/viewform";
-const PROBLEM_FORM_DETAILS_FIELD = "entry.320512626";
-
-async function openProblemForm(): Promise<void> {
-  const version = await invoke<string>("app_version").catch(() => "?");
-  const system = await invoke<string>("system_line").catch(() => "?");
-  const voice = selectedVoice();
-  const details = [
-    `Supervisor ${version}`,
-    `System: ${system}`,
-    `Voice: ${voice.id === "none" ? "none" : `${voice.name}, ${toneLabel(voiceTone(voice))}`}`,
-    `Voice engine: ${voiceBackend ? (voiceBackend.runtime.installed && voiceBackend.model.installed ? "installed" : "not installed") : "not checked"}`,
-    `Webcam: ${settings.webcam_enabled ? "on" : "off"}`,
-    `Theme: ${theme}`,
-    `Last error shown: ${lastError || "none"}`,
-  ].join("\n");
-  const url = `${PROBLEM_FORM}?usp=pp_url&${PROBLEM_FORM_DETAILS_FIELD}=${encodeURIComponent(details)}`;
-  try {
-    await invoke("open_problem_form", { url });
-  } catch (error) {
-    setLastError(errorText(error));
-    render();
-  }
-}
-
-function renderSettings(): string {
-  if (settingsView === "voice") {
-    return renderVoiceSettings();
-  }
-  if (settingsView === "webcam") {
-    return renderWebcamSettings();
-  }
-
-  return `
-    <section class="settings-page">
-      <section class="panel defaults-card">
-        <p class="eyebrow">Defaults</p>
-        <div class="defaults-grid">
-          <label class="default-control">
-            <strong>Strictness</strong>
-            <select id="default-strictness">
-              ${strictnessOptions(settings.default_strictness)}
-            </select>
-          </label>
-          <label class="default-control">
-            <strong>Show session timer</strong>
-            <span class="toggle-field">
-              <input id="status-window-enabled" class="toggle-input" type="checkbox" ${settings.status_window_enabled ? "checked" : ""} aria-label="Show session timer" />
-              <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-            </span>
-          </label>
-        </div>
-        <small class="field-help defaults-help">Strictness is ${STRICTNESS_HELP.charAt(0).toLowerCase()}${STRICTNESS_HELP.slice(1)}</small>
-        <small class="field-help">The session timer is the small window in the top right corner while a session runs.</small>
-      </section>
-
-      <div class="settings-feature-grid">
-        <section class="panel settings-feature-card voice-summary-panel">
-          <p class="eyebrow">Voice</p>
-          <div class="voice-summary">
-            <strong>${escapeHtml(selectedVoice().name)}</strong>
-            <span class="explain">Record anyone's voice. It speaks up when you get distracted.</span>
-            ${quietVoice() ? `<span class="explain is-bad">${escapeHtml(quietVoiceText(quietVoice()!))}</span>` : ""}
-            <button type="button" data-action="open-voice-settings">Customize</button>
-          </div>
-        </section>
-
-        <section class="panel settings-feature-card">
-          <p class="eyebrow">Webcam</p>
-          <div class="voice-summary">
-            <strong>Live camera check</strong>
-            <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
-            <button type="button" data-action="open-webcam-settings">Open</button>
-          </div>
-        </section>
-      </div>
-
-      <section class="panel settings-rules-panel">
-        ${renderRuleManager("Distractions")}
-      </section>
-
-      <section class="panel settings-data-panel">
-        <div class="settings-data-row">
-          <span class="explain">Sessions and history stay on this computer. Nothing is uploaded.</span>
-          <button class="danger" type="button" data-action="ask-delete-all">Delete all history</button>
-        </div>
-        <div class="settings-data-row">
-          <span class="explain">Something broke? Tell us. The form opens in your browser with the app's details filled in.</span>
-          <button type="button" data-action="report-problem">Report a problem</button>
-        </div>
-      </section>
-    </section>
-  `;
-}
-
-function renderVoiceSettings(): string {
+export function renderVoiceSettings(): string {
   const voices = availableVoices();
   const creating = voiceBusy !== null || ["checking", "downloading", "cancelling"].includes(voiceDownload?.phase ?? "");
   return `
@@ -3382,7 +3291,7 @@ function releaseVoiceWorker(): void {
   void invoke("release_voice_worker").catch(() => null);
 }
 
-function leaveVoiceScreen(): void {
+export function leaveVoiceScreen(): void {
   if (clipQueue?.phase === "working") {
     clipQueue.stopAfter = true;
     showFeedback("Generating stops after this line. Come back to the Voice page to continue.", 5000);
@@ -3654,11 +3563,6 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
     return;
   }
 
-  if (action === "report-problem") {
-    await openProblemForm();
-    return;
-  }
-
   if (action === "ask-delete-all") {
     const bytes = await invoke<number>("get_history_size").catch(() => null);
     historyConfirm = { kind: "delete-all", bytes };
@@ -3678,13 +3582,6 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
     return;
   }
 
-  if (action === "open-voice-settings") {
-    setSettingsView("voice");
-    await refreshVoiceStatus(false);
-    render();
-    return;
-  }
-
   if (action === "dismiss-storage-notice") {
     await invokeSnapshot("dismiss_storage_notice");
     return;
@@ -3694,22 +3591,6 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
     const mute = snapshot?.current?.status !== "snoozed";
     if (await invokeSnapshot(mute ? "snooze_session" : "resume_session")) {
       showFeedback(mute ? "Reminders muted for 5 minutes" : "Reminders back on");
-    }
-    return;
-  }
-
-  if (action === "back-settings") {
-    const leavingWebcam = settingsView === "webcam";
-    const leavingVoice = settingsView === "voice";
-    setSettingsView("home");
-    phraseEditor = null;
-    dismissVoiceInfo();
-    if (leavingVoice) {
-      leaveVoiceScreen();
-    }
-    render();
-    if (leavingWebcam) {
-      await stopWebcamPreview();
     }
     return;
   }
@@ -4067,6 +3948,7 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
     overlayAction(action, source),
     firstRunAction(action, source),
     preflightAction(action, source),
+    settingsAction(action, source),
   ]);
 
   const commands: Record<string, string> = {
@@ -4238,25 +4120,6 @@ async function deletePhrase(phraseId: string): Promise<void> {
   phraseEditor = null;
   paintLines();
   showFeedback("Line deleted");
-}
-
-async function updateDefaultStrictness(default_strictness: Strictness): Promise<void> {
-  try {
-    setSettings(await invoke<SessionSettings>("update_settings", {
-      update: { default_strictness },
-    }));
-    draft.strictness = default_strictness;
-    setLastError("");
-  } catch (error) {
-    setLastError(errorText(error));
-  }
-  render();
-}
-
-async function updateStatusWindowEnabled(enabled: boolean): Promise<void> {
-  if (await invokeSnapshot("set_status_window_enabled", { enabled }, false)) {
-    showFeedback(enabled ? "Session timer shown" : "Session timer hidden");
-  }
 }
 
 export async function updateSelectedVoice(voiceId: string): Promise<boolean> {
@@ -5234,7 +5097,7 @@ function paintPlayingClip(root: ParentNode = document): void {
   });
 }
 
-function dismissVoiceInfo(): void {
+export function dismissVoiceInfo(): void {
   stopVoicePreview();
   voiceInfoId = null;
 }
@@ -5546,17 +5409,6 @@ async function toggleVoicePreview(): Promise<void> {
   }
 }
 
-/** Mirrors `Strictness::focus_config` in the backend: the seconds a distraction may stay open
- * before Supervisor speaks up. */
-export const STRICTNESS_HELP = "How long a distraction can stay open before a reminder.";
-const STRICTNESS_SECONDS: Record<Strictness, number> = { gentle: 90, normal: 60, strict: 30 };
-
-export function strictnessOptions(selected: Strictness): string {
-  return (["gentle", "normal", "strict"] as Strictness[])
-    .map((value) => `<option value="${value}" ${value === selected ? "selected" : ""}>${label(value)} · ${STRICTNESS_SECONDS[value]} s</option>`)
-    .join("");
-}
-
 export function voiceOptions(selected: string, forClips = false): string {
   return availableVoices()
     .map((voice) => {
@@ -5642,7 +5494,7 @@ function voiceSilentMoments(voice: VoiceOption): string[] {
  *  quiet (selectedNudgeClip finds nothing). Moving the voice to another personality, making or
  *  deleting one, or adding or moving lines can all lead here, so the screens that name the voice
  *  ask this rather than any one of those steps. Null when it can speak or the voices haven't loaded. */
-function quietVoice(): VoiceOption | null {
+export function quietVoice(): VoiceOption | null {
   if (draft.voiceId === "none" || !voiceBackend) {
     return null;
   }
@@ -5650,7 +5502,7 @@ function quietVoice(): VoiceOption | null {
   return readyClips(voice, "nudge").length ? null : voice;
 }
 
-function quietVoiceText(voice: VoiceOption): string {
+export function quietVoiceText(voice: VoiceOption): string {
   const tone = toneLabel(voiceTone(voice));
   return momentPhrases(voiceTone(voice), "nudge").length
     ? `${voice.name} has no ${tone} lines generated yet, so reminders stay quiet.`
@@ -5914,7 +5766,7 @@ function voiceBusyCopy(): string {
   return "Local voice files are being updated.";
 }
 
-function toneLabel(tone: VoiceTone): string {
+export function toneLabel(tone: VoiceTone): string {
   switch (tone) {
     case "gentle":
       return "Gentle";
