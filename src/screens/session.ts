@@ -3,10 +3,6 @@ import type {
   AppRule, CurrentSession, NudgeVoice, PhraseMoment, PomodoroStatus, RecapApp, RulesSaved,
   SessionReport, SessionSummary,
 } from "../core/types";
-import {
-  dailyNote, ensureDayCard, focusedStretches, renderCalendar, renderDayCard, renderHomeTip,
-  setDayCardKey, streakDays, stripOffTask, stripOnTask,
-} from "../main";
 import { formatDuration, formatHours, monthLabel } from "../core/format";
 import { attr, composing, confirmModal, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
 import {
@@ -26,6 +22,10 @@ import {
 import { preflightOpen, renderPreflightModal } from "./preflight";
 import { lastNudgeVoice, nudgeAudio, playLine, readyClips, selectedNudgeClip, selectedVoice } from "./voice";
 import { openHistoryReport, paintModalLayer, sessionReport } from "./history";
+import {
+  dailyNote, ensureDayCard, focusedStretches, renderCalendar, renderDayCard, renderHomeTip,
+  setDayCardKey, streakDays, stripOffTask, stripOnTask,
+} from "./home";
 
 /** Quit was picked from the tray while a session runs. */
 export let quitConfirmOpen = false;
