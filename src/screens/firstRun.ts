@@ -1,9 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, CapturePermissions, CurrentSession, RuleTarget, SessionSnapshot } from "../core/types";
-import {
-  availableVoices, momentPhrases, permanentRules, renderRuleManager, renderVoiceCard, ruleName,
-  selectedVoice, setRuleEditor, stopClip, voiceTone,
-} from "../main";
+import { availableVoices, momentPhrases, renderVoiceCard, selectedVoice, stopClip, voiceTone } from "../main";
 import { appView, errorText, escapeHtml, modal } from "../core/dom";
 import {
   draft, history, knownHistoryIds, setActiveTab, setHistory, setLastError, setSettings, setSnapshot,
@@ -11,6 +8,7 @@ import {
 } from "../core/state";
 import { invokeSnapshot, paintSlot, render } from "../core/shell";
 import { refreshTrends } from "./trends";
+import { permanentRules, renderRuleManager, ruleName, setRuleEditor } from "./rules";
 
 /** What the OS lets Supervisor see; null until the backend answers. */
 type CaptureAccess = { platform: string; permissions: CapturePermissions; accessibility_lost: boolean };
