@@ -1804,8 +1804,6 @@ pub struct SessionSummary {
     pub duration_seconds: u64,
     /// Time not on a distraction.
     pub focus_seconds: u64,
-    pub distracted_seconds: u64,
-    pub idle_seconds: u64,
     pub nudges: u64,
     pub top_hints: Vec<String>,
     /// The session in order: runs of one state, with gaps where nothing was recorded.
@@ -2208,11 +2206,12 @@ mod tests {
         record(&mut manager, site("youtube.com", 0.0), seconds(60));
         let snapshot = manager.stop(seconds(90));
         let session = &snapshot.history[0];
+        let report = manager.session_report(session.id).unwrap();
 
         assert_eq!(session.duration_seconds, 90);
-        assert_eq!(session.idle_seconds, 0);
-        assert_eq!(session.focus_seconds + session.distracted_seconds, 90);
-        assert!(session.distracted_seconds >= 30);
+        assert_eq!(report.idle_seconds, 0);
+        assert_eq!(session.focus_seconds + report.distracted_seconds, 90);
+        assert!(report.distracted_seconds >= 30);
         assert_eq!(session.nudges, 0);
     }
 
@@ -2775,7 +2774,8 @@ mod tests {
         assert_eq!(manager.snooze(seconds(70), 300).status, SessionStatus::Paused);
         let snapshot = manager.stop(seconds(80));
 
-        assert_eq!(snapshot.history[0].distracted_seconds, 10);
+        let report = manager.session_report(snapshot.history[0].id).unwrap();
+        assert_eq!(report.distracted_seconds, 10);
         assert_eq!(snapshot.history[0].duration_seconds, 10);
     }
 

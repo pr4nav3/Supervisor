@@ -167,8 +167,6 @@ interface SessionSummary {
   duration_seconds: number;
   /** Time not on a distraction. */
   focus_seconds: number;
-  distracted_seconds: number;
-  idle_seconds: number;
   nudges: number;
   top_hints: string[];
   /** The session in order: runs of one state, with gaps where nothing was recorded. */
@@ -184,7 +182,6 @@ interface SummarySegment {
 interface ReportSpan {
   started_offset_seconds: number;
   seconds: number;
-  app: string;
   kind: ActivityKind;
   activity_key: string;
   label: string;
@@ -204,17 +201,13 @@ interface SessionReport {
   goal: string;
   strictness: string;
   started_at: string;
-  ended_at: string | null;
   ended_reason: string | null;
-  planned_seconds: number;
   duration_seconds: number;
   focus_percent: number;
   focused_seconds: number;
   distracted_seconds: number;
   idle_seconds: number;
-  away_seconds: number;
   phone_seconds: number;
-  drift_count: number;
   nudge_count: number;
   longest_stretch_seconds: number;
   median_stretch_seconds: number;
@@ -241,13 +234,6 @@ interface TrendPeriod {
 
 type TrendUnit = "week" | "month";
 
-interface FocusRecap {
-  start: string;
-  end: string;
-  focus_seconds: number;
-  session_count: number;
-}
-
 /** A calendar month for the share card; `days[i].label` is the day ("2026-10-01"). */
 interface MonthRecap {
   start: string;
@@ -270,7 +256,6 @@ interface TrendsData {
   weeks: TrendPeriod[];
   /** Sessions exist before the first of those weeks. */
   has_earlier: boolean;
-  week_recap: FocusRecap;
 }
 
 type HistoryView = "list" | "report" | "trends";
@@ -309,9 +294,6 @@ interface WeekRecap {
   median_stretch_seconds: number;
   longest_stretch_seconds: number;
   recovery_median_seconds: number | null;
-  recovery_count: number;
-  unrecovered_count: number;
-  previous_recovery_median_seconds: number | null;
   apps: RecapApp[];
 }
 
@@ -696,7 +678,6 @@ let settings: SessionSettings = {
   webcam_camera: 0,
 };
 let history: SessionSummary[] = [];
-const EMPTY_RECAP: FocusRecap = { start: "", end: "", focus_seconds: 0, session_count: 0 };
 /** Order of the groups `apps_from_spans` produces; they sum to the scores. */
 /** How the groups and scores are decided, under every Apps & sites list. */
 /** False until the first get_trends answers: the calendar waits for it before popping in. */
@@ -710,7 +691,6 @@ let trends: TrendsData = {
   daily_focus: [],
   weeks: [],
   has_earlier: false,
-  week_recap: EMPTY_RECAP,
 };
 let historyWeekStart = "";
 /** Bumped per week request, so a slow earlier week cannot land over the one shown now. */

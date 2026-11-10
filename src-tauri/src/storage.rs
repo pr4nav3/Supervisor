@@ -146,12 +146,9 @@ fn move_aside(path: &Path) -> std::io::Result<PathBuf> {
 pub struct ReportSpan {
     pub started_offset_seconds: u64,
     pub seconds: u64,
-    /// The program that was in front (a browser for website rows).
-    pub app: String,
     pub kind: String,
     pub activity_key: String,
     pub label: String,
-    pub source: String,
     pub state: String,
     /// The session was paused (or on a Pomodoro break) just before this span. Pauses are cut out
     /// of the timeline, so without this the spans on either side would read as one run.
@@ -172,18 +169,14 @@ pub struct SessionReport {
     pub goal: String,
     pub strictness: String,
     pub started_at: String,
-    pub ended_at: Option<String>,
     pub ended_reason: Option<String>,
-    pub planned_seconds: u64,
     pub duration_seconds: u64,
     pub focus_percent: u64,
     /// Time not on a distraction.
     pub focused_seconds: u64,
     pub distracted_seconds: u64,
     pub idle_seconds: u64,
-    pub away_seconds: u64,
     pub phone_seconds: u64,
-    pub drift_count: u64,
     pub nudge_count: u64,
     pub longest_stretch_seconds: u64,
     pub median_stretch_seconds: u64,
@@ -242,14 +235,6 @@ impl TrendUnit {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct FocusRecap {
-    pub start: String,
-    pub end: String,
-    pub focus_seconds: u64,
-    pub session_count: u64,
-}
-
-#[derive(Clone, Debug, Serialize)]
 pub struct TrendsData {
     pub daily_focus: Vec<DailyFocus>,
     /// The last eight weeks, oldest first, ending with the current week; starts at the first of
@@ -257,7 +242,6 @@ pub struct TrendsData {
     pub weeks: Vec<TrendPeriod>,
     /// Sessions exist before the first of those weeks; Trends has them.
     pub has_earlier: bool,
-    pub week_recap: FocusRecap,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -305,11 +289,6 @@ pub struct WeekRecap {
     pub longest_stretch_seconds: u64,
     /// Typical time from leaving focus to being back on task; `None` when nothing drifted.
     pub recovery_median_seconds: Option<u64>,
-    pub recovery_count: u64,
-    /// Drifts still going when their session ended.
-    pub unrecovered_count: u64,
-    /// The same figure for the week before, so the page can say faster or slower.
-    pub previous_recovery_median_seconds: Option<u64>,
     pub apps: Vec<RecapApp>,
 }
 
@@ -318,15 +297,12 @@ pub struct WeekRecap {
 struct SpanStats {
     stretches: Vec<u64>,
     recoveries: Vec<u64>,
-    unrecovered: u64,
 }
 
 impl SpanStats {
     fn add(&mut self, spans: &[ReportSpan]) {
         self.stretches.extend(focused_stretches(spans));
-        let (recoveries, unrecovered) = drift_recoveries(spans);
-        self.recoveries.extend(recoveries);
-        self.unrecovered += unrecovered;
+        self.recoveries.extend(drift_recoveries(spans));
     }
 
     fn recovery_median(&self) -> Option<u64> {
@@ -1500,7 +1476,6 @@ impl SessionStorage {
             .filter(|event| event.kind == "nudge")
             .count() as u64;
 
-        let drift_count = count_drifts(&spans);
         let stretches = focused_stretches(&spans);
         let longest_stretch_seconds = stretches.iter().copied().max().unwrap_or(0);
         let median_stretch_seconds = median(&stretches);
@@ -1509,14 +1484,13 @@ impl SessionStorage {
             focused_seconds,
             distracted_seconds,
             idle_seconds,
-            drift_count,
             nudge_count,
             longest_stretch_seconds,
             median_stretch_seconds,
             phone_seconds,
         ];
         let saved = self.conn.query_row(
-            "SELECT focused_seconds, distracted_seconds, idle_seconds, drift_count, nudge_count,
+            "SELECT focused_seconds, distracted_seconds, idle_seconds, nudge_count,
                     longest_stretch_seconds, median_stretch_seconds, phone_seconds
              FROM session WHERE id = ?1",
             [session_id],
@@ -1533,17 +1507,15 @@ impl SessionStorage {
                     focused_seconds = ?1,
                     distracted_seconds = ?2,
                     idle_seconds = ?3,
-                    drift_count = ?4,
-                    nudge_count = ?5,
-                    longest_stretch_seconds = ?6,
-                    median_stretch_seconds = ?7,
-                    phone_seconds = ?9
-                 WHERE id = ?8",
+                    nudge_count = ?4,
+                    longest_stretch_seconds = ?5,
+                    median_stretch_seconds = ?6,
+                    phone_seconds = ?8
+                 WHERE id = ?7",
                 params![
                     focused_seconds,
                     distracted_seconds,
                     idle_seconds,
-                    drift_count,
                     nudge_count,
                     longest_stretch_seconds,
                     median_stretch_seconds,
@@ -1623,9 +1595,9 @@ impl SessionStorage {
         let row = self
             .conn
             .query_row(
-                "SELECT goal, strictness, started_at, ended_at, ended_reason, planned_seconds,
-                        focused_seconds, distracted_seconds, idle_seconds, away_seconds, phone_seconds,
-                        drift_count, nudge_count, longest_stretch_seconds, median_stretch_seconds
+                "SELECT goal, strictness, started_at, ended_reason,
+                        focused_seconds, distracted_seconds, idle_seconds, phone_seconds,
+                        nudge_count, longest_stretch_seconds, median_stretch_seconds
                  FROM session WHERE id = ?1",
                 [id],
                 |row| {
@@ -1634,17 +1606,13 @@ impl SessionStorage {
                         row.get::<_, String>(1)?,
                         row.get::<_, String>(2)?,
                         row.get::<_, Option<String>>(3)?,
-                        row.get::<_, Option<String>>(4)?,
+                        row.get::<_, i64>(4)?,
                         row.get::<_, i64>(5)?,
                         row.get::<_, i64>(6)?,
                         row.get::<_, i64>(7)?,
                         row.get::<_, i64>(8)?,
                         row.get::<_, i64>(9)?,
                         row.get::<_, i64>(10)?,
-                        row.get::<_, i64>(11)?,
-                        row.get::<_, i64>(12)?,
-                        row.get::<_, i64>(13)?,
-                        row.get::<_, i64>(14)?,
                     ))
                 },
             )
@@ -1654,15 +1622,11 @@ impl SessionStorage {
             goal,
             strictness,
             started_at,
-            ended_at,
             ended_reason,
-            planned_seconds,
             focused_seconds,
             distracted_seconds,
             idle_seconds,
-            away_seconds,
             phone_seconds,
-            drift_count,
             nudge_count,
             longest_stretch_seconds,
             median_stretch_seconds,
@@ -1684,17 +1648,13 @@ impl SessionStorage {
             goal,
             strictness,
             started_at,
-            ended_at,
             ended_reason,
-            planned_seconds: planned_seconds as u64,
             duration_seconds,
             focus_percent,
             focused_seconds: focused_seconds as u64,
             distracted_seconds: distracted_seconds as u64,
             idle_seconds: idle_seconds as u64,
-            away_seconds: away_seconds as u64,
             phone_seconds: phone_seconds as u64,
-            drift_count: drift_count as u64,
             nudge_count: nudge_count as u64,
             longest_stretch_seconds: longest_stretch_seconds as u64,
             median_stretch_seconds: median_stretch_seconds as u64,
@@ -1774,10 +1734,6 @@ impl SessionStorage {
             daily_focus,
             weeks,
             has_earlier,
-            week_recap: self.focus_recap(
-                monday,
-                monday.saturating_add(time::Duration::days(7)),
-            )?,
         })
     }
 
@@ -1813,8 +1769,6 @@ impl SessionStorage {
         }
         let apps = apps_from_spans(&all_spans);
 
-        let previous = self.span_stats(start.saturating_sub(time::Duration::days(7)), start)?;
-
         Ok(WeekRecap {
             start: format_day(start),
             end: format_day(end_exclusive.saturating_sub(time::Duration::days(1))),
@@ -1824,9 +1778,6 @@ impl SessionStorage {
             median_stretch_seconds: median(&stats.stretches),
             longest_stretch_seconds,
             recovery_median_seconds: stats.recovery_median(),
-            recovery_count: stats.recoveries.len() as u64,
-            unrecovered_count: stats.unrecovered,
-            previous_recovery_median_seconds: previous.recovery_median(),
             apps,
         })
     }
@@ -1987,14 +1938,6 @@ impl SessionStorage {
         Ok(oldest)
     }
 
-    fn span_stats(&self, start: time::Date, end_exclusive: time::Date) -> Result<SpanStats, String> {
-        let mut stats = SpanStats::default();
-        for session in self.recap_sessions(&format_day(start), &format_day(end_exclusive))? {
-            stats.add(&self.load_spans_for_session(session.id)?);
-        }
-        Ok(stats)
-    }
-
     /// Every week or month from the first one with a session through the current one, empty ones
     /// between included, oldest first. Trends pages through these itself.
     pub fn get_trend_periods(&self, unit: TrendUnit) -> Result<Vec<TrendPeriod>, String> {
@@ -2068,51 +2011,6 @@ impl SessionStorage {
         Ok(periods)
     }
 
-    fn focus_recap(
-        &self,
-        start: time::Date,
-        end_exclusive: time::Date,
-    ) -> Result<FocusRecap, String> {
-        let (focus_seconds, session_count) =
-            self.sum_focus(&format_day(start), &format_day(end_exclusive))?;
-        Ok(FocusRecap {
-            start: format_day(start),
-            end: format_day(end_exclusive.saturating_sub(time::Duration::days(1))),
-            focus_seconds,
-            session_count,
-        })
-    }
-
-    fn sum_focus(&self, start_day: &str, end_day_exclusive: &str) -> Result<(u64, u64), String> {
-        let (from, to) = padded_day_bounds(start_day, end_day_exclusive);
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT started_at, focused_seconds
-                 FROM session
-                 WHERE ended_at IS NOT NULL
-                   AND substr(started_at, 1, 10) >= ?1
-                   AND substr(started_at, 1, 10) < ?2",
-            )
-            .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map(params![from, to], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?))
-            })
-            .map_err(|error| error.to_string())?;
-        let mut seconds = 0u64;
-        let mut count = 0u64;
-        for row in rows {
-            let (started_at, focused_seconds) = row.map_err(|error| error.to_string())?;
-            if local_day_in(&started_at, start_day, end_day_exclusive).is_none() {
-                continue;
-            }
-            seconds += focused_seconds as u64;
-            count += 1;
-        }
-        Ok((seconds, count))
-    }
-
     pub fn delete_session(&self, id: u64) -> Result<(), String> {
         let ended_at = match self.conn.query_row(
             "SELECT ended_at FROM session WHERE id = ?1",
@@ -2173,7 +2071,7 @@ impl SessionStorage {
         let mut stmt = self
             .conn
             .prepare(
-                "SELECT started_offset_seconds, seconds, app, kind, activity_key, label, source, state
+                "SELECT started_offset_seconds, seconds, kind, activity_key, label, state
                  FROM span
                  WHERE session_id = ?1
                  ORDER BY started_offset_seconds ASC",
@@ -2181,16 +2079,15 @@ impl SessionStorage {
             .map_err(|error| error.to_string())?;
         let rows = stmt
             .query_map([session_id], |row| {
-                let kind: String = row.get(3)?;
-                let mut activity_key: String = row.get(4)?;
-                let stored: String = row.get(5)?;
+                let kind: String = row.get(2)?;
+                let mut activity_key: String = row.get(3)?;
+                let stored: String = row.get(4)?;
                 let legacy_shell = kind == "app" && legacy_unidentified_window(&activity_key);
                 if legacy_shell {
                     activity_key = "untracked".to_string();
                 }
                 let lost_time = kind == "app" && activity_key == UNKNOWN_KEY;
-                let app: String = if legacy_shell { "untracked".to_string() } else { row.get(2)? };
-                let state = if lost_time { "unknown".to_string() } else { row.get(7)? };
+                let state = if lost_time { "unknown".to_string() } else { row.get(5)? };
                 let label = if lost_time {
                     UNKNOWN_LABEL.to_string()
                 } else {
@@ -2199,11 +2096,9 @@ impl SessionStorage {
                 Ok(ReportSpan {
                     started_offset_seconds: row.get::<_, i64>(0)? as u64,
                     seconds: row.get::<_, i64>(1)? as u64,
-                    app,
                     kind,
                     activity_key,
                     label,
-                    source: if legacy_shell { "none".to_string() } else { row.get(6)? },
                     state,
                     after_pause: false,
                 })
@@ -2329,33 +2224,9 @@ fn monday_on_or_before(date: time::Date) -> time::Date {
     )))
 }
 
-fn count_drifts(spans: &[ReportSpan]) -> u64 {
-    let mut count = 0u64;
-    let mut in_focus_track = false;
-    let mut previous_end = 0;
-    for span in spans {
-        if span.started_offset_seconds > previous_end || span.after_pause {
-            in_focus_track = false;
-        }
-        previous_end = span.started_offset_seconds.saturating_add(span.seconds);
-        let focus_like = on_task(&span.state);
-        let drift_like = matches!(span.state.as_str(), "distracted" | "idle" | "suspicious" | "phone");
-        if span.state == "unknown" {
-            in_focus_track = false;
-        } else if focus_like {
-            in_focus_track = true;
-        } else if drift_like && in_focus_track {
-            count += 1;
-            in_focus_track = false;
-        }
-    }
-    count
-}
-
-/// Seconds from leaving focus to being back on task, one entry per drift,
-/// plus whether a drift was still going at the end. Away and paused time neither starts nor
+/// Seconds from leaving focus to being back on task, one entry per drift. Away and paused time neither starts nor
 /// ends a drift and is not counted in it; a legacy hole forgets the drift.
-fn drift_recoveries(spans: &[ReportSpan]) -> (Vec<u64>, u64) {
+fn drift_recoveries(spans: &[ReportSpan]) -> Vec<u64> {
     let mut recoveries = Vec::new();
     let mut drifting: Option<u64> = None;
     let mut was_focused = false;
@@ -2381,7 +2252,7 @@ fn drift_recoveries(spans: &[ReportSpan]) -> (Vec<u64>, u64) {
             _ => {}
         }
     }
-    (recoveries, u64::from(drifting.is_some()))
+    recoveries
 }
 
 fn focused_stretches(spans: &[ReportSpan]) -> Vec<u64> {
@@ -2577,8 +2448,7 @@ fn apps_from_spans(spans: &[ReportSpan]) -> Vec<RecapApp> {
     apps
 }
 
-const SUMMARY_SELECT: &str = "SELECT id, goal, started_at, focused_seconds, distracted_seconds,
-    idle_seconds, nudge_count FROM session";
+const SUMMARY_SELECT: &str = "SELECT id, goal, started_at, focused_seconds, nudge_count FROM session";
 
 /// The session's spans as runs of one state, in order. Touching spans of the same state merge;
 /// time with no span stays a gap, so the list draws as the report's bar does, only smaller.
@@ -2614,9 +2484,7 @@ fn summary_from_row(row: &rusqlite::Row) -> rusqlite::Result<SessionSummary> {
         started_at: row.get(2)?,
         duration_seconds: 0,
         focus_seconds: row.get::<_, i64>(3)? as u64,
-        distracted_seconds: row.get::<_, i64>(4)? as u64,
-        idle_seconds: row.get::<_, i64>(5)? as u64,
-        nudges: row.get::<_, i64>(6)? as u64,
+        nudges: row.get::<_, i64>(4)? as u64,
         top_hints: Vec::new(),
         segments: Vec::new(),
     })
@@ -2749,11 +2617,9 @@ mod tests {
         ReportSpan {
             started_offset_seconds: start,
             seconds,
-            app: "code".to_string(),
             kind: "app".to_string(),
             activity_key: "code".to_string(),
             label: "VS Code".to_string(),
-            source: "window".to_string(),
             state: state.to_string(),
             after_pause: false,
         }
@@ -2874,9 +2740,8 @@ mod tests {
         let mut spans = storage.load_spans_for_session(id).unwrap();
         assert_eq!(focused_stretches(&spans), vec![60, 60]);
         spans[1].state = "distracted".into();
-        assert_eq!(count_drifts(&spans), 0);
         // A legacy hole forgets the drift instead of guessing how it ended.
-        assert_eq!(drift_recoveries(&spans), (vec![], 0));
+        assert!(drift_recoveries(&spans).is_empty());
     }
 
     #[test]
@@ -2895,7 +2760,7 @@ mod tests {
             storage.insert_span(id, &activity, state, start, seconds).unwrap();
         }
         let spans = storage.load_spans_for_session(id).unwrap();
-        assert_eq!(drift_recoveries(&spans), (vec![90], 1));
+        assert_eq!(drift_recoveries(&spans), vec![90]);
     }
 
     #[test]
@@ -3014,11 +2879,11 @@ mod tests {
         storage.insert_span(id, &app("Code"), "focused", 150, 120).unwrap();
         storage.close_session(id, "2026-09-22T12:04:30Z", "stopped", 270).unwrap();
         let report = storage.get_session_report(id).unwrap();
-        assert_eq!((report.longest_stretch_seconds, report.drift_count), (270, 0));
+        assert_eq!(report.longest_stretch_seconds, 270);
 
         storage.replace_rules(&[AppRule::app("slack")]).unwrap();
         let later = storage.get_session_report(id).unwrap();
-        assert_eq!((later.longest_stretch_seconds, later.drift_count), (270, 0));
+        assert_eq!(later.longest_stretch_seconds, 270);
     }
 
     fn app_span(key: &str, label: &str) -> Activity {
@@ -3154,7 +3019,6 @@ mod tests {
         let report = storage.get_session_report(id).expect("report");
         assert_eq!(report.focused_seconds, 480);
         assert_eq!(report.distracted_seconds, 120);
-        assert_eq!(report.drift_count, 1);
         assert_eq!(report.nudge_count, 1);
         assert_eq!(report.longest_stretch_seconds, 300);
         assert_eq!(report.median_stretch_seconds, 240);
@@ -3222,7 +3086,6 @@ mod tests {
         assert_eq!(spans[0].label, "WhatsApp");
         assert_eq!(spans[1].label, "Device asleep / unknown");
         assert_eq!(spans[1].activity_key, "untracked");
-        assert_eq!(spans[1].source, "none");
         storage.set_app_name("whatsapp.root", "Messages").expect("custom name");
         assert_eq!(storage.load_spans_for_session(id).expect("spans")[0].label, "Messages");
     }
@@ -3295,16 +3158,6 @@ mod tests {
         assert_eq!(trends.daily_focus.len(), 1);
         assert_eq!(trends.daily_focus[0].focus_percent, 83);
         assert_eq!(trends.daily_focus[0].focus_seconds, 1500);
-        let (seconds, count) = storage
-            .sum_focus("2026-09-22", "2026-09-23")
-            .expect("sum");
-        assert_eq!(count, 1);
-        assert_eq!(seconds, 1500);
-        let (empty_seconds, empty_count) = storage
-            .sum_focus("2026-09-23", "2026-09-24")
-            .expect("empty sum");
-        assert_eq!(empty_count, 0);
-        assert_eq!(empty_seconds, 0);
     }
 
     #[test]
@@ -3397,23 +3250,13 @@ mod tests {
             .close_session(october, "2026-10-01T08:02:00Z", "stopped", 120)
             .expect("close");
 
-        let september = storage
-            .focus_recap(
-                parse_day("2026-09-01").expect("sep 1"),
-                parse_day("2026-10-01").expect("oct 1"),
-            )
-            .expect("september recap");
+        let september = storage.get_month_recap("2026-09-15").expect("september recap");
         assert_eq!(september.start, "2026-09-01");
         assert_eq!(september.end, "2026-09-30");
         assert_eq!(september.session_count, 2);
         assert_eq!(september.focus_seconds, 1500);
 
-        let week = storage
-            .focus_recap(
-                parse_day("2026-09-28").expect("week start"),
-                parse_day("2026-10-05").expect("week end"),
-            )
-            .expect("week recap");
+        let week = storage.get_week_recap("2026-10-01").expect("week recap");
         assert_eq!(week.session_count, 2);
         assert_eq!(week.focus_seconds, 1020);
     }
@@ -3446,7 +3289,6 @@ mod tests {
         assert_eq!(recap.buckets[2].focus_seconds, 600);
         assert_eq!(recap.buckets[0].focus_seconds, 0);
         assert_eq!(recap.recovery_median_seconds, None);
-        assert_eq!(recap.unrecovered_count, 1);
         assert_eq!(
             recap
                 .apps
@@ -3812,7 +3654,8 @@ mod tests {
 
         let report = storage.get_session_report(id).expect("report");
         assert_eq!(report.ended_reason.as_deref(), Some("abandoned"));
-        assert!(report.ended_at.is_some());
+        // Ended: finished sessions are the only ones History lists.
+        assert_eq!(storage.list_history(10).expect("history").len(), 1);
         assert_eq!(report.focused_seconds, 90);
     }
 
