@@ -7,7 +7,7 @@ import type {
   HistoryWeek, MonthRecap, NudgeVoice, PhraseDefinition, PhraseEditor, PhraseLibraryState,
   PhraseMoment, PomodoroStatus, RecapApp, RecordedVoice, RecordingState, ReportSpan, RuleEditor,
   RulePreview, RulesSaved, RuleTarget, SessionReport, SessionSettings, SessionSnapshot,
-  SessionSummary, SettingsView, StorageNotice, Strictness, Tab, TrendPeriod, TrendsData, TrendUnit,
+  SessionSummary, StorageNotice, Strictness, Tab, TrendPeriod, TrendsData, TrendUnit,
   VoiceBackendStatus, VoiceBusy, VoiceClipSummary, VoiceDownloadSnapshot, VoiceModelStatus,
   VoiceOption, VoiceProfileSummary, VoiceRecordingSnapshot, VoiceSource, VoiceTone, WebcamFrame,
   WeekRecap,
@@ -23,6 +23,12 @@ import {
   label, modal, showFeedback,
 } from "./core/dom";
 import { playVolume } from "./core/audio";
+import {
+  activeTab, appNames, clearLastError, draft, history, knownHistoryIds, lastError, lastSessionId,
+  setActiveTab, setAppNames, setHistory, setLastError, setLastSessionId, setSettings,
+  setSettingsView, setSiteNames, setSnapshot, setTheme, settings, settingsView, siteNames, snapshot,
+  theme,
+} from "./core/state";
 
 /** Work / break rhythms on the start screen. */
 const POMODORO_RHYTHMS = [
@@ -46,14 +52,12 @@ const TREND_WINDOW = 12;
 /** A few seconds of burst photos on a phone. History is a sliver of that. */
 const PHOTO_BURST_BYTES = 30 * 1024 ** 2;
 
-let theme: "light" | "dark" = localStorage.getItem("supervisor-theme") === "dark" ? "dark" : "light";
-
 document.documentElement.dataset.theme = theme;
 window.addEventListener("storage", (event) => {
   if (event.key !== "supervisor-theme") {
     return;
   }
-  theme = event.newValue === "dark" ? "dark" : "light";
+  setTheme(event.newValue === "dark" ? "dark" : "light");
   document.documentElement.dataset.theme = theme;
   bindVoiceWaveforms();
 });
@@ -111,30 +115,6 @@ function starterVoiceCard(id: string, profileId: string, name: string): VoiceOpt
     profile,
   };
 }
-
-const draft = {
-  goal: "",
-  mode: "timer" as "timer" | "pomodoro",
-  rhythm: 0,
-  rounds: 4,
-  duration_minutes: 25,
-  strictness: "normal" as Strictness,
-  voiceId: "starter-female",
-};
-
-let activeTab: Tab = "session";
-let settingsView: SettingsView = "home";
-let snapshot: SessionSnapshot | null = null;
-let settings: SessionSettings = {
-  default_strictness: "normal",
-  voice_profile: "Starter voice",
-  status_window_enabled: true,
-  status_window_on_top: true,
-  webcam_gpu: false,
-  webcam_enabled: false,
-  webcam_camera: 0,
-};
-let history: SessionSummary[] = [];
 /** False until the first get_trends answers: the calendar waits for it before popping in. */
 let trendsLoaded = false;
 /** Trends: every week and month from the first session through now (null until opened), which
@@ -176,7 +156,6 @@ let quitConfirmOpen = false;
 let shareOpen = false;
 let shareMonth: MonthRecap | null = null;
 let historyHydrated = false;
-const knownHistoryIds = new Set<number>();
 let permanentRules: AppRule[] = [];
 let preflightOpen = false;
 /** Distractions the user allowed for the session about to start. */
@@ -199,8 +178,6 @@ const OVERLAY_CORNER_WIDTH = 228;
 const OVERLAY_INTERRUPT_WIDTH = 420;
 let ruleEditor: RuleEditor | null = null;
 let rulePreviewTimer: number | undefined;
-let siteNames: Record<string, string> = {};
-let appNames: Record<string, string> = {};
 /**
  * The popup a row of Apps & sites opens: its name, a website's address, and whether it counts as
  * work or a distraction. One choice for both: it rewrites the sessions it was opened from (the
@@ -274,7 +251,6 @@ let recordingError = "";
 let recordedVoice: RecordedVoice | null = null;
 let recordingTickId: number | undefined;
 let recordingStartedAtMs: number | null = null;
-let lastError = "";
 let voiceError = "";
 let pollId: number | null = null;
 let snapshotInFlight = false;
@@ -320,10 +296,10 @@ async function init(): Promise<void> {
       invoke<Record<string, string>>("get_site_names"),
       invoke<Record<string, string>>("get_app_names"),
     ]);
-    settings = loadedSettings;
-    siteNames = loadedSiteNames;
-    appNames = loadedAppNames;
-    history = loadedHistory;
+    setSettings(loadedSettings);
+    setSiteNames(loadedSiteNames);
+    setAppNames(loadedAppNames);
+    setHistory(loadedHistory);
     permanentRules = loadedRules;
     customPhraseSets = loadedPhraseLibrary.custom_tones;
     hiddenPhrases = new Set(loadedPhraseLibrary.hidden_phrases);
@@ -372,7 +348,7 @@ async function init(): Promise<void> {
       firstRunOpen = true;
     }
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
 
   if (appView === "main") {
@@ -539,12 +515,10 @@ async function refreshSnapshot(): Promise<void> {
  *  open it stays pending and opens when the next snapshot finds the way clear. True when the
  *  report is opening (the caller draws nothing). */
 function applySnapshot(next: SessionSnapshot): boolean {
-  snapshot = next;
+  setSnapshot(next);
   if (next.current) {
-    lastSessionId = next.current.id;
+    setLastSessionId(next.current.id);
   }
-  settings = next.settings;
-  history = next.history;
   if (!next.current && sessionRulesOpen) {
     sessionRulesOpen = false;
     ruleEditor = null;
@@ -599,9 +573,9 @@ async function refreshSnapshotNow(): Promise<void> {
       }
     }
     historyHydrated = true;
-    lastError = "";
+    setLastError("");
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
 
   const webcamOpen = appView === "main" && activeTab === "settings" && settingsView === "webcam";
@@ -616,13 +590,6 @@ async function refreshSnapshotNow(): Promise<void> {
     }
   }
   reconcilePolling();
-}
-
-/** An error banner is about the step that failed; leaving the tab or closing a pop-up moves
- *  on from it. Removed in place, since a pop-up closing repaints only its own layer. */
-function clearLastError(): void {
-  lastError = "";
-  document.getElementById("last-error")?.remove();
 }
 
 function closeTopLayer(): void {
@@ -1319,9 +1286,9 @@ async function saveSessionReview(): Promise<void> {
   try {
     for (const item of review.items.filter((item) => item.name.trim() && item.name !== item.label)) {
       if (item.kind === "website") {
-        siteNames = await invoke<Record<string, string>>("set_site_name", { key: item.key, name: item.name });
+        setSiteNames(await invoke<Record<string, string>>("set_site_name", { key: item.key, name: item.name }));
       } else {
-        appNames = await invoke<Record<string, string>>("set_app_name", { key: item.key, name: item.name });
+        setAppNames(await invoke<Record<string, string>>("set_app_name", { key: item.key, name: item.name }));
       }
     }
     const saved = await invoke<RulesSaved>("review_session", {
@@ -1716,7 +1683,7 @@ function syncOverlayPlacement(current: CurrentSession | null): void {
       height: interrupt ? 380 : 220,
       center: interrupt,
     }).catch((error) => {
-      lastError = errorText(error);
+      setLastError(errorText(error));
     });
   }
   overlayFrame(() => fitOverlayWindow());
@@ -1754,7 +1721,7 @@ function fitOverlayWindow(attempt = 0): void {
         height: Math.ceil(shell.getBoundingClientRect().height),
         center: interrupt,
       }).catch((error) => {
-        lastError = errorText(error);
+        setLastError(errorText(error));
       });
     }
     if (attempt < 60) {
@@ -1770,7 +1737,7 @@ function fitOverlayWindow(attempt = 0): void {
   lastOverlayFit = key;
   void invoke("set_status_window_size", { width, height, center: interrupt }).catch((error) => {
     lastOverlayFit = "";
-    lastError = errorText(error);
+    setLastError(errorText(error));
   });
 }
 
@@ -2149,7 +2116,7 @@ async function startPractice(): Promise<void> {
   }
   practice = { id: current.id, caught: false };
   localStorage.setItem(PRACTICE_KEY, String(current.id));
-  activeTab = "session";
+  setActiveTab("session");
   render();
 }
 
@@ -2184,12 +2151,10 @@ async function discardPractice(id: number): Promise<void> {
   }
   localStorage.removeItem(PRACTICE_KEY);
   try {
-    snapshot = await invoke<SessionSnapshot>("get_session_snapshot");
-    settings = snapshot.settings;
-    history = snapshot.history;
+    setSnapshot(await invoke<SessionSnapshot>("get_session_snapshot"));
     await refreshTrends(false);
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
   render();
 }
@@ -2356,7 +2321,7 @@ async function openProblemForm(): Promise<void> {
   try {
     await invoke("open_problem_form", { url });
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
     render();
   }
 }
@@ -3886,7 +3851,7 @@ async function loadPickerDays(): Promise<void> {
     if (request !== pickerRequest) {
       return;
     }
-    lastError = errorText(error);
+    setLastError(errorText(error));
     render();
     return;
   }
@@ -4315,9 +4280,9 @@ async function saveAppEdit(): Promise<void> {
     const name = edit.name.trim() === edit.label && !givenName(edit.kind, edit.key) ? "" : edit.name.trim();
     if (name !== givenName(edit.kind, edit.key)) {
       if (site) {
-        siteNames = await invoke<Record<string, string>>("set_site_name", { key: edit.key, name });
+        setSiteNames(await invoke<Record<string, string>>("set_site_name", { key: edit.key, name }));
       } else {
-        appNames = await invoke<Record<string, string>>("set_app_name", { key: edit.key, name });
+        setAppNames(await invoke<Record<string, string>>("set_app_name", { key: edit.key, name }));
       }
     }
     // The list changes only when Counts as was changed, or a listed site's address was: a row
@@ -5057,12 +5022,12 @@ document.addEventListener("click", (event) => {
     if (voiceInfoId) {
       dismissVoiceInfo();
     }
-    activeTab = next;
+    setActiveTab(next);
     if (next !== "settings") {
       if (settingsView === "voice") {
         leaveVoiceScreen();
       }
-      settingsView = "home";
+      setSettingsView("home");
       ruleEditor = null;
     }
     closeWeekPicker();
@@ -5422,7 +5387,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "toggle-theme") {
-    theme = theme === "dark" ? "light" : "dark";
+    setTheme(theme === "dark" ? "light" : "dark");
     localStorage.setItem("supervisor-theme", theme);
     document.documentElement.dataset.theme = theme;
     // Waves are drawn in the theme's ink; the drawn key includes the theme, so they redraw.
@@ -5551,7 +5516,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "tip-voice") {
-    activeTab = "settings";
+    setActiveTab("settings");
     await runAction("open-voice-settings");
     return;
   }
@@ -5610,7 +5575,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     try {
       await invoke("open_accessibility_settings");
     } catch (error) {
-      lastError = errorText(error);
+      setLastError(errorText(error));
       render();
     }
     return;
@@ -5848,14 +5813,14 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "open-voice-settings") {
-    settingsView = "voice";
+    setSettingsView("voice");
     await refreshVoiceStatus(false);
     render();
     return;
   }
 
   if (action === "open-webcam-settings") {
-    settingsView = "webcam";
+    setSettingsView("webcam");
     webcamError = "";
     render();
     void refreshCameras();
@@ -5882,7 +5847,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "back-settings") {
     const leavingWebcam = settingsView === "webcam";
     const leavingVoice = settingsView === "voice";
-    settingsView = "home";
+    setSettingsView("home");
     phraseEditor = null;
     dismissVoiceInfo();
     if (leavingVoice) {
@@ -5953,8 +5918,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "open-voice-from-start") {
     preflightOpen = false;
     clipsVoiceId = draft.voiceId;
-    activeTab = "settings";
-    settingsView = "voice";
+    setActiveTab("settings");
+    setSettingsView("voice");
     await refreshVoiceStatus(false);
     render();
     return;
@@ -6377,7 +6342,7 @@ async function saveRuleForm(form: HTMLFormElement): Promise<void> {
     const name = formValue(form, "name").trim();
     if (name !== (siteNames[rule.value] ?? "")) {
       try {
-        siteNames = await invoke<Record<string, string>>("set_site_name", { key: rule.value, name });
+        setSiteNames(await invoke<Record<string, string>>("set_site_name", { key: rule.value, name }));
       } catch (error) {
         showFeedback(errorText(error));
         return;
@@ -6473,12 +6438,12 @@ async function persistPermanentRuleChanges(previous: AppRule[]): Promise<void> {
     const rules = [...added, ...fresh.filter((rule) => !addedKeys.has(ruleKey(rule)) && (after.has(ruleKey(rule)) || !before.has(ruleKey(rule))))];
     const saved = await invoke<RulesSaved>("update_rules", { rules });
     permanentRules = saved.rules;
-    lastError = "";
+    setLastError("");
     render();
     return;
   } catch (error) {
     permanentRules = previous;
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
   render();
 }
@@ -6629,12 +6594,12 @@ async function deletePhrase(phraseId: string): Promise<void> {
 async function invokeSnapshot(command: string, args?: Record<string, unknown>, paint = true): Promise<boolean> {
   try {
     const next = await invoke<SessionSnapshot>(command, args);
-    lastError = "";
+    setLastError("");
     if (applySnapshot(next)) {
       return true;
     }
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
     render();
     reconcilePolling();
     return false;
@@ -6649,13 +6614,13 @@ async function invokeSnapshot(command: string, args?: Record<string, unknown>, p
 
 async function updateDefaultStrictness(default_strictness: Strictness): Promise<void> {
   try {
-    settings = await invoke<SessionSettings>("update_settings", {
+    setSettings(await invoke<SessionSettings>("update_settings", {
       update: { default_strictness },
-    });
+    }));
     draft.strictness = default_strictness;
-    lastError = "";
+    setLastError("");
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
   render();
 }
@@ -6668,9 +6633,9 @@ async function updateStatusWindowEnabled(enabled: boolean): Promise<void> {
 
 async function updateSelectedVoice(voiceId: string): Promise<boolean> {
   try {
-    settings = await invoke<SessionSettings>("update_settings", {
+    setSettings(await invoke<SessionSettings>("update_settings", {
       update: { voice_profile: voiceId },
-    });
+    }));
     voiceError = "";
     return true;
   } catch (error) {
@@ -7324,9 +7289,9 @@ async function setWebcamEnabled(enabled: boolean): Promise<void> {
   settings.webcam_enabled = enabled;
   webcamHitStreak = 0;
   try {
-    settings = await invoke<SessionSettings>("update_settings", {
+    setSettings(await invoke<SessionSettings>("update_settings", {
       update: { webcam_enabled: enabled },
-    });
+    }));
     webcamError = "";
   } catch (error) {
     // A toast, not the error line: that line is hidden while the switch is off, which is
@@ -7371,7 +7336,7 @@ async function setWebcamCamera(camera: number): Promise<void> {
 /** A setting the worker reads at launch: a running preview restarts. On failure the control is put back. */
 async function updateWebcamWorkerSetting(update: Partial<SessionSettings>, revert: () => void): Promise<void> {
   try {
-    settings = await invoke<SessionSettings>("update_settings", { update });
+    setSettings(await invoke<SessionSettings>("update_settings", { update }));
     if (webcamPreviewStarted) {
       await stopWebcamPreview();
       webcamFrame = null;
@@ -7718,9 +7683,6 @@ async function playMoment(phase: string): Promise<void> {
   const round = snapshot?.current?.pomodoro?.round ?? 1;
   await playMomentLine("roundover", round - 1);
 }
-
-/** The id of the session most recently seen running, so its end can find its own summary. */
-let lastSessionId = 0;
 
 /** A session ended: a closing line, taking turns by the session's id. The card shows the
  *  session's numbers only when History's newest entry is that session (a failed save leaves
@@ -8618,16 +8580,16 @@ async function refreshTrendPeriods(): Promise<void> {
     ]);
     trendPeriods = { week, month };
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
 }
 
 async function refreshTrends(shouldRender = true): Promise<void> {
   try {
     trends = await invoke<TrendsData>("get_trends");
-    lastError = "";
+    setLastError("");
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
   trendsLoaded = true;
   // A finished session changes the open Trends page too.
@@ -8655,7 +8617,7 @@ async function refreshHistoryWeek(shouldRender = true): Promise<void> {
     }
     historyWeek = week;
     weekRecap = recap;
-    appNames = names;
+    setAppNames(names);
     historyWeekStart = week.week_start;
     if (historySearch.trim()) {
       await runHistorySearch(historySearch.trim());
@@ -8664,7 +8626,7 @@ async function refreshHistoryWeek(shouldRender = true): Promise<void> {
     if (request !== historyWeekRequest) {
       return;
     }
-    lastError = errorText(error);
+    setLastError(errorText(error));
   }
   if (shouldRender) {
     render();
@@ -8697,7 +8659,7 @@ async function runHistorySearch(query: string): Promise<void> {
     if (request !== historySearchRequest) {
       return;
     }
-    lastError = errorText(error);
+    setLastError(errorText(error));
     render();
     return;
   }
@@ -8726,12 +8688,12 @@ async function openHistoryReport(id: number, review = false): Promise<void> {
     flippedStats.clear();
   }
   if (settingsView === "webcam") {
-    settingsView = "home";
+    setSettingsView("home");
     await stopWebcamPreview();
   }
   if (settingsView === "voice") {
     leaveVoiceScreen();
-    settingsView = "home";
+    setSettingsView("home");
   }
   try {
     sessionReport = await invoke<SessionReport>("get_session_report", { id });
@@ -8742,14 +8704,14 @@ async function openHistoryReport(id: number, review = false): Promise<void> {
         : null;
     }
     historyView = "report";
-    activeTab = "history";
-    lastError = "";
+    setActiveTab("history");
+    setLastError("");
     knownHistoryIds.add(id);
     if (review) {
       localStorage.setItem("review.lastOffered", String(id));
     }
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
     historyView = "list";
     sessionReport = null;
   }
@@ -8798,16 +8760,14 @@ async function runHistoryCommand(
   try {
     await invoke(command, args ?? {});
     forget();
-    snapshot = await invoke<SessionSnapshot>("get_session_snapshot");
-    settings = snapshot.settings;
-    history = snapshot.history;
+    setSnapshot(await invoke<SessionSnapshot>("get_session_snapshot"));
     history.forEach((item) => knownHistoryIds.add(item.id));
-    lastError = "";
+    setLastError("");
     await refreshTrends(false);
     await refreshHistoryWeek(false);
     showFeedback(message);
   } catch (error) {
-    lastError = errorText(error);
+    setLastError(errorText(error));
     render();
   }
 }
