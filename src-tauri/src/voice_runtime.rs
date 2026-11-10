@@ -18,7 +18,7 @@ const CURRENT_DIR: &str = "current";
 const STAGING_DIR: &str = "staging";
 const PREVIOUS_DIR: &str = "previous";
 const INSTALL_FILE: &str = "install.json";
-const DOWNLOAD_CANCELLED: &str = "download cancelled";
+pub(crate) const DOWNLOAD_CANCELLED: &str = "download cancelled";
 /// No whole-request timeout: a gigabyte on a slow line takes as long as it takes. A stall is
 /// what ends an attempt, and the next one resumes from the partial file.
 const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
@@ -65,11 +65,6 @@ pub enum DownloadStep {
     Unpacking,
 }
 
-pub struct WorkerLaunch {
-    pub program: PathBuf,
-    pub prefix_args: Vec<PathBuf>,
-}
-
 #[derive(Clone, Debug, Deserialize)]
 struct VoicePackManifest {
     version: String,
@@ -97,7 +92,7 @@ struct RuntimeInstall {
 }
 
 pub fn status(root: &Path) -> VoiceRuntimeStatus {
-    if dev_worker_launch().is_some() {
+    if dev_worker_command().is_some() {
         return VoiceRuntimeStatus {
             installed: true,
             source: VoiceRuntimeSource::DevOverride,
@@ -119,19 +114,14 @@ pub fn status(root: &Path) -> VoiceRuntimeStatus {
     }
 }
 
-pub fn worker_launch(root: &Path) -> Result<WorkerLaunch, String> {
-    if let Some(launch) = dev_worker_launch() {
-        return Ok(launch);
+pub fn worker_command(root: &Path) -> Result<Command, String> {
+    if let Some(command) = dev_worker_command() {
+        return Ok(command);
     }
-
     let Some((_install, executable)) = installed_runtime(root)? else {
         return Err("Download the voice engine before generating lines.".to_string());
     };
-
-    Ok(WorkerLaunch {
-        program: executable,
-        prefix_args: Vec::new(),
-    })
+    Ok(Command::new(executable))
 }
 
 pub fn install_runtime(
@@ -236,22 +226,8 @@ pub fn delete_runtime(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn run_worker_command(root: &Path) -> Result<Command, String> {
-    let launch = worker_launch(root)?;
-    let mut command = Command::new(launch.program);
-    for arg in launch.prefix_args {
-        command.arg(arg);
-    }
-    Ok(command)
-}
-
 pub fn runtime_target() -> String {
-    let os = match std::env::consts::OS {
-        "macos" => "macos",
-        "windows" => "windows",
-        "linux" => "linux",
-        other => other,
-    };
+    let os = std::env::consts::OS;
     let arch = match std::env::consts::ARCH {
         "aarch64" if os == "macos" => "arm64",
         "x86_64" => "x64",
@@ -390,10 +366,8 @@ pub(crate) fn fetch_file(
 fn target_os_name(target: &str) -> &'static str {
     if target.starts_with("windows-") {
         "Windows"
-    } else if target.starts_with("macos-") {
-        "Mac"
     } else {
-        "Linux"
+        "Mac"
     }
 }
 
@@ -429,14 +403,8 @@ fn select_runtime_asset(
     if !asset.url.starts_with("https://") {
         return Err(format!("The voice engine list is damaged: {target} must use HTTPS."));
     }
-    let executable = asset.executable.as_deref().unwrap_or_else(|| {
-        if target.starts_with("windows-") {
-            "supervisor-voice-worker.exe"
-        } else {
-            "supervisor-voice-worker"
-        }
-    });
-    if safe_relative_path(executable).is_none() {
+    let executable = asset.executable.clone().unwrap_or_else(default_executable);
+    if safe_relative_path(&executable).is_none() {
         return Err(format!(
             "The voice engine list is damaged: {target} has an unsafe executable path."
         ));
@@ -714,20 +682,22 @@ fn make_executable(_path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn dev_worker_launch() -> Option<WorkerLaunch> {
+fn dev_worker_command() -> Option<Command> {
     // An installed copy runs only the verified runtime; the environment cannot swap it.
     if !cfg!(debug_assertions) {
         return None;
     }
     if let Some(worker) = std::env::var_os("SUPERVISOR_VOICE_WORKER").map(PathBuf::from) {
         let python = std::env::var_os("SUPERVISOR_VOICE_PYTHON").map(PathBuf::from);
-        return worker_launch_from_paths(worker, python);
+        return worker_command_from_paths(worker, python);
     }
-
-    debug_worker_launch()
+    let root = dev_repo_root()?;
+    let worker = root.join("voice_worker").join("chatterbox_nano_worker.py");
+    worker_command_from_paths(worker, debug_worker_python(&root))
 }
 
-fn worker_launch_from_paths(worker: PathBuf, python: Option<PathBuf>) -> Option<WorkerLaunch> {
+/// A script runs under a Python (given, or the venv beside it); anything else runs as is.
+fn worker_command_from_paths(worker: PathBuf, python: Option<PathBuf>) -> Option<Command> {
     let worker = resolve_dev_path(worker)?;
     let python = python
         .and_then(resolve_dev_path)
@@ -736,26 +706,15 @@ fn worker_launch_from_paths(worker: PathBuf, python: Option<PathBuf>) -> Option<
         .extension()
         .and_then(|extension| extension.to_str())
         .is_some_and(|extension| extension.eq_ignore_ascii_case("py"));
-
-    if is_python_script {
-        let python = python?;
-        return Some(WorkerLaunch {
-            program: python,
-            prefix_args: vec![worker],
-        });
+    match (python, is_python_script) {
+        (Some(python), _) => {
+            let mut command = Command::new(python);
+            command.arg(worker);
+            Some(command)
+        }
+        (None, true) => None,
+        (None, false) => Some(Command::new(worker)),
     }
-
-    if let Some(python) = python {
-        return Some(WorkerLaunch {
-            program: python,
-            prefix_args: vec![worker],
-        });
-    }
-
-    Some(WorkerLaunch {
-        program: worker,
-        prefix_args: Vec::new(),
-    })
 }
 
 fn resolve_dev_path(path: PathBuf) -> Option<PathBuf> {
@@ -788,28 +747,11 @@ fn inferred_python_for_worker(worker: &Path) -> Option<PathBuf> {
     python.is_file().then_some(python)
 }
 
-fn debug_worker_launch() -> Option<WorkerLaunch> {
-    #[cfg(debug_assertions)]
-    {
-        let root = dev_repo_root()?;
-        let worker = root.join("voice_worker").join("chatterbox_nano_worker.py");
-        return worker_launch_from_paths(worker, debug_worker_python(&root));
-    }
-
-    #[cfg(not(debug_assertions))]
-    {
-        None
-    }
-}
-
-#[cfg(debug_assertions)]
 fn debug_worker_python(root: &Path) -> Option<PathBuf> {
     let platform_venv = if cfg!(target_os = "windows") {
         ".venv-voice-runtime-windows"
-    } else if cfg!(target_os = "macos") {
-        ".venv-voice-runtime-macos"
     } else {
-        ".venv-voice-runtime-linux"
+        ".venv-voice-runtime-macos"
     };
     let executable = if cfg!(target_os = "windows") {
         PathBuf::from("Scripts").join("python.exe")
@@ -845,12 +787,13 @@ fn current_runtime_dir(root: &Path) -> PathBuf {
     runtime_root(root).join(CURRENT_DIR)
 }
 
-fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
+pub(crate) fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
     let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
     fs::write(path, bytes).map_err(|error| error.to_string())
 }
 
-fn sha256_file(path: &Path, cancel: &AtomicBool) -> Result<String, String> {
+/// A gigabyte takes seconds to hash, so a cancel must be able to interrupt it.
+pub(crate) fn sha256_file(path: &Path, cancel: &AtomicBool) -> Result<String, String> {
     let mut file = File::open(path).map_err(|error| error.to_string())?;
     let mut hasher = Sha256::new();
     let mut buffer = [0u8; 1024 * 64];
@@ -1106,17 +1049,17 @@ new bytes!"
         fs::write(&worker, b"print('ok')").unwrap();
         fs::write(&python, b"").unwrap();
 
-        let launch = worker_launch_from_paths(worker.clone(), None).unwrap();
+        let command = worker_command_from_paths(worker.clone(), None).unwrap();
 
-        assert_eq!(launch.program, python);
-        assert_eq!(launch.prefix_args, vec![worker.clone()]);
+        assert_eq!(command.get_program(), python.as_os_str());
+        assert_eq!(command.get_args().collect::<Vec<_>>(), [worker.as_os_str()]);
 
         let _ = fs::remove_dir_all(root);
     }
 
     #[test]
     fn missing_dev_worker_is_not_reported_available() {
-        assert!(worker_launch_from_paths(test_dir("missing").join("worker.py"), None).is_none());
+        assert!(worker_command_from_paths(test_dir("missing").join("worker.py"), None).is_none());
     }
 
     fn manifest_for(target: &str) -> VoicePackManifest {
@@ -1153,16 +1096,13 @@ new bytes!"
         archive.finish().unwrap();
     }
 
-    #[cfg(debug_assertions)]
     #[test]
     fn debug_worker_prefers_runtime_venv_at_repo_root() {
         let root = test_dir("runtime-venv");
         let venv = if cfg!(target_os = "windows") {
             root.join(".venv-voice-runtime-windows")
-        } else if cfg!(target_os = "macos") {
-            root.join(".venv-voice-runtime-macos")
         } else {
-            root.join(".venv-voice-runtime-linux")
+            root.join(".venv-voice-runtime-macos")
         };
         let python = if cfg!(target_os = "windows") {
             venv.join("Scripts").join("python.exe")

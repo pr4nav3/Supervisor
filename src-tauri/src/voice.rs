@@ -1,14 +1,13 @@
-use crate::voice_runtime::{self, DownloadStep};
+use crate::voice_runtime::{self, sha256_file, write_json, DownloadStep, DOWNLOAD_CANCELLED};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::SampleFormat;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
-use std::fs::{self, File};
+use std::fs;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Stdio};
 use std::sync::{
-    atomic::{AtomicBool, AtomicU64, Ordering},
+    atomic::{AtomicBool, Ordering},
     mpsc, Arc, Mutex,
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -34,7 +33,6 @@ const MAX_REFERENCE_AUDIO_BYTES: usize = 60 * 1024 * 1024;
 // under the floor there is too little voice to copy.
 const MAX_RECORDING_SECONDS: u32 = 60;
 const MIN_RECORDING_SECONDS: u32 = 5;
-const DOWNLOAD_CANCELLED: &str = "download cancelled";
 /// A check for updates with the engine installed that never reached the server.
 pub const UPDATE_CHECK_FAILED: &str = "Couldn't check for updates. Check your connection.";
 const MAX_VOICE_GENERATION: Duration = Duration::from_secs(30 * 60);
@@ -171,7 +169,6 @@ struct WorkerInner {
     /// A release asked for during a job: kill the worker once the job is done.
     release_after: AtomicBool,
     last_used: Mutex<Instant>,
-    generation: AtomicU64,
 }
 
 struct LiveWorker {
@@ -190,22 +187,9 @@ struct WorkerKiller {
     job: Option<isize>,
 }
 
-struct JobOutcome {
-    reused_model: bool,
-    reused_voice: bool,
-    spawn_ms: u64,
-    imports_ms: Option<u64>,
-    model_load_ms: Option<u64>,
-    condition_ms: Option<u64>,
-    synthesis_ms: Option<u64>,
-    wav_write_ms: Option<u64>,
-    peak_ram: u64,
-    peak_private: u64,
-}
-
 #[derive(Serialize)]
 struct ServeRequest<'a> {
-    id: String,
+    id: &'a str,
     op: &'a str,
     reference: String,
     out_dir: String,
@@ -218,18 +202,6 @@ struct ServeReply {
     ok: bool,
     error: Option<String>,
     loaded: Option<bool>,
-    reused_model: Option<bool>,
-    reused_voice: Option<bool>,
-    phases_ms: Option<ServePhases>,
-}
-
-#[derive(Deserialize, Default)]
-struct ServePhases {
-    imports: Option<u64>,
-    model_load: Option<u64>,
-    condition: Option<u64>,
-    synthesis: Option<u64>,
-    wav_write: Option<u64>,
 }
 
 impl Drop for WorkerInner {
@@ -255,7 +227,6 @@ impl VoiceWorker {
                 stop_after: AtomicBool::new(false),
                 release_after: AtomicBool::new(false),
                 last_used: Mutex::new(Instant::now()),
-                generation: AtomicU64::new(0),
             }),
         }
     }
@@ -346,16 +317,15 @@ impl VoiceWorker {
         reference: &Path,
         out_dir: &Path,
         phrases: &[VoicePhraseInput],
-    ) -> Result<JobOutcome, String> {
+    ) -> Result<(), String> {
         if self.inner.busy.swap(true, Ordering::SeqCst) {
             return Err("A line is already generating.".to_string());
         }
         self.inner.stop_after.store(false, Ordering::SeqCst);
-        let generation = self.inner.generation.fetch_add(1, Ordering::SeqCst) + 1;
         let started = Instant::now();
         // Cleared on every exit, a panic included; otherwise every later job says "already generating".
         let _busy = ClearOnDrop(&self.inner.busy);
-        let result = self.run_job_inner(root, reference, out_dir, phrases, generation, started);
+        let result = self.run_job_inner(root, reference, out_dir, phrases, started);
         if let Ok(mut used) = self.inner.last_used.lock() {
             *used = Instant::now();
         }
@@ -373,15 +343,13 @@ impl VoiceWorker {
         reference: &Path,
         out_dir: &Path,
         phrases: &[VoicePhraseInput],
-        generation: u64,
         started: Instant,
-    ) -> Result<JobOutcome, String> {
+    ) -> Result<(), String> {
         let mut live = self
             .inner
             .live
             .lock()
             .map_err(|_| "The voice engine is busy. Try again.".to_string())?;
-        let mut spawn_ms = 0;
         if worker_is_dead(live.as_mut()) {
             *live = None;
             self.inner.loaded.store(false, Ordering::SeqCst);
@@ -389,17 +357,16 @@ impl VoiceWorker {
             if let Ok(mut slot) = self.inner.killer.lock() {
                 *slot = None;
             }
-            let spawn_started = Instant::now();
             let (worker, killer) = spawn_serve_worker(root)?;
             if let Ok(mut slot) = self.inner.killer.lock() {
                 *slot = Some(killer);
             }
             *live = Some(worker);
-            spawn_ms = spawn_started.elapsed().as_millis() as u64;
         }
         let worker = live.as_mut().ok_or_else(|| "The voice engine could not start.".to_string())?;
         let request = ServeRequest {
-            id: generation.to_string(),
+            // The worker only echoes it back; one job runs at a time.
+            id: "1",
             op: "generate",
             reference: reference.to_string_lossy().into_owned(),
             out_dir: out_dir.to_string_lossy().into_owned(),
@@ -428,8 +395,8 @@ impl VoiceWorker {
         });
 
         let killer = self.inner.killer.lock().ok().and_then(|slot| slot.clone());
-        let mut peak = process_tree_ram(pid).unwrap_or_default();
-        persist_generation_peak(root, peak.working_set);
+        let mut peak = process_tree_ram(pid).unwrap_or(0);
+        persist_generation_peak(root, peak);
         let reply = loop {
             if self.inner.stop_after.load(Ordering::SeqCst) {
                 if let Some(killer) = &killer {
@@ -439,9 +406,7 @@ impl VoiceWorker {
                 self.kill();
                 return Err("voice generation cancelled".to_string());
             }
-            if started.elapsed() >= MAX_VOICE_GENERATION
-                || self.inner.generation.load(Ordering::SeqCst) != generation
-            {
+            if started.elapsed() >= MAX_VOICE_GENERATION {
                 if let Some(killer) = &killer {
                     killer.terminate();
                 }
@@ -449,11 +414,9 @@ impl VoiceWorker {
                 self.kill();
                 return Err("voice generation timed out".to_string());
             }
-            if let Some(used) = process_tree_ram(pid) {
-                if used.working_set > peak.working_set {
-                    peak = used;
-                    persist_generation_peak(root, peak.working_set);
-                }
+            if let Some(used) = process_tree_ram(pid).filter(|&used| used > peak) {
+                peak = used;
+                persist_generation_peak(root, peak);
             }
             // A read of zero bytes is EOF: the worker died (crash, kill, out of memory).
             let failure = match rx.recv_timeout(Duration::from_millis(250)) {
@@ -478,7 +441,6 @@ impl VoiceWorker {
             });
         };
 
-        finish_generation_peak(root, peak.working_set);
         // A line that is not the reply means stdout is out of step; a fresh worker is safer
         // than reading last job's reply next time.
         let parsed: ServeReply = match serde_json::from_str(reply.trim()) {
@@ -497,19 +459,7 @@ impl VoiceWorker {
                 .error
                 .unwrap_or_else(|| "The voice engine could not generate this line.".to_string()));
         }
-        let phases = parsed.phases_ms.unwrap_or_default();
-        Ok(JobOutcome {
-            reused_model: parsed.reused_model.unwrap_or(false),
-            reused_voice: parsed.reused_voice.unwrap_or(false),
-            spawn_ms,
-            imports_ms: phases.imports,
-            model_load_ms: phases.model_load,
-            condition_ms: phases.condition,
-            synthesis_ms: phases.synthesis,
-            wav_write_ms: phases.wav_write,
-            peak_ram: peak.working_set,
-            peak_private: peak.private,
-        })
+        Ok(())
     }
 }
 
@@ -551,7 +501,7 @@ impl WorkerKiller {
 }
 
 fn spawn_serve_worker(root: &Path) -> Result<(LiveWorker, WorkerKiller), String> {
-    let mut command = voice_runtime::run_worker_command(root)?;
+    let mut command = voice_runtime::worker_command(root)?;
     command
         .arg("--serve")
         .arg("--model-dir")
@@ -653,61 +603,16 @@ pub struct VoiceSystemInfo {
     pub has_enough_ram: Option<bool>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[derive(Default, Deserialize, Serialize)]
 struct GenerationRamBudget {
     last_peak_ram_bytes: Option<u64>,
-    last_recorded_at_unix: Option<u64>,
-    generation_count: u64,
-}
-
-#[derive(Serialize)]
-struct GenerationLogRow {
-    at_ms: u64,
-    os: &'static str,
-    ok: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error: Option<String>,
-    profile: String,
-    phrases: usize,
-    merge: bool,
-    need: u64,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    available_before: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    available_after: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    total: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    worker_peak: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    worker_private: Option<u64>,
-    duration_ms: u64,
-    reused_model: bool,
-    reused_voice: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    spawn_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    imports_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    model_load_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    condition_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    synthesis_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    wav_write_ms: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pressure: Option<u32>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct GenerateVoiceClipsInput {
     pub profile_id: String,
-    pub display_name: Option<String>,
     pub reference_audio_path: String,
     pub phrases: Vec<VoicePhraseInput>,
-    pub delete_reference_after_generation: Option<bool>,
-    pub merge_clips: Option<bool>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -723,7 +628,6 @@ pub struct VoiceProfileSummary {
     pub display_name: String,
     pub profile_dir: String,
     pub reference_path: Option<String>,
-    pub reference_retained: bool,
     /// The tone this voice speaks in sessions; `None` until the user picks one.
     pub tone: Option<String>,
     pub clips: Vec<VoiceClipSummary>,
@@ -753,7 +657,6 @@ pub struct SaveVoiceReferenceFromPathInput {
 struct VoiceProfileMetadata {
     profile_id: String,
     display_name: String,
-    reference_retained: bool,
     /// Older profiles have none.
     #[serde(default)]
     tone: Option<String>,
@@ -854,8 +757,7 @@ pub fn start_model_download(
 
     // Hashing the installed model takes seconds, so it happens on the worker thread: this
     // returns at once in the Checking phase, and Downloading starts with the first fetch.
-    let runtime = voice_runtime::status(&root);
-    let required_bytes = required_model_bytes() + runtime.required_bytes.unwrap_or(0);
+    let required_bytes = pack_required_bytes(&root);
 
     let cancel = Arc::new(AtomicBool::new(false));
     {
@@ -890,9 +792,7 @@ pub fn start_model_download(
                         VoiceDownloadPhase::Checking | VoiceDownloadPhase::Downloading | VoiceDownloadPhase::Cancelling
                     ) {
                         download.downloaded_bytes = progress.downloaded_bytes;
-                        if let Some(total_bytes) = progress.total_bytes {
-                            download.total_bytes = total_bytes;
-                        }
+                        download.total_bytes = progress.total_bytes;
                         download.current_file = progress.current_file;
                         download.step = progress.step;
                     }
@@ -940,7 +840,12 @@ pub fn start_model_download(
 
 /// Weights and worker both in place: the only state the daily check has anything to update.
 pub fn engine_installed(app: &AppHandle) -> bool {
-    voice_root(app).is_ok_and(|root| model_status_for(&root, false).installed && voice_runtime::status(&root).installed)
+    voice_root(app).is_ok_and(|root| engine_installed_at(&root))
+}
+
+/// By size only: hashing 1.9 GB takes seconds. Install verifies.
+fn engine_installed_at(root: &Path) -> bool {
+    model_status(root).installed && voice_runtime::status(root).installed
 }
 
 const UPDATE_CHECK_FILE: &str = "last-update-check";
@@ -1074,7 +979,6 @@ pub fn save_reference_from_path(
     let metadata = VoiceProfileMetadata {
         profile_id: profile_id.clone(),
         display_name,
-        reference_retained: true,
         tone: read_profile_metadata(&dir).and_then(|existing| existing.tone),
     };
     write_json(&dir.join("profile.json"), &metadata)?;
@@ -1208,25 +1112,11 @@ pub fn set_profile_tone(
     profile_id: String,
     tone: String,
 ) -> Result<VoiceProfileSummary, String> {
-    let root = voice_root(app)?;
-    let profile_id = clean_id(&profile_id)?;
-    let dir = profile_dir(&root, &profile_id);
-    if !dir.exists() {
-        return Err("That voice was not found.".to_string());
-    }
     let tone = tone.trim();
     if tone.is_empty() || tone.chars().count() > 80 {
         return Err("A personality name must be 1 to 80 characters.".to_string());
     }
-    let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name: profile_id.clone(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
-    metadata.tone = Some(tone.to_string());
-    write_json(&dir.join("profile.json"), &metadata)?;
-    profile_summary(&dir, &profile_id)
+    edit_profile(app, &profile_id, |metadata| metadata.tone = Some(tone.to_string()))
 }
 
 /// Renames a voice. Starter voices included: the name is the user's, and reseeding keeps it.
@@ -1235,23 +1125,26 @@ pub fn rename_profile(
     profile_id: String,
     display_name: String,
 ) -> Result<VoiceProfileSummary, String> {
-    let root = voice_root(app)?;
-    let profile_id = clean_id(&profile_id)?;
-    let dir = profile_dir(&root, &profile_id);
-    if !dir.exists() {
-        return Err("That voice was not found.".to_string());
-    }
     let name = display_name.trim();
     if name.is_empty() || name.chars().count() > 80 {
         return Err("A voice name must be 1 to 80 characters.".to_string());
     }
-    let mut metadata = read_profile_metadata(&dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name: profile_id.clone(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
-    metadata.display_name = name.to_string();
+    edit_profile(app, &profile_id, |metadata| metadata.display_name = name.to_string())
+}
+
+fn edit_profile(
+    app: &AppHandle,
+    profile_id: &str,
+    edit: impl FnOnce(&mut VoiceProfileMetadata),
+) -> Result<VoiceProfileSummary, String> {
+    let root = voice_root(app)?;
+    let profile_id = clean_id(profile_id)?;
+    let dir = profile_dir(&root, &profile_id);
+    if !dir.exists() {
+        return Err("That voice was not found.".to_string());
+    }
+    let mut metadata = metadata_or_default(&dir, &profile_id);
+    edit(&mut metadata);
     write_json(&dir.join("profile.json"), &metadata)?;
     profile_summary(&dir, &profile_id)
 }
@@ -1307,64 +1200,12 @@ pub fn generate_clips(
     worker: &VoiceWorker,
     input: GenerateVoiceClipsInput,
 ) -> Result<VoiceProfileSummary, String> {
-    let started = Instant::now();
     let root = voice_root(&app)?;
     fs::create_dir_all(&root).map_err(|error| error.to_string())?;
     seed_starter_profiles(&root, Some(&app));
-    let loaded = worker.is_loaded();
-    let mut row = GenerationLogRow {
-        at_ms: unix_millis() as u64,
-        os: std::env::consts::OS,
-        ok: false,
-        error: None,
-        profile: input.profile_id.clone(),
-        phrases: input.phrases.len(),
-        merge: input.merge_clips.unwrap_or(false),
-        need: required_ram_for_gate(loaded),
-        available_before: available_ram_bytes(),
-        available_after: None,
-        total: total_ram_bytes(),
-        worker_peak: None,
-        worker_private: None,
-        duration_ms: 0,
-        reused_model: false,
-        reused_voice: false,
-        spawn_ms: None,
-        imports_ms: None,
-        model_load_ms: None,
-        condition_ms: None,
-        synthesis_ms: None,
-        wav_write_ms: None,
-        pressure: macos_pressure_for_log(),
-    };
-    let result = generate_clips_inner(&root, worker, input, &mut row);
-    row.duration_ms = started.elapsed().as_millis() as u64;
-    row.available_after = available_ram_bytes();
-    match &result {
-        Ok(_) => row.ok = true,
-        Err(error) => row.error = Some(truncate_error(error)),
-    }
-    append_generation_log(&root, &row);
-    result
-}
-
-fn generate_clips_inner(
-    root: &Path,
-    worker: &VoiceWorker,
-    input: GenerateVoiceClipsInput,
-    row: &mut GenerationLogRow,
-) -> Result<VoiceProfileSummary, String> {
     let profile_id = clean_id(&input.profile_id)?;
-    let display_name = input
-        .display_name
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(&profile_id)
-        .to_string();
-    let reference = supervisor_storage_file(root, &input.reference_audio_path, "recording")?;
-    // Size check only: hashing 1.9 GB here added ten seconds to every clip. Install verifies.
-    if !model_status_for(&root, false).installed || !voice_runtime::status(&root).installed {
+    let reference = supervisor_storage_file(&root, &input.reference_audio_path, "recording")?;
+    if !engine_installed_at(&root) {
         return Err("Download the voice engine before generating lines.".to_string());
     }
     ensure_generation_ram(worker.is_loaded())?;
@@ -1372,7 +1213,7 @@ fn generate_clips_inner(
     let phrases = input.phrases;
     validate_phrases(&phrases)?;
 
-    let dir = profile_dir(root, &profile_id);
+    let dir = profile_dir(&root, &profile_id);
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     let reference_copy = dir.join("reference.wav");
     if !same_path(&reference, &reference_copy) {
@@ -1385,57 +1226,16 @@ fn generate_clips_inner(
     }
     fs::create_dir_all(&staging).map_err(|error| error.to_string())?;
 
-    match worker.run_job(root, &reference_copy, &staging, &phrases) {
-        Ok(outcome) => {
-            row.worker_peak = (outcome.peak_ram > 0).then_some(outcome.peak_ram);
-            row.worker_private = (outcome.peak_private > 0).then_some(outcome.peak_private);
-            row.reused_model = outcome.reused_model;
-            row.reused_voice = outcome.reused_voice;
-            row.spawn_ms = Some(outcome.spawn_ms);
-            row.imports_ms = outcome.imports_ms;
-            row.model_load_ms = outcome.model_load_ms;
-            row.condition_ms = outcome.condition_ms;
-            row.synthesis_ms = outcome.synthesis_ms;
-            row.wav_write_ms = outcome.wav_write_ms;
-        }
-        Err(message) => {
-            let _ = fs::remove_dir_all(&staging);
-            return Err(message);
-        }
-    }
-    let merge = input.merge_clips.unwrap_or(false);
-    let install = if merge {
-        merge_generated_clips(&dir, &staging)
-    } else {
-        replace_generated_clips(&dir, &staging)
-    };
-    if let Err(error) = install {
-        let _ = fs::remove_dir_all(&staging);
-        return Err(error);
-    }
-    if !merge {
-        write_phrase_bank(&dir.join("phrases.json"), &phrases)?;
-    }
+    let merged = worker
+        .run_job(&root, &reference_copy, &staging, &phrases)
+        .and_then(|()| merge_generated_clips(&dir, &staging));
     let _ = fs::remove_dir_all(&staging);
-
-    let reference_retained = !input.delete_reference_after_generation.unwrap_or(false);
-    if !reference_retained && reference_copy.exists() {
-        fs::remove_file(&reference_copy).map_err(|error| error.to_string())?;
-    }
-
-    let metadata = VoiceProfileMetadata {
-        profile_id: profile_id.clone(),
-        display_name,
-        reference_retained,
-        tone: read_profile_metadata(&dir).and_then(|existing| existing.tone),
-    };
-    write_json(&dir.join("profile.json"), &metadata)?;
+    merged?;
     profile_summary(&dir, &profile_id)
 }
 
 fn status_for_root(root: &Path, worker_loaded: bool) -> VoiceBackendStatus {
-    // Size checks only. The Voice screen polls this, and hashing the model pack keeps the disk busy.
-    let model = model_status_for(root, false);
+    let model = model_status(root);
     let runtime = voice_runtime::status(root);
     VoiceBackendStatus {
         system: system_info(root, worker_loaded),
@@ -1445,29 +1245,24 @@ fn status_for_root(root: &Path, worker_loaded: bool) -> VoiceBackendStatus {
     }
 }
 
+/// Size checks only. The Voice screen polls this, and hashing the model pack keeps the disk busy.
 fn model_status(root: &Path) -> VoiceModelStatus {
-    model_status_for(root, true)
-}
-
-fn model_status_for(root: &Path, validate_hashes: bool) -> VoiceModelStatus {
     let dir = model_dir(root);
     VoiceModelStatus {
-        installed: MODEL_FILES.iter().all(|file| model_file_valid(&dir, file, validate_hashes)),
+        installed: MODEL_FILES.iter().all(|file| model_file_valid(&dir, file)),
         installed_bytes: dir_size(&dir).unwrap_or(0),
         required_bytes: required_model_bytes(),
     }
 }
 
-fn model_file_valid(dir: &Path, file: &ModelFile, validate_hash: bool) -> bool {
-    let path = dir.join(file.path);
-    fs::metadata(&path).is_ok_and(|metadata| metadata.is_file() && metadata.len() == file.bytes)
-        && (!validate_hash || sha256_file(&path).is_ok_and(|hash| hash == file.sha256))
+fn model_file_valid(dir: &Path, file: &ModelFile) -> bool {
+    fs::metadata(dir.join(file.path)).is_ok_and(|metadata| metadata.is_file() && metadata.len() == file.bytes)
 }
 
 #[derive(Clone, Debug)]
 struct VoiceDownloadProgress {
     downloaded_bytes: u64,
-    total_bytes: Option<u64>,
+    total_bytes: u64,
     current_file: Option<String>,
     step: DownloadStep,
 }
@@ -1520,7 +1315,7 @@ fn download_snapshot(state: &VoiceDownloadState, root: &Path) -> VoiceDownloadSn
         up_to_date: state.phase == VoiceDownloadPhase::Complete && state.up_to_date,
         check_failed: state.phase == VoiceDownloadPhase::Error
             && state.error.as_deref() == Some(UPDATE_CHECK_FAILED),
-        model: model_status_for(root, false),
+        model: model_status(root),
         runtime: voice_runtime::status(root),
     }
 }
@@ -1535,7 +1330,7 @@ fn present_model_bytes(root: &Path) -> u64 {
     let dir = model_dir(root);
     MODEL_FILES
         .iter()
-        .filter(|file| model_file_valid(&dir, file, false))
+        .filter(|file| model_file_valid(&dir, file))
         .map(|file| file.bytes)
         .sum()
 }
@@ -1547,13 +1342,13 @@ fn download_pack_to_with_progress(
     mut progress: impl FnMut(VoiceDownloadProgress),
 ) -> Result<bool, String> {
     let model_start_bytes = present_model_bytes(root);
-    let was_installed = model_status_for(root, false).installed && voice_runtime::status(root).installed;
+    let was_installed = engine_installed_at(root);
     let mut fetched = false;
     let runtime = voice_runtime::install_runtime(root, Arc::clone(&cancel), |runtime_progress| {
         fetched |= runtime_progress.current_file.is_some();
         progress(VoiceDownloadProgress {
             downloaded_bytes: model_start_bytes + runtime_progress.downloaded_bytes,
-            total_bytes: Some(required_model_bytes() + runtime_progress.total_bytes),
+            total_bytes: required_model_bytes() + runtime_progress.total_bytes,
             current_file: runtime_progress.current_file,
             step: runtime_progress.step,
         });
@@ -1571,7 +1366,7 @@ fn download_pack_to_with_progress(
     let fetched_model = download_model_to_with_progress(root, cancel, |model_progress| {
         progress(VoiceDownloadProgress {
             downloaded_bytes: runtime_bytes + model_progress.downloaded_bytes,
-            total_bytes: Some(runtime_bytes + required_model_bytes()),
+            total_bytes: runtime_bytes + required_model_bytes(),
             current_file: model_progress.current_file,
             step: model_progress.step,
         })
@@ -1599,7 +1394,7 @@ fn download_model_files(
     // Only what is missing by size needs room; a resumed partial already has its share.
     let missing: u64 = files
         .iter()
-        .filter(|file| !model_file_valid(dir, file, false))
+        .filter(|file| !model_file_valid(dir, file))
         .map(|file| file.bytes)
         .sum();
     if missing > 0 {
@@ -1620,16 +1415,16 @@ fn download_model_files(
         if size_ok {
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: None,
                 step: DownloadStep::Checking,
             });
         }
-        if size_ok && sha256_file_until(&target, Some(&cancel))? == file.sha256 {
+        if size_ok && sha256_file(&target, &cancel)? == file.sha256 {
             completed_bytes += file.bytes;
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: None,
                 step: DownloadStep::Checking,
             });
@@ -1645,18 +1440,18 @@ fn download_model_files(
         voice_runtime::fetch_file(&client, &model_file_url(file.path), &tmp, file.bytes, &cancel, |bytes| {
             progress(VoiceDownloadProgress {
                 downloaded_bytes: completed_bytes + bytes,
-                total_bytes: Some(total),
+                total_bytes: total,
                 current_file: Some(file.path.to_string()),
                 step: DownloadStep::Downloading,
             });
         })?;
         progress(VoiceDownloadProgress {
             downloaded_bytes: completed_bytes + file.bytes,
-            total_bytes: Some(total),
+            total_bytes: total,
             current_file: None,
             step: DownloadStep::Checking,
         });
-        let hash = sha256_file_until(&tmp, Some(&cancel))?;
+        let hash = sha256_file(&tmp, &cancel)?;
         if cancel.load(Ordering::SeqCst) {
             let _ = fs::remove_file(&tmp);
             return Err(DOWNLOAD_CANCELLED.to_string());
@@ -1672,7 +1467,7 @@ fn download_model_files(
         completed_bytes += file.bytes;
         progress(VoiceDownloadProgress {
             downloaded_bytes: completed_bytes,
-            total_bytes: Some(total),
+            total_bytes: total,
             current_file: None,
             step: DownloadStep::Checking,
         });
@@ -1724,37 +1519,6 @@ fn clip_phrase_id(stem: &str) -> &str {
         .unwrap_or(stem)
 }
 
-fn replace_generated_clips(profile_dir: &Path, staging_dir: &Path) -> Result<(), String> {
-    let staged_clips = staging_dir.join("clips");
-    if !staged_clips.is_dir() {
-        return Err("The voice engine finished without generating the line. Try again.".to_string());
-    }
-
-    let clips_dir = profile_dir.join("clips");
-    let backup_dir = profile_dir.join(format!("clips.backup-{}", unix_millis()));
-    if backup_dir.exists() {
-        fs::remove_dir_all(&backup_dir).map_err(|error| error.to_string())?;
-    }
-    if clips_dir.exists() {
-        fs::rename(&clips_dir, &backup_dir).map_err(|error| error.to_string())?;
-    }
-
-    match fs::rename(&staged_clips, &clips_dir) {
-        Ok(()) => {
-            if backup_dir.exists() {
-                fs::remove_dir_all(&backup_dir).map_err(|error| error.to_string())?;
-            }
-            Ok(())
-        }
-        Err(error) => {
-            if backup_dir.exists() {
-                let _ = fs::rename(&backup_dir, &clips_dir);
-            }
-            Err(error.to_string())
-        }
-    }
-}
-
 /// Refuses a download that would not fit: `needed` bytes plus a margin, on the disk under `path`.
 pub(crate) fn ensure_free_space(path: &Path, needed: u64) -> Result<(), String> {
     let recommended = needed + EXTRA_DOWNLOAD_HEADROOM_BYTES;
@@ -1797,22 +1561,15 @@ fn profile_summaries(root: &Path) -> Vec<VoiceProfileSummary> {
 }
 
 fn profile_summary(dir: &Path, fallback_id: &str) -> Result<VoiceProfileSummary, String> {
-    let metadata = read_profile_metadata(dir).unwrap_or_else(|| VoiceProfileMetadata {
-        profile_id: fallback_id.to_string(),
-        display_name: fallback_id.to_string(),
-        reference_retained: dir.join("reference.wav").exists(),
-        tone: None,
-    });
+    let metadata = metadata_or_default(dir, fallback_id);
     let clips = clip_summaries(&dir.join("clips"))?;
     let reference_path = dir.join("reference.wav");
-    let reference_retained = metadata.reference_retained && reference_path.exists();
 
     Ok(VoiceProfileSummary {
         profile_id: metadata.profile_id,
         display_name: metadata.display_name,
         profile_dir: dir.to_string_lossy().into_owned(),
-        reference_path: reference_retained.then(|| reference_path.to_string_lossy().into_owned()),
-        reference_retained,
+        reference_path: reference_path.exists().then(|| reference_path.to_string_lossy().into_owned()),
         tone: metadata.tone,
         clips,
     })
@@ -1821,6 +1578,14 @@ fn profile_summary(dir: &Path, fallback_id: &str) -> Result<VoiceProfileSummary,
 fn read_profile_metadata(dir: &Path) -> Option<VoiceProfileMetadata> {
     let bytes = fs::read(dir.join("profile.json")).ok()?;
     serde_json::from_slice(&bytes).ok()
+}
+
+fn metadata_or_default(dir: &Path, profile_id: &str) -> VoiceProfileMetadata {
+    read_profile_metadata(dir).unwrap_or_else(|| VoiceProfileMetadata {
+        profile_id: profile_id.to_string(),
+        display_name: profile_id.to_string(),
+        tone: None,
+    })
 }
 
 const MIN_CLIP_BYTES: u64 = 44;
@@ -1873,29 +1638,6 @@ fn same_path(left: &Path, right: &Path) -> bool {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
-}
-
-fn write_phrase_bank(path: &Path, phrases: &[VoicePhraseInput]) -> Result<(), String> {
-    #[derive(Serialize)]
-    struct PhraseBank<'a> {
-        schema_version: u8,
-        description: &'a str,
-        phrases: &'a [VoicePhraseInput],
-    }
-
-    write_json(
-        path,
-        &PhraseBank {
-            schema_version: 1,
-            description: "Supervisor generated voice profile phrase bank.",
-            phrases,
-        },
-    )
-}
-
-fn write_json(path: &Path, value: &impl Serialize) -> Result<(), String> {
-    let bytes = serde_json::to_vec_pretty(value).map_err(|error| error.to_string())?;
-    fs::write(path, bytes).map_err(|error| error.to_string())
 }
 
 fn recording_snapshot(state: &VoiceRecordingState) -> VoiceRecordingSnapshot {
@@ -2217,17 +1959,6 @@ fn macos_pressure_allows() -> bool {
     }
 }
 
-fn macos_pressure_for_log() -> Option<u32> {
-    #[cfg(target_os = "macos")]
-    {
-        crate::macos::memory_pressure_level()
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        None
-    }
-}
-
 fn ensure_generation_ram(worker_loaded: bool) -> Result<(), String> {
     if !macos_pressure_allows() {
         return Err(
@@ -2267,36 +1998,6 @@ fn generation_budget_path(root: &Path) -> PathBuf {
     root.join("generation_ram.json")
 }
 
-fn generation_log_path(root: &Path) -> PathBuf {
-    root.join("generation_log.jsonl")
-}
-
-fn append_generation_log(root: &Path, row: &GenerationLogRow) {
-    let Ok(mut file) = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(generation_log_path(root))
-    else {
-        return;
-    };
-    if serde_json::to_writer(&mut file, row).is_ok() {
-        let _ = file.write_all(b"\n");
-    }
-}
-
-fn truncate_error(error: &str) -> String {
-    const LIMIT: usize = 180;
-    let mut out = String::new();
-    for ch in error.chars() {
-        if out.len() >= LIMIT {
-            out.push('…');
-            break;
-        }
-        out.push(ch);
-    }
-    out
-}
-
 fn load_generation_budget(root: &Path) -> GenerationRamBudget {
     let Ok(bytes) = fs::read(generation_budget_path(root)) else {
         return GenerationRamBudget::default();
@@ -2316,16 +2017,8 @@ fn persist_generation_peak(root: &Path, peak_ram_bytes: u64) {
         .unwrap_or(true)
     {
         budget.last_peak_ram_bytes = Some(peak_ram_bytes);
-        budget.last_recorded_at_unix = Some(unix_millis() as u64);
         let _ = write_json(&generation_budget_path(root), &budget);
     }
-}
-
-fn finish_generation_peak(root: &Path, peak_ram_bytes: u64) {
-    persist_generation_peak(root, peak_ram_bytes);
-    let mut budget = load_generation_budget(root);
-    budget.generation_count = budget.generation_count.saturating_add(1);
-    let _ = write_json(&generation_budget_path(root), &budget);
 }
 
 /// The worker and anything it started: it leads its own process group (see the spawns).
@@ -2431,21 +2124,10 @@ fn bind_windows_job(child: &std::process::Child) -> Option<isize> {
     Some(job.0 as isize)
 }
 
-#[derive(Clone, Copy, Default)]
-struct ProcessRam {
-    working_set: u64,
-    private: u64,
-}
-
-fn process_tree_ram(pid: u32) -> Option<ProcessRam> {
-    let mut total = ProcessRam::default();
-    for child in process_tree_pids(pid) {
-        if let Some(ram) = process_ram_one(child) {
-            total.working_set = total.working_set.saturating_add(ram.working_set);
-            total.private = total.private.saturating_add(ram.private);
-        }
-    }
-    (total.working_set > 0 || total.private > 0).then_some(total)
+/// Working set of the worker and everything it started, in bytes.
+fn process_tree_ram(pid: u32) -> Option<u64> {
+    let total: u64 = process_tree_pids(pid).into_iter().filter_map(process_ram_one).sum();
+    (total > 0).then_some(total)
 }
 
 fn process_tree_pids(root: u32) -> Vec<u32> {
@@ -2491,15 +2173,6 @@ fn child_pids(pid: u32) -> Vec<u32> {
     children
 }
 
-#[cfg(target_os = "linux")]
-fn child_pids(pid: u32) -> Vec<u32> {
-    fs::read_to_string(format!("/proc/{pid}/task/{pid}/children"))
-        .unwrap_or_default()
-        .split_whitespace()
-        .filter_map(|value| value.parse().ok())
-        .collect()
-}
-
 #[cfg(target_os = "macos")]
 fn child_pids(pid: u32) -> Vec<u32> {
     // Ask for the count first, then for that many; a worker spawns a handful of helpers at most.
@@ -2514,17 +2187,15 @@ fn child_pids(pid: u32) -> Vec<u32> {
     pids.into_iter().filter(|&child| child > 0).map(|child| child as u32).collect()
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn child_pids(_pid: u32) -> Vec<u32> {
     Vec::new()
 }
 
 #[cfg(target_os = "windows")]
-fn process_ram_one(pid: u32) -> Option<ProcessRam> {
+fn process_ram_one(pid: u32) -> Option<u64> {
     use windows::Win32::Foundation::CloseHandle;
-    use windows::Win32::System::ProcessStatus::{
-        K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS, PROCESS_MEMORY_COUNTERS_EX,
-    };
+    use windows::Win32::System::ProcessStatus::{K32GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
     use windows::Win32::System::Threading::{
         OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
     };
@@ -2537,52 +2208,20 @@ fn process_ram_one(pid: u32) -> Option<ProcessRam> {
         )
     }
     .ok()?;
-    let mut counters = PROCESS_MEMORY_COUNTERS_EX {
-        cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32,
         ..Default::default()
     };
-    let ok = unsafe {
-        K32GetProcessMemoryInfo(
-            handle,
-            (&mut counters as *mut PROCESS_MEMORY_COUNTERS_EX).cast::<PROCESS_MEMORY_COUNTERS>(),
-            counters.cb,
-        )
-    }
-    .as_bool();
+    let ok = unsafe { K32GetProcessMemoryInfo(handle, &mut counters, counters.cb) }.as_bool();
     let _ = unsafe { CloseHandle(handle) };
-    ok.then_some(ProcessRam {
-        working_set: counters.WorkingSetSize as u64,
-        private: counters.PrivateUsage as u64,
-    })
-}
-
-#[cfg(target_os = "linux")]
-fn process_ram_one(pid: u32) -> Option<ProcessRam> {
-    let text = fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
-    let rss = text
-        .lines()
-        .find_map(|line| line.strip_prefix("VmRSS:"))?
-        .split_whitespace()
-        .next()?
-        .parse::<u64>()
-        .ok()?
-        * 1024;
-    Some(ProcessRam {
-        working_set: rss,
-        private: rss,
-    })
+    ok.then_some(counters.WorkingSetSize as u64)
 }
 
 #[cfg(target_os = "macos")]
-fn process_ram_one(pid: u32) -> Option<ProcessRam> {
-    crate::macos::process_ram_bytes(pid).map(|bytes| ProcessRam {
-        working_set: bytes,
-        private: bytes,
-    })
-}
+use crate::macos::process_ram_bytes as process_ram_one;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-fn process_ram_one(_pid: u32) -> Option<ProcessRam> {
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+fn process_ram_one(_pid: u32) -> Option<u64> {
     None
 }
 
@@ -2592,12 +2231,8 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn available_disk_bytes(path: &Path) -> Option<u64> {
-    let output = std::process::Command::new("df").arg("-k").arg(path).output().ok()?;
-    let text = String::from_utf8(output.stdout).ok()?;
-    let line = text.lines().nth(1)?;
-    let kb = line.split_whitespace().nth(3)?.parse::<u64>().ok()?;
-    Some(kb * 1024)
+fn available_disk_bytes(_path: &Path) -> Option<u64> {
+    None
 }
 
 #[cfg(target_os = "windows")]
@@ -2615,27 +2250,6 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
     unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&mut available), None, None) }
         .ok()?;
     Some(available)
-}
-
-#[cfg(target_os = "linux")]
-fn total_ram_bytes() -> Option<u64> {
-    linux_meminfo_kb("MemTotal:").map(|kb| kb * 1024)
-}
-
-#[cfg(target_os = "linux")]
-fn available_ram_bytes() -> Option<u64> {
-    linux_meminfo_kb("MemAvailable:").map(|kb| kb * 1024)
-}
-
-#[cfg(target_os = "linux")]
-fn linux_meminfo_kb(prefix: &str) -> Option<u64> {
-    let text = fs::read_to_string("/proc/meminfo").ok()?;
-    text.lines()
-        .find_map(|line| line.strip_prefix(prefix))?
-        .split_whitespace()
-        .next()?
-        .parse::<u64>()
-        .ok()
 }
 
 #[cfg(target_os = "macos")]
@@ -2664,36 +2278,14 @@ fn windows_memory_status() -> Option<windows::Win32::System::SystemInformation::
     Some(status)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn total_ram_bytes() -> Option<u64> {
     None
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn available_ram_bytes() -> Option<u64> {
     None
-}
-
-fn sha256_file(path: &Path) -> Result<String, String> {
-    sha256_file_until(path, None)
-}
-
-/// A gigabyte takes seconds to hash, so a cancel must be able to interrupt it.
-fn sha256_file_until(path: &Path, cancel: Option<&AtomicBool>) -> Result<String, String> {
-    let mut file = File::open(path).map_err(|error| error.to_string())?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 1024 * 64];
-    loop {
-        if cancel.is_some_and(|flag| flag.load(Ordering::SeqCst)) {
-            return Err(DOWNLOAD_CANCELLED.to_string());
-        }
-        let read = file.read(&mut buffer).map_err(|error| error.to_string())?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn voice_root(app: &AppHandle) -> Result<PathBuf, String> {
@@ -2825,7 +2417,6 @@ fn seed_starter_profiles(root: &Path, app: Option<&AppHandle>) {
                     .filter(|name| !name.is_empty())
                     .unwrap_or(name)
                     .to_string(),
-                reference_retained: true,
                 tone: existing.and_then(|existing| existing.tone),
             },
         );
@@ -2880,7 +2471,7 @@ fn dir_size(path: &Path) -> io::Result<u64> {
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     #[test]
     fn killing_a_worker_takes_what_it_started_with_it() {
         use std::os::unix::process::CommandExt;
@@ -2935,7 +2526,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn system_resource_queries_return_real_values() {
         let total = total_ram_bytes().expect("total ram");
         let available = available_ram_bytes().expect("available ram");
@@ -2943,7 +2534,7 @@ mod tests {
         assert!(available > 0 && available <= total);
         assert!(available > total / 50, "available {available} of {total}");
         assert!(available_disk_bytes(&std::env::temp_dir()).expect("free disk") > 0);
-        assert!(process_tree_ram(std::process::id()).expect("own process ram").working_set > 0);
+        assert!(process_tree_ram(std::process::id()).expect("own process ram") > 0);
     }
 
     #[test]
@@ -2988,47 +2579,6 @@ mod tests {
         capture_samples_from(&[0.5f32, 0.0], 1, 7, &samples, |v| (v * i16::MAX as f32) as i16);
         assert_eq!(samples.lock().unwrap().len(), 7);
         assert_eq!(samples.lock().unwrap()[5], 16383);
-    }
-
-    #[test]
-    fn generation_log_writes_one_json_line() {
-        let root = test_dir("gen-log");
-        fs::create_dir_all(&root).unwrap();
-        append_generation_log(
-            &root,
-            &GenerationLogRow {
-                at_ms: 1,
-                os: "windows",
-                ok: false,
-                error: Some("Not enough available RAM".into()),
-                profile: "derek".into(),
-                phrases: 4,
-                merge: true,
-                need: 5 * GIBIBYTE,
-                available_before: Some(3 * GIBIBYTE),
-                available_after: Some(3 * GIBIBYTE),
-                total: Some(16 * GIBIBYTE),
-                worker_peak: None,
-                worker_private: None,
-                duration_ms: 12,
-                reused_model: false,
-                reused_voice: false,
-                spawn_ms: None,
-                imports_ms: None,
-                model_load_ms: None,
-                condition_ms: None,
-                synthesis_ms: None,
-                wav_write_ms: None,
-                pressure: None,
-            },
-        );
-        let text = fs::read_to_string(generation_log_path(&root)).unwrap();
-        assert!(text.starts_with('{'));
-        assert!(text.contains("\"ok\":false"));
-        assert!(text.contains("\"profile\":\"derek\""));
-        assert!(text.contains("\"phrases\":4"));
-        assert!(!text.contains("pressure"));
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -3080,7 +2630,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let file = &MODEL_FILES[0];
         let path = dir.join(file.path);
-        File::create(&path).unwrap().set_len(file.bytes).unwrap();
+        fs::File::create(&path).unwrap().set_len(file.bytes).unwrap();
 
         let status = status_for_root(&root, false);
         assert_eq!(status.model.installed_bytes, file.bytes);
@@ -3099,7 +2649,7 @@ mod tests {
         let table = [ModelFile {
             path: "already-here.bin",
             bytes: fs::metadata(&path).unwrap().len(),
-            sha256: Box::leak(sha256_file(&path).unwrap().into_boxed_str()),
+            sha256: Box::leak(sha256_file(&path, &AtomicBool::new(false)).unwrap().into_boxed_str()),
         }];
 
         let mut reports = Vec::new();
@@ -3138,21 +2688,6 @@ mod tests {
         assert!(error.contains(" GB free and this disk has "), "{error}");
         assert!(!error.contains("bytes"), "{error}");
         assert!(ensure_free_space(&std::env::temp_dir(), 1).is_ok());
-    }
-
-    #[test]
-    fn fast_model_status_uses_size_without_hashing() {
-        let root = test_dir("fast-model-status");
-        let dir = model_dir(&root);
-        fs::create_dir_all(&dir).unwrap();
-        let file = &MODEL_FILES[0];
-        let path = dir.join(file.path);
-        File::create(&path).unwrap().set_len(file.bytes).unwrap();
-
-        assert!(model_file_valid(&dir, file, false));
-        assert!(!model_file_valid(&dir, file, true));
-
-        let _ = fs::remove_dir_all(root);
     }
 
     #[test]
@@ -3211,25 +2746,6 @@ mod tests {
     }
 
     #[test]
-    fn replacing_generated_clips_keeps_only_staged_clips() {
-        let root = test_dir("replace-clips");
-        let profile = root.join("profile");
-        let clips = profile.join("clips");
-        let staging = profile.join(".generation-test");
-        fs::create_dir_all(&clips).unwrap();
-        fs::create_dir_all(staging.join("clips")).unwrap();
-        fs::write(clips.join("old.wav"), b"old").unwrap();
-        fs::write(staging.join("clips").join("new.wav"), b"new").unwrap();
-
-        replace_generated_clips(&profile, &staging).unwrap();
-
-        assert!(!clips.join("old.wav").exists());
-        assert_eq!(fs::read(clips.join("new.wav")).unwrap(), b"new");
-
-        let _ = fs::remove_dir_all(root);
-    }
-
-    #[test]
     fn a_profile_keeps_its_tone_and_name_through_reseeding_and_metadata_rewrites() {
         let root = test_dir("tone-keeps");
         let dir = profile_dir(&root, "derek");
@@ -3239,7 +2755,6 @@ mod tests {
             &VoiceProfileMetadata {
                 profile_id: "derek".into(),
                 display_name: "Starter Male".into(),
-                reference_retained: true,
                 tone: Some("stern".into()),
             },
         )
