@@ -2376,15 +2376,6 @@ fn child_pids(pid: u32) -> Vec<u32> {
     children
 }
 
-#[cfg(target_os = "linux")]
-fn child_pids(pid: u32) -> Vec<u32> {
-    fs::read_to_string(format!("/proc/{pid}/task/{pid}/children"))
-        .unwrap_or_default()
-        .split_whitespace()
-        .filter_map(|value| value.parse().ok())
-        .collect()
-}
-
 #[cfg(target_os = "macos")]
 fn child_pids(pid: u32) -> Vec<u32> {
     // Ask for the count first, then for that many; a worker spawns a handful of helpers at most.
@@ -2399,7 +2390,7 @@ fn child_pids(pid: u32) -> Vec<u32> {
     pids.into_iter().filter(|&child| child > 0).map(|child| child as u32).collect()
 }
 
-#[cfg(not(any(target_os = "windows", target_os = "linux", target_os = "macos")))]
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
 fn child_pids(_pid: u32) -> Vec<u32> {
     Vec::new()
 }
@@ -2441,23 +2432,6 @@ fn process_ram_one(pid: u32) -> Option<ProcessRam> {
     })
 }
 
-#[cfg(target_os = "linux")]
-fn process_ram_one(pid: u32) -> Option<ProcessRam> {
-    let text = fs::read_to_string(format!("/proc/{pid}/status")).ok()?;
-    let rss = text
-        .lines()
-        .find_map(|line| line.strip_prefix("VmRSS:"))?
-        .split_whitespace()
-        .next()?
-        .parse::<u64>()
-        .ok()?
-        * 1024;
-    Some(ProcessRam {
-        working_set: rss,
-        private: rss,
-    })
-}
-
 #[cfg(target_os = "macos")]
 fn process_ram_one(pid: u32) -> Option<ProcessRam> {
     crate::macos::process_ram_bytes(pid).map(|bytes| ProcessRam {
@@ -2466,7 +2440,7 @@ fn process_ram_one(pid: u32) -> Option<ProcessRam> {
     })
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn process_ram_one(_pid: u32) -> Option<ProcessRam> {
     None
 }
@@ -2477,12 +2451,8 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
 }
 
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-fn available_disk_bytes(path: &Path) -> Option<u64> {
-    let output = std::process::Command::new("df").arg("-k").arg(path).output().ok()?;
-    let text = String::from_utf8(output.stdout).ok()?;
-    let line = text.lines().nth(1)?;
-    let kb = line.split_whitespace().nth(3)?.parse::<u64>().ok()?;
-    Some(kb * 1024)
+fn available_disk_bytes(_path: &Path) -> Option<u64> {
+    None
 }
 
 #[cfg(target_os = "windows")]
@@ -2500,27 +2470,6 @@ fn available_disk_bytes(path: &Path) -> Option<u64> {
     unsafe { GetDiskFreeSpaceExW(PCWSTR(wide.as_ptr()), Some(&mut available), None, None) }
         .ok()?;
     Some(available)
-}
-
-#[cfg(target_os = "linux")]
-fn total_ram_bytes() -> Option<u64> {
-    linux_meminfo_kb("MemTotal:").map(|kb| kb * 1024)
-}
-
-#[cfg(target_os = "linux")]
-fn available_ram_bytes() -> Option<u64> {
-    linux_meminfo_kb("MemAvailable:").map(|kb| kb * 1024)
-}
-
-#[cfg(target_os = "linux")]
-fn linux_meminfo_kb(prefix: &str) -> Option<u64> {
-    let text = fs::read_to_string("/proc/meminfo").ok()?;
-    text.lines()
-        .find_map(|line| line.strip_prefix(prefix))?
-        .split_whitespace()
-        .next()?
-        .parse::<u64>()
-        .ok()
 }
 
 #[cfg(target_os = "macos")]
@@ -2549,12 +2498,12 @@ fn windows_memory_status() -> Option<windows::Win32::System::SystemInformation::
     Some(status)
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn total_ram_bytes() -> Option<u64> {
     None
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
 fn available_ram_bytes() -> Option<u64> {
     None
 }
@@ -2742,7 +2691,7 @@ fn dir_size(path: &Path) -> io::Result<u64> {
 mod tests {
     use super::*;
 
-    #[cfg(unix)]
+    #[cfg(target_os = "macos")]
     #[test]
     fn killing_a_worker_takes_what_it_started_with_it() {
         use std::os::unix::process::CommandExt;
@@ -2797,7 +2746,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(any(target_os = "windows", target_os = "linux", target_os = "macos"))]
+    #[cfg(any(target_os = "windows", target_os = "macos"))]
     fn system_resource_queries_return_real_values() {
         let total = total_ram_bytes().expect("total ram");
         let available = available_ram_bytes().expect("available ram");

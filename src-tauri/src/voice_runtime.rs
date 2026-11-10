@@ -366,10 +366,8 @@ pub(crate) fn fetch_file(
 fn target_os_name(target: &str) -> &'static str {
     if target.starts_with("windows-") {
         "Windows"
-    } else if target.starts_with("macos-") {
-        "Mac"
     } else {
-        "Linux"
+        "Mac"
     }
 }
 
@@ -752,10 +750,8 @@ fn inferred_python_for_worker(worker: &Path) -> Option<PathBuf> {
 fn debug_worker_python(root: &Path) -> Option<PathBuf> {
     let platform_venv = if cfg!(target_os = "windows") {
         ".venv-voice-runtime-windows"
-    } else if cfg!(target_os = "macos") {
-        ".venv-voice-runtime-macos"
     } else {
-        ".venv-voice-runtime-linux"
+        ".venv-voice-runtime-macos"
     };
     let executable = if cfg!(target_os = "windows") {
         PathBuf::from("Scripts").join("python.exe")
@@ -1105,10 +1101,8 @@ new bytes!"
         let root = test_dir("runtime-venv");
         let venv = if cfg!(target_os = "windows") {
             root.join(".venv-voice-runtime-windows")
-        } else if cfg!(target_os = "macos") {
-            root.join(".venv-voice-runtime-macos")
         } else {
-            root.join(".venv-voice-runtime-linux")
+            root.join(".venv-voice-runtime-macos")
         };
         let python = if cfg!(target_os = "windows") {
             venv.join("Scripts").join("python.exe")
