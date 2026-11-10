@@ -719,7 +719,6 @@ pub struct VoiceProfileSummary {
     pub reference_retained: bool,
     /// The tone this voice speaks in sessions; `None` until the user picks one.
     pub tone: Option<String>,
-    pub clip_count: usize,
     pub clips: Vec<VoiceClipSummary>,
 }
 
@@ -727,9 +726,7 @@ pub struct VoiceProfileSummary {
 pub struct VoiceClipSummary {
     pub clip_id: String,
     pub phrase_id: String,
-    pub file_name: String,
     pub path: String,
-    pub bytes: u64,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -1778,7 +1775,6 @@ fn profile_summary(dir: &Path, fallback_id: &str) -> Result<VoiceProfileSummary,
         reference_path: reference_retained.then(|| reference_path.to_string_lossy().into_owned()),
         reference_retained,
         tone: metadata.tone,
-        clip_count: clips.len(),
         clips,
     })
 }
@@ -1807,25 +1803,17 @@ fn clip_summaries(dir: &Path) -> Result<Vec<VoiceClipSummary>, String> {
         if bytes < MIN_CLIP_BYTES || !path.exists() {
             continue;
         }
-        let Some(file_name) = path
-            .file_name()
-            .map(|value| value.to_string_lossy().into_owned())
-        else {
+        let Some(clip_id) = path.file_stem().map(|value| value.to_string_lossy().into_owned()) else {
             continue;
         };
-        let clip_id = path
-            .file_stem()
-            .map(|value| value.to_string_lossy().into_owned())
-            .unwrap_or_else(|| file_name.clone());
         clips.push(VoiceClipSummary {
             phrase_id: clip_phrase_id(&clip_id).to_string(),
             clip_id,
-            file_name,
             path: path.to_string_lossy().into_owned(),
-            bytes,
         });
     }
-    clips.sort_by(|left, right| left.file_name.cmp(&right.file_name));
+    // One folder, so the path orders them as the file name does.
+    clips.sort_by(|left, right| left.path.cmp(&right.path));
     Ok(clips)
 }
 
@@ -3017,7 +3005,6 @@ mod tests {
         let found = clip_summaries(&clips).unwrap();
         let ids: Vec<_> = found.iter().map(|clip| clip.phrase_id.as_str()).collect();
         assert_eq!(ids, ["hello", "plain"]);
-        assert!(found.iter().all(|clip| clip.bytes >= 44));
         assert!(found.iter().all(|clip| Path::new(&clip.path).is_file()));
 
         let _ = fs::remove_dir_all(root);

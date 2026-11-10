@@ -362,9 +362,7 @@ interface VoiceSystemInfo {
 interface VoiceClipSummary {
   clip_id: string;
   phrase_id: string;
-  file_name: string;
   path: string;
-  bytes: number;
 }
 
 interface VoiceProfileSummary {
@@ -375,7 +373,6 @@ interface VoiceProfileSummary {
   reference_retained: boolean;
   /** The tone this voice speaks in sessions; null until the user picks one. */
   tone: string | null;
-  clip_count: number;
   clips: VoiceClipSummary[];
 }
 
@@ -1006,7 +1003,7 @@ function voiceLayoutKey(status: VoiceBackendStatus | null): string {
     status.system.has_enough_ram ? 1 : 0,
     status.model.installed ? 1 : 0,
     status.runtime.installed ? 1 : 0,
-    status.profiles.map((profile) => `${profile.profile_id}:${profile.clip_count}`).join(","),
+    status.profiles.map((profile) => `${profile.profile_id}:${profile.clips.length}`).join(","),
   ].join("|");
 }
 
@@ -3356,7 +3353,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
       </article>
     `;
   }
-  const preview = previewClipForVoice(voice);
+  const preview = previewPathForVoice(voice);
   const line = voice.source === "starter" ? STARTER_INTROS[voice.profile?.profile_id ?? ""] ?? "" : "";
   return `
     <article ${card}>
@@ -3367,7 +3364,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
       <span class="voice-card-speaks">speaks like <b>${escapeHtml(toneLabel(voiceTone(voice)))}</b></span>
       ${voiceCardNote(voice)}
       <div class="voice-card-foot">
-        <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview?.path ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
+        <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.2v9.6L11 6z" fill="currentColor"/></svg>${MINI_ORB}
         </button>
         ${line ? `<span class="voice-card-line" aria-live="polite">${escapeHtml(line)}</span>` : ""}
@@ -4168,7 +4165,7 @@ function renderVoiceInfoModal(): string {
     return "";
   }
 
-  const clip = previewClipForVoice(voice);
+  const clip = previewPathForVoice(voice);
   const profileId = voice.source === "custom" ? voice.profile?.profile_id ?? "" : "";
   const canRename = Boolean(voice.profile) && voiceBusy === null;
 
@@ -4194,7 +4191,7 @@ function renderVoiceInfoModal(): string {
               <span class="voice-preview-icon" aria-hidden="true"></span>
             </button>
             <div class="voice-info-wave">
-              <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip?.path ?? "")}" data-wave-bars="40"></canvas>
+              <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip ?? "")}" data-wave-bars="40"></canvas>
               <input id="voice-preview-bar" type="range" min="0" max="1" value="0" step="0.01" ${clip ? "" : "disabled"} aria-label="Playback" />
               <div class="voice-info-times">
                 <span id="voice-preview-elapsed">0:00</span>
@@ -4233,7 +4230,7 @@ function renderDeleteVoiceModal(): string {
         </div>
         <p class="quiet">Its lines can be regenerated from the recording. Deleting the voice removes the recording too.</p>
         <div class="delete-choice-grid">
-          <button type="button" data-action="delete-voice-files" ${profile.clip_count === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
+          <button type="button" data-action="delete-voice-files" ${profile.clips.length === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
           <button class="danger" type="button" data-action="delete-voice-profile">Delete the voice</button>
         </div>
       </section>
@@ -8686,29 +8683,22 @@ function selectedNudgeClip(nudgeCount: number, phone = false): VoiceClipSummary 
   return ready[(Math.max(1, nudgeCount) - 1) % ready.length];
 }
 
-function previewClipForVoice(voice: VoiceOption): VoiceClipSummary | null {
+/** The file a voice's play button plays: a starter's intro, the recording, else a line. */
+function previewPathForVoice(voice: VoiceOption): string | null {
   if (voice.source === "starter" && voice.profile) {
-    const path = `${voice.profile.profile_dir}/intro.wav`;
-    return { clip_id: "intro", phrase_id: "", file_name: "intro.wav", path, bytes: 44 };
+    return `${voice.profile.profile_dir}/intro.wav`;
   }
-  const reference = voice.profile?.reference_path;
-  if (reference) {
-    return {
-      clip_id: "reference",
-      phrase_id: "",
-      file_name: "reference.wav",
-      path: reference,
-      bytes: 44,
-    };
+  if (voice.profile?.reference_path) {
+    return voice.profile.reference_path;
   }
   const clips = voice.profile?.clips ?? [];
   for (const phrase of effectivePhrases()) {
     const clip = clipForPhraseId(clips, phrase.id);
     if (clip) {
-      return clip;
+      return clip.path;
     }
   }
-  return clips.find((clip) => clip.bytes >= 44) ?? null;
+  return clips[0]?.path ?? null;
 }
 
 function clipForPhrase(voice: VoiceOption, phrase: PhraseDefinition): VoiceClipSummary | null {
@@ -8719,7 +8709,7 @@ function clipForPhraseId(clips: VoiceClipSummary[], phraseId: string): VoiceClip
   if (!phraseId) {
     return null;
   }
-  return clips.find((clip) => clip.bytes >= 44 && clipBelongsToPhrase(clip, phraseId)) ?? null;
+  return clips.find((clip) => clipBelongsToPhrase(clip, phraseId)) ?? null;
 }
 
 function clipBelongsToPhrase(clip: VoiceClipSummary, phraseId: string): boolean {
@@ -8842,9 +8832,9 @@ function ensureVoicePreviewAudio(path: string): HTMLAudioElement {
   return audio;
 }
 
-function transportPreviewClip(): VoiceClipSummary | null {
+function transportPreviewPath(): string | null {
   const voice = availableVoices().find((item) => item.id === voiceInfoId);
-  return voice ? previewClipForVoice(voice) : null;
+  return voice ? previewPathForVoice(voice) : null;
 }
 
 function bindVoicePreview(): void {
@@ -8858,9 +8848,9 @@ function bindVoicePreview(): void {
     return;
   }
 
-  const clip = transportPreviewClip();
-  if (clip) {
-    ensureVoicePreviewAudio(clip.path);
+  const path = transportPreviewPath();
+  if (path) {
+    ensureVoicePreviewAudio(path);
   } else {
     stopVoicePreview();
   }
@@ -9087,12 +9077,12 @@ function drawWaveform(canvas: HTMLCanvasElement, peaks: number[], progress: numb
 }
 
 async function toggleVoicePreview(): Promise<void> {
-  const clip = transportPreviewClip();
-  if (!clip) {
+  const path = transportPreviewPath();
+  if (!path) {
     return;
   }
   nudgeAudio?.pause();
-  const audio = ensureVoicePreviewAudio(clip.path);
+  const audio = ensureVoicePreviewAudio(path);
   try {
     if (audio.paused) {
       await audio.play();
