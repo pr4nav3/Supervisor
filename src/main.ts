@@ -673,9 +673,8 @@ let clipQueueTicker: number | undefined;
 /** A one-line job started from the line popup reopens that line when its clip lands. */
 let reopenLineAfterQueue: string | null = null;
 const clipAssetRevision = new Map<string, number>();
-let voiceHelpOpen = false;
-let modelInfoOpen = false;
-let memoryInfoOpen = false;
+/** The voice page's info popup, named as its open- and close- actions name it. */
+let voiceDialog: "voice-help" | "model-info" | "memory-info" | null = null;
 let modelDeleteOpen = false;
 let voiceBackend: VoiceBackendStatus | null = null;
 /** What the OS lets Supervisor see; null until the backend answers. */
@@ -1078,10 +1077,8 @@ function closeTopLayer(): void {
     paintVoiceLayer();
     return;
   }
-  if (voiceHelpOpen || modelInfoOpen || memoryInfoOpen) {
-    voiceHelpOpen = false;
-    modelInfoOpen = false;
-    memoryInfoOpen = false;
+  if (voiceDialog) {
+    voiceDialog = null;
     paintVoiceLayer();
     return;
   }
@@ -1211,9 +1208,7 @@ function editorIsOpen(): boolean {
     voiceDeleteTargetId !== null ||
     voiceInfoId !== null ||
     clipQueue?.phase === "working" ||
-    voiceHelpOpen ||
-    modelInfoOpen ||
-    memoryInfoOpen ||
+    voiceDialog !== null ||
     modelDeleteOpen ||
     voiceBusy !== null
   );
@@ -3808,9 +3803,9 @@ function renderVoiceDialogs(): string {
     ${showVoiceDialog && voiceInfoId && !voiceDeleteTargetId && !voiceBusy ? renderVoiceInfoModal() : ""}
     ${showVoiceDialog && voiceDeleteTargetId ? renderDeleteVoiceModal() : ""}
     ${showVoiceDialog && modelDeleteOpen ? renderDeleteModelModal() : ""}
-    ${showVoiceDialog && modelInfoOpen && !modelDeleteOpen && !voiceBusy ? renderModelInfoModal() : ""}
-    ${showVoiceDialog && memoryInfoOpen && !voiceBusy ? renderMemoryInfoModal() : ""}
-    ${showVoiceDialog && voiceHelpOpen ? renderVoiceHelpModal() : ""}
+    ${showVoiceDialog && voiceDialog === "model-info" && !modelDeleteOpen && !voiceBusy ? renderModelInfoModal() : ""}
+    ${showVoiceDialog && voiceDialog === "memory-info" && !voiceBusy ? renderMemoryInfoModal() : ""}
+    ${showVoiceDialog && voiceDialog === "voice-help" ? renderVoiceHelpModal() : ""}
     ${showVoiceDialog && phraseEditor && !voiceDeleteTargetId ? renderLinePopup() : ""}
     ${showVoiceDialog && !phraseEditor ? renderNewPersonalityModal() : ""}
     ${voiceBusy && !clipQueue ? renderVoiceBusyModal() : ""}
@@ -6462,20 +6457,8 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
     return;
   }
 
-  if (action === "open-memory-info" || action === "close-memory-info") {
-    memoryInfoOpen = action === "open-memory-info";
-    paintVoiceLayer();
-    return;
-  }
-
-  if (action === "open-model-info" || action === "close-model-info") {
-    modelInfoOpen = action === "open-model-info";
-    paintVoiceLayer();
-    return;
-  }
-
-  if (action === "open-voice-help" || action === "close-voice-help") {
-    voiceHelpOpen = action === "open-voice-help";
+  if (/^(open|close)-(voice-help|model-info|memory-info)$/.test(action)) {
+    voiceDialog = action.startsWith("open-") ? (action.slice(5) as typeof voiceDialog) : null;
     paintVoiceLayer();
     return;
   }
