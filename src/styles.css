@@ -16,6 +16,7 @@
   --sv-green: #a8eb37;
   --sv-yellow: #ffcf31;
   --sv-coral: #ff684f;
+  --sv-error: #c63f27;
   --sv-colored-ink: #141410;
   --sv-soft-white: #fff7df;
   --sv-grid-line: rgba(16, 16, 16, 0.1);
@@ -52,6 +53,7 @@
   --sv-border: #151512;
   --sv-shadow-color: #0b0b09;
   --sv-soft-white: #4c4b46;
+  --sv-error: var(--sv-coral);
   --sv-grid-line: rgba(255, 255, 255, 0.12);
 }
 
@@ -282,14 +284,12 @@ dt,
 .theme-toggle,
 .webcam-metrics dd,
 .state-slab p.webcam-waiting,
-.phrase-editor label span,
 .rule-kind,
 .app-edit-field > span,
 .recap-app-tag,
 .preflight-disclosure summary,
 .line-state,
 .line-audio-label,
-.voice-rename label span,
 .voice-kv span,
 .voice-card-tag,
 .overlay-muted-tag,
@@ -330,7 +330,6 @@ h1 {
 .chips {
   display: flex;
   flex-wrap: wrap;
-  justify-content: flex-end;
   gap: 8px;
   font-size: 0.72rem;
 }
@@ -641,6 +640,7 @@ h1 {
   flex: 1 1 auto;
   flex-direction: column;
   gap: 0;
+  container-type: inline-size;
 }
 
 .home-grid {
@@ -741,6 +741,9 @@ h1 {
   opacity: 0.7;
 }
 
+/* A past day lifts like a raised button and its date slides out for its focused time. The
+   clip hides the sliding date and time at the day's edge, but leaves the right and bottom open
+   by its shadow's 4px, so the shadow and the hover strip below still show and still count. */
 .cal-day {
   position: relative;
   min-height: 34px;
@@ -750,6 +753,10 @@ h1 {
   background: var(--sv-soft-white);
   font-family: var(--font-mono);
   font-size: 0.7rem;
+  clip-path: inset(0 -4px -4px 0 round 5px);
+  transition:
+    transform 140ms ease-out,
+    box-shadow 140ms ease-out;
 }
 
 .cal-day.is-out {
@@ -793,16 +800,6 @@ h1 {
    curve eases out without overshooting, so no day grows past its size and settles back. */
 .cal-grid.is-animated .cal-day {
   animation: cal-pop 320ms cubic-bezier(0.2, 0.8, 0.2, 1) backwards;
-}
-
-/* A past day lifts like a raised button and its date slides out for its focused time. The
-   clip hides the sliding date and time at the day's edge, but leaves the right and bottom open
-   by its shadow's 4px, so the shadow and the hover strip below still show and still count. */
-.cal-day {
-  clip-path: inset(0 -4px -4px 0 round 5px);
-  transition:
-    transform 140ms ease-out,
-    box-shadow 140ms ease-out;
 }
 
 /* A card that lifts under the mouse keeps the strip it moves off as part of itself. Without it,
@@ -1394,10 +1391,6 @@ button[data-action="cancel-delete-voice"] {
   gap: 8px;
 }
 
-.home-ready {
-  container-type: inline-size;
-}
-
 @container (max-width: 640px) {
   .home-grid {
     grid-template-columns: minmax(0, 1fr);
@@ -1450,7 +1443,7 @@ button[data-action="cancel-delete-voice"] {
 
 .voice-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 14px;
 }
@@ -1813,8 +1806,7 @@ dt {
 }
 
 .settings-rules-panel,
-.settings-data-panel,
-.phrase-panel {
+.settings-data-panel {
   grid-column: 1 / -1;
 }
 
@@ -1941,10 +1933,6 @@ dt {
   gap: 10px;
 }
 
-.permanent-rule-manager {
-  gap: 10px;
-}
-
 .permanent-rule-manager .rule-toolbar {
   align-items: start;
 }
@@ -1965,7 +1953,6 @@ dt {
 
 .rule-group {
   display: grid;
-  min-width: 0;
   min-height: 68px;
   overflow: hidden;
   border: 1px solid rgba(16, 16, 16, 0.4);
@@ -1989,10 +1976,6 @@ dt {
   margin: 8px 0 0;
   color: var(--sv-muted);
   font-size: var(--sv-type-4);
-}
-
-.rule-chip-list {
-  align-items: center;
 }
 
 .rule-chip,
@@ -2040,11 +2023,12 @@ dt {
   gap: 8px;
 }
 
+/* Two fields on one row: the site or app, and its name once a site is recognised. */
 .rule-editor {
   display: grid;
-  grid-template-columns: minmax(140px, 0.45fr) minmax(0, 1.4fr) auto;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
   gap: 10px;
-  align-items: end;
+  align-items: center;
   border: var(--border);
   border-radius: var(--radius-card);
   padding: 10px;
@@ -2054,15 +2038,6 @@ dt {
 .phrase-editor {
   display: grid;
   gap: 12px;
-}
-
-.phrase-editor label {
-  display: grid;
-  gap: 6px;
-}
-
-.phrase-editor label span {
-  font-size: var(--sv-type-4);
 }
 
 .phrase-editor select {
@@ -2078,12 +2053,6 @@ dt {
   font-size: var(--sv-type-2);
   line-height: 1.35;
   resize: none;
-}
-
-/* Two fields on one row: the site or app, and its name once a site is recognised. */
-.rule-editor {
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  align-items: center;
 }
 
 .rule-editor > label {
@@ -2751,11 +2720,6 @@ button.personality-more:active {
   font-size: var(--sv-type-3);
 }
 
-/* The personality's lines: one inner card per moment, two across. */
-.phrase-panel {
-  gap: 12px;
-}
-
 .lines-title {
   font-size: var(--sv-type-2);
   font-weight: 650;
@@ -2891,14 +2855,7 @@ button.personality-more:active {
 .clips-hint.is-bad,
 .field-help.is-bad,
 .explain.is-bad {
-  color: #c63f27;
-}
-
-[data-theme="dark"] .line-state.is-bad,
-[data-theme="dark"] .clips-hint.is-bad,
-[data-theme="dark"] .field-help.is-bad,
-[data-theme="dark"] .explain.is-bad {
-  color: var(--sv-coral);
+  color: var(--sv-error);
 }
 
 .webcam-side .panel > .field-help {
@@ -3054,15 +3011,6 @@ button.personality-more:active {
   display: grid;
 }
 
-.voice-rename label {
-  display: grid;
-  gap: 6px;
-}
-
-.voice-rename label span {
-  font-size: var(--sv-type-4);
-}
-
 .voice-rename-status {
   margin-left: 6px;
   color: var(--sv-muted);
@@ -3126,11 +3074,7 @@ button.personality-more:active {
 }
 
 .voice-kv strong.is-bad {
-  color: #c63f27;
-}
-
-[data-theme="dark"] .voice-kv strong.is-bad {
-  color: var(--sv-coral);
+  color: var(--sv-error);
 }
 
 @media (max-width: 640px) {
@@ -3149,20 +3093,12 @@ button.personality-more:active {
   }
 }
 
-.voice-grid {
-  grid-template-columns: minmax(0, 1fr);
-}
-
 .voice-roster-panel,
 .phrase-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
   grid-column: 1 / -1;
-}
-
-.voice-roster-panel {
-  max-height: none;
 }
 
 .voice-roster-panel .rule-toolbar {
@@ -3198,6 +3134,7 @@ button.personality-more:active {
   border-radius: var(--radius-card);
   padding: 10px;
   background: var(--sv-soft-white);
+  box-shadow: var(--shadow-control);
 }
 
 .voice-card strong {
@@ -3214,10 +3151,6 @@ button.personality-more:active {
 /* The card is the Select button, drawn like one: a 2px shadow at rest. Hover lifts it 1px and the
    shadow grows 1px, so its edge stays put; a press sinks it into the shadow. Its buttons ride
    along with it, and pressing one of them leaves the card where it is. */
-.voice-card {
-  box-shadow: var(--shadow-control);
-}
-
 .voice-card.is-pickable {
   cursor: pointer;
   transition: transform 100ms ease, box-shadow 100ms ease;
@@ -4307,6 +4240,7 @@ button.wp-day.is-future:disabled {
   font-weight: 800;
   letter-spacing: -0.05em;
   line-height: 0.9;
+  white-space: nowrap;
 }
 
 /* The figure keeps its one line; when the panel is narrow the two tiles drop under it. */
@@ -4315,10 +4249,6 @@ button.wp-day.is-future:disabled {
   flex: 1 1 0;
   min-width: min-content;
   gap: 6px;
-}
-
-.week-hero-value {
-  white-space: nowrap;
 }
 
 .week-hero-note {
@@ -4751,11 +4681,6 @@ button.share-pick:active {
 
 /* A bar is a button that opens its week: no box of its own, the bar is the whole of it. */
 button.trend-spark-track {
-  position: relative;
-  display: flex;
-  flex: 1;
-  align-items: flex-end;
-  min-width: 0;
   border-radius: 0;
   font: inherit;
   color: inherit;
@@ -4897,9 +4822,11 @@ button.trend-spark-track:focus-visible .week-tip {
   padding: 18px 22px 16px;
 }
 
+/* Two boxes side by side, each as tall as its own rows. */
 .week-app-cols {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
   gap: 28px;
 }
 
@@ -4912,11 +4839,6 @@ button.trend-spark-track:focus-visible .week-tip {
 .week-app-cols .eyebrow {
   margin: 0;
   color: var(--sv-muted);
-}
-
-/* Two boxes side by side, each as tall as its own rows. */
-.week-app-cols {
-  align-items: start;
 }
 
 .week-app-foot {
@@ -6128,7 +6050,6 @@ button.history-item {
   height: 40px;
   border: var(--border);
   border-radius: 5px;
-  background: var(--sv-soft-white);
 }
 
 .timeline-span {
@@ -6158,10 +6079,6 @@ button.history-item {
 
   .topbar {
     display: grid;
-  }
-
-  .chips {
-    justify-content: flex-start;
   }
 
   .state-slab h2 {
