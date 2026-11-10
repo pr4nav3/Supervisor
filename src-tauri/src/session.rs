@@ -239,7 +239,7 @@ impl SessionManager {
     pub fn review_session(&mut self, id: u64, distractions: Vec<AppRule>, work: Vec<String>, now: Duration) -> Result<RulesSaved, String> {
         let keys: Vec<(String, String)> = distractions
             .iter()
-            .map(|rule| (match rule.target { RuleTarget::Website => "website", RuleTarget::App => "app" }.to_string(), rule.value.to_lowercase()))
+            .map(|rule| (rule.target.key().to_string(), rule.value.to_lowercase()))
             .collect();
         self.storage()?.review_session(id, &keys, &work)?;
         let mut rules = self.rules();
@@ -1823,8 +1823,7 @@ fn clean_goal(goal: String) -> String {
 
 /** The `detail` of an "allowed" or "unallowed" event: "website:youtube.com", "app:slack". */
 fn allowed_detail(rule: &AppRule) -> String {
-    let target = if rule.target == RuleTarget::Website { "website" } else { "app" };
-    format!("{target}:{}", rule.value.trim().to_lowercase())
+    format!("{}:{}", rule.target.key(), rule.value.trim().to_lowercase())
 }
 
 fn clean_rules(rules: Vec<AppRule>) -> Vec<AppRule> {

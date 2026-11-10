@@ -4,7 +4,7 @@ use crate::attribution::{Activity, PHONE_KEY, SUPERVISOR_KEY, UNKNOWN_KEY, UNKNO
 use crate::focus::{starter_rules, AppRule, RuleTarget};
 use crate::session::{utc_now, SessionSettings, SessionSummary, Strictness, SummarySegment, HISTORY_CACHE_LIMIT};
 use crate::website;
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -189,9 +189,7 @@ pub struct SessionReport {
 #[derive(Clone, Debug, Serialize)]
 pub struct DailyFocus {
     pub date: String,
-    pub focus_percent: u64,
     pub focus_seconds: u64,
-    pub session_count: u64,
 }
 
 /// One calendar week (from Monday) or month (from the 1st), from every span recorded in it,
@@ -223,13 +221,7 @@ impl TrendUnit {
     fn next(self, start: time::Date) -> time::Date {
         match self {
             TrendUnit::Week => start.saturating_add(time::Duration::days(7)),
-            TrendUnit::Month => {
-                let (year, month) = match start.month() {
-                    time::Month::December => (start.year() + 1, time::Month::January),
-                    month => (start.year(), month.next()),
-                };
-                time::Date::from_calendar_date(year, month, 1).unwrap_or(start)
-            }
+            TrendUnit::Month => start.saturating_add(time::Duration::days(start.month().length(start.year()).into())),
         }
     }
 }
@@ -415,17 +407,12 @@ impl SessionStorage {
 
     /// The label most recently recorded under an app key.
     fn latest_app_label(&self, key: &str) -> Result<Option<String>, String> {
-        let label = self.conn.query_row(
+        self.conn.query_row(
             "SELECT label FROM span WHERE kind = 'app' AND source != 'none' AND activity_key = ?1
              ORDER BY id DESC LIMIT 1",
             [key],
             |row| row.get::<_, String>(0),
-        );
-        match label {
-            Ok(label) => Ok(Some(label)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(error) => Err(error.to_string()),
-        }
+        ).optional().map_err(|error| error.to_string())
     }
 
     fn load_site_names(&self) -> Result<(), String> {
@@ -762,30 +749,10 @@ impl SessionStorage {
         let tx = self.conn.unchecked_transaction().map_err(|error| error.to_string())?;
         self.set_setting("default_strictness", strictness_key(settings.default_strictness))?;
         self.set_setting("voice_profile", &settings.voice_profile)?;
-        self.set_setting(
-            "status_window_enabled",
-            if settings.status_window_enabled {
-                "true"
-            } else {
-                "false"
-            },
-        )?;
-        self.set_setting(
-            "status_window_on_top",
-            if settings.status_window_on_top {
-                "true"
-            } else {
-                "false"
-            },
-        )?;
-        self.set_setting(
-            "webcam_gpu",
-            if settings.webcam_gpu { "true" } else { "false" },
-        )?;
-        self.set_setting(
-            "webcam_enabled",
-            if settings.webcam_enabled { "true" } else { "false" },
-        )?;
+        self.set_setting("status_window_enabled", &settings.status_window_enabled.to_string())?;
+        self.set_setting("status_window_on_top", &settings.status_window_on_top.to_string())?;
+        self.set_setting("webcam_gpu", &settings.webcam_gpu.to_string())?;
+        self.set_setting("webcam_enabled", &settings.webcam_enabled.to_string())?;
         self.set_setting("webcam_camera", &settings.webcam_camera.to_string())?;
         tx.commit().map_err(|error| error.to_string())
     }
@@ -801,13 +768,16 @@ impl SessionStorage {
         Ok(())
     }
 
+    fn setting(&self, key: &str) -> Result<Option<String>, String> {
+        self.conn.query_row("SELECT value FROM setting WHERE key = ?1", [key], |row| row.get(0))
+            .optional().map_err(|error| error.to_string())
+    }
+
     /// Activity keys the user answered "work" for after a session.
     pub fn known_work(&self) -> Result<Vec<String>, String> {
-        match self.conn.query_row("SELECT value FROM setting WHERE key = ?1", [KNOWN_WORK_KEY],
-            |row| row.get::<_, String>(0)) {
-            Ok(value) => serde_json::from_str(&value).map_err(|error| error.to_string()),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(Vec::new()),
-            Err(error) => Err(error.to_string()),
+        match self.setting(KNOWN_WORK_KEY)? {
+            Some(value) => serde_json::from_str(&value).map_err(|error| error.to_string()),
+            None => Ok(Vec::new()),
         }
     }
 
@@ -856,17 +826,9 @@ impl SessionStorage {
     }
 
     pub fn load_phrase_library(&self) -> Result<StoredPhraseLibrary, String> {
-        let raw = self.conn.query_row(
-            "SELECT value FROM setting WHERE key = ?1",
-            [PHRASE_LIBRARY_KEY],
-            |row| row.get::<_, String>(0),
-        );
-        let library = match raw {
-            Ok(value) => {
-                serde_json::from_str::<StoredPhraseLibrary>(&value).map_err(|error| error.to_string())?
-            }
-            Err(rusqlite::Error::QueryReturnedNoRows) => StoredPhraseLibrary::default(),
-            Err(error) => return Err(error.to_string()),
+        let library = match self.setting(PHRASE_LIBRARY_KEY)? {
+            Some(value) => serde_json::from_str(&value).map_err(|error| error.to_string())?,
+            None => StoredPhraseLibrary::default(),
         };
         clean_phrase_library(library)
     }
@@ -895,9 +857,7 @@ impl SessionStorage {
     /// `None` until rules are first saved, so an emptied rule list stays empty.
     fn saved_rules(&self) -> Result<Option<Vec<AppRule>>, String> {
         let stored = self.read_rules()?;
-        let initialized: bool = self.conn.query_row(
-            "SELECT EXISTS(SELECT 1 FROM setting WHERE key = 'rules.initialized')", [], |row| row.get(0),
-        ).map_err(|error| error.to_string())?;
+        let initialized = self.setting("rules.initialized")?.is_some();
         Ok((initialized || !stored.is_empty()).then_some(stored))
     }
 
@@ -923,7 +883,7 @@ impl SessionStorage {
         for rule in rules {
             tx.execute(
                 "INSERT INTO rule (target, value, classification, source) VALUES (?1, ?2, 'distracting', 'user')",
-                params![rule_target_key(&rule.target), rule.value],
+                params![rule.target.key(), rule.value],
             )
             .map_err(|error| error.to_string())?;
         }
@@ -1157,23 +1117,7 @@ impl SessionStorage {
     }
 
     pub fn list_history(&self, limit: usize) -> Result<Vec<SessionSummary>, String> {
-        let mut stmt = self
-            .conn
-            .prepare(&format!(
-                "{SUMMARY_SELECT}
-                 WHERE ended_at IS NOT NULL
-                 ORDER BY started_at DESC
-                 LIMIT ?1"
-            ))
-            .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map([limit as i64], summary_from_row)
-            .map_err(|error| error.to_string())?;
-        let mut summaries = Vec::new();
-        for row in rows {
-            summaries.push(self.complete_summary(row.map_err(|error| error.to_string())?)?);
-        }
-        Ok(summaries)
+        self.summaries("ORDER BY started_at DESC LIMIT ?1", [limit as i64], |_| true)
     }
 
     fn session_duration_seconds(&self, session_id: u64) -> Result<u64, String> {
@@ -1297,61 +1241,16 @@ impl SessionStorage {
     pub fn get_focus_days(&self, start: &str, end_exclusive: &str) -> Result<Vec<DailyFocus>, String> {
         parse_day(start)?;
         parse_day(end_exclusive)?;
-        let (from, to) = padded_day_bounds(start, end_exclusive);
-        let mut stmt = self
-            .conn
-            .prepare(&format!(
-                "SELECT started_at, focused_seconds, {RUN_SECONDS_SQL} - idle_seconds
-                 FROM session
-                 WHERE ended_at IS NOT NULL
-                   AND substr(started_at, 1, 10) >= ?1
-                   AND substr(started_at, 1, 10) < ?2"
-            ))
-            .map_err(|error| error.to_string())?;
-        let found = stmt
-            .query_map(params![from, to], |row| {
-                Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)?, row.get::<_, i64>(2)?))
-            })
-            .map_err(|error| error.to_string())?;
-        let mut rows = Vec::new();
-        for row in found {
-            let (started_at, focus_seconds, run_seconds) = row.map_err(|error| error.to_string())?;
-            if let Some(day) = local_day_in(&started_at, start, end_exclusive) {
-                rows.push((day, focus_seconds, run_seconds));
-            }
-        }
-        Ok(fold_days(rows))
+        Ok(daily_focus(&self.recap_sessions(Some(start), Some(end_exclusive))?))
     }
 
     pub fn get_trends(&self) -> Result<TrendsData, String> {
-        let mut daily_stmt = self
-            .conn
-            .prepare(&format!(
-                "SELECT started_at, focused_seconds, {RUN_SECONDS_SQL} - idle_seconds
-                 FROM session
-                 WHERE ended_at IS NOT NULL"
-            ))
-            .map_err(|error| error.to_string())?;
-        let daily_rows = daily_stmt
-            .query_map([], |row| {
-                Ok((
-                    row.get::<_, String>(0)?,
-                    row.get::<_, i64>(1)?,
-                    row.get::<_, i64>(2)?,
-                ))
-            })
-            .map_err(|error| error.to_string())?;
-
-        let mut rows = Vec::new();
-        for row in daily_rows {
-            let (started_at, focus_seconds, run_seconds) = row.map_err(|error| error.to_string())?;
-            rows.push((local_day(&started_at), focus_seconds, run_seconds));
-        }
+        let sessions = self.recap_sessions(None, None)?;
         let monday = this_monday();
         let oldest = monday.saturating_sub(time::Duration::days(((TREND_WEEK_COUNT - 1) * 7) as i64));
         let oldest_day = format_day(oldest);
-        let has_earlier = rows.iter().any(|(day, _, _)| day.as_str() < oldest_day.as_str());
-        let mut daily_focus = fold_days(rows);
+        let has_earlier = sessions.iter().any(|session| session.day < oldest_day);
+        let mut daily_focus = daily_focus(&sessions);
         // The streak walks back 400 days.
         if daily_focus.len() > 400 {
             daily_focus = daily_focus.split_off(daily_focus.len() - 400);
@@ -1366,12 +1265,18 @@ impl SessionStorage {
     }
 
     pub fn get_history_week(&self, week_start: &str) -> Result<HistoryWeek, String> {
-        let start = monday_on_or_before(parse_day(week_start)?);
-        let end = start.saturating_add(time::Duration::days(7));
+        let monday = monday_on_or_before(parse_day(week_start)?);
+        let (start, end) = (format_day(monday), format_day(monday.saturating_add(time::Duration::days(7))));
+        let (from, to) = padded_day_bounds(&start, &end);
+        let sessions = self.summaries(
+            "AND substr(started_at, 1, 10) >= ?1 AND substr(started_at, 1, 10) < ?2 ORDER BY started_at DESC",
+            params![from, to],
+            |summary| local_day_in(&summary.started_at, &start, &end).is_some(),
+        )?;
         Ok(HistoryWeek {
-            week_start: format_day(start),
-            sessions: self.list_history_between(&format_day(start), &format_day(end))?,
-            oldest_day: self.oldest_session_day()?,
+            oldest_day: self.recap_sessions(None, None)?.into_iter().map(|session| session.day).min(),
+            week_start: start,
+            sessions,
         })
     }
 
@@ -1380,33 +1285,25 @@ impl SessionStorage {
         self.refresh_native_app_names()?;
         let start = monday_on_or_before(parse_day(day)?);
         let end_exclusive = start.saturating_add(time::Duration::days(7));
-        let sessions = self.recap_sessions(&format_day(start), &format_day(end_exclusive))?;
-        let mut by_day = std::collections::HashMap::<String, u64>::new();
+        let sessions = self.recap_sessions(Some(&format_day(start)), Some(&format_day(end_exclusive)))?;
+        let by_day = day_totals(&sessions);
         let mut stats = SpanStats::default();
-        let mut longest_stretch_seconds = 0u64;
-        let mut focus_seconds = 0u64;
         let mut all_spans = Vec::new();
-
         for session in &sessions {
-            focus_seconds += session.focused_seconds;
-            longest_stretch_seconds = longest_stretch_seconds.max(session.longest_stretch_seconds);
-            *by_day.entry(session.day.clone()).or_insert(0) += session.focused_seconds;
             let spans = self.load_spans_for_session(session.id)?;
             stats.add(&spans);
             all_spans.extend(spans);
         }
-        let apps = apps_from_spans(&all_spans);
-
         Ok(WeekRecap {
             start: format_day(start),
             end: format_day(end_exclusive.saturating_sub(time::Duration::days(1))),
-            focus_seconds,
+            focus_seconds: by_day.values().sum(),
             session_count: sessions.len() as u64,
             buckets: day_buckets(start, &by_day),
             median_stretch_seconds: median(&stats.stretches),
-            longest_stretch_seconds,
+            longest_stretch_seconds: longest_stretch(&sessions),
             recovery_median_seconds: stats.recovery_median(),
-            apps,
+            apps: apps_from_spans(&all_spans),
         })
     }
 
@@ -1414,15 +1311,8 @@ impl SessionStorage {
     pub fn get_month_recap(&self, day: &str) -> Result<MonthRecap, String> {
         let start = TrendUnit::Month.start_of(parse_day(day)?);
         let end_exclusive = TrendUnit::Month.next(start);
-        let sessions = self.recap_sessions(&format_day(start), &format_day(end_exclusive))?;
-        let mut by_day = std::collections::HashMap::<String, u64>::new();
-        let mut focus_seconds = 0u64;
-        let mut longest_stretch_seconds = 0u64;
-        for session in &sessions {
-            focus_seconds += session.focused_seconds;
-            longest_stretch_seconds = longest_stretch_seconds.max(session.longest_stretch_seconds);
-            *by_day.entry(session.day.clone()).or_insert(0) += session.focused_seconds;
-        }
+        let sessions = self.recap_sessions(Some(&format_day(start)), Some(&format_day(end_exclusive)))?;
+        let by_day = day_totals(&sessions);
         let mut days = Vec::new();
         let mut cursor = start;
         while cursor < end_exclusive {
@@ -1436,19 +1326,18 @@ impl SessionStorage {
         Ok(MonthRecap {
             start: format_day(start),
             end: format_day(end_exclusive.saturating_sub(time::Duration::days(1))),
-            focus_seconds,
+            focus_seconds: by_day.values().sum(),
             session_count: sessions.len() as u64,
-            longest_stretch_seconds,
+            longest_stretch_seconds: longest_stretch(&sessions),
             days,
         })
     }
 
-    fn recap_sessions(
-        &self,
-        start_day: &str,
-        end_day: &str,
-    ) -> Result<Vec<RecapSession>, String> {
-        let (from, to) = padded_day_bounds(start_day, end_day);
+    /// Finished sessions whose local day is in `start_day` ≤ day < `end_day`, oldest first. A
+    /// `None` bound leaves that end open.
+    fn recap_sessions(&self, start_day: Option<&str>, end_day: Option<&str>) -> Result<Vec<RecapSession>, String> {
+        let from = start_day.map(|day| padded_day_bounds(day, day).0).unwrap_or_default();
+        let to = end_day.map(|day| padded_day_bounds(day, day).1);
         let mut stmt = self
             .conn
             .prepare(
@@ -1456,33 +1345,28 @@ impl SessionStorage {
                  FROM session
                  WHERE ended_at IS NOT NULL
                    AND substr(started_at, 1, 10) >= ?1
-                   AND substr(started_at, 1, 10) < ?2
+                   AND (?2 IS NULL OR substr(started_at, 1, 10) < ?2)
                  ORDER BY started_at ASC",
             )
             .map_err(|error| error.to_string())?;
         let rows = stmt
             .query_map(params![from, to], |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, String>(1)?,
-                    row.get::<_, i64>(2)?,
-                    row.get::<_, i64>(3)?,
-                ))
+                Ok(RecapSession {
+                    id: row.get::<_, i64>(0)? as u64,
+                    day: local_day(&row.get::<_, String>(1)?),
+                    focused_seconds: row.get::<_, i64>(2)?.max(0) as u64,
+                    longest_stretch_seconds: row.get::<_, i64>(3)?.max(0) as u64,
+                })
             })
             .map_err(|error| error.to_string())?;
-
         let mut sessions = Vec::new();
         for row in rows {
-            let (id, started_at, focused_seconds, longest) = row.map_err(|error| error.to_string())?;
-            let Some(day) = local_day_in(&started_at, start_day, end_day) else {
-                continue;
-            };
-            sessions.push(RecapSession {
-                id: id as u64,
-                day,
-                focused_seconds: focused_seconds as u64,
-                longest_stretch_seconds: longest as u64,
-            });
+            let session = row.map_err(|error| error.to_string())?;
+            if start_day.is_none_or(|start| session.day.as_str() >= start)
+                && end_day.is_none_or(|end| session.day.as_str() < end)
+            {
+                sessions.push(session);
+            }
         }
         Ok(sessions)
     }
@@ -1494,49 +1378,31 @@ impl SessionStorage {
             return Ok(Vec::new());
         }
         let escaped = needle.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_");
-        let mut stmt = self
-            .conn
-            .prepare(&format!(
-                "{SUMMARY_SELECT}
-                 WHERE ended_at IS NOT NULL
-                   AND lower(goal) LIKE ?1 ESCAPE '\\'
-                 ORDER BY started_at DESC
-                 LIMIT 100"
-            ))
-            .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map([format!("%{escaped}%")], summary_from_row)
-            .map_err(|error| error.to_string())?;
-        let mut summaries = Vec::new();
-        for row in rows {
-            summaries.push(self.complete_summary(row.map_err(|error| error.to_string())?)?);
-        }
-        Ok(summaries)
+        self.summaries(
+            "AND lower(goal) LIKE ?1 ESCAPE '\\' ORDER BY started_at DESC LIMIT 100",
+            [format!("%{escaped}%")],
+            |_| true,
+        )
     }
 
-    fn list_history_between(&self, start_day: &str, end_day: &str) -> Result<Vec<SessionSummary>, String> {
-        let (from, to) = padded_day_bounds(start_day, end_day);
+    /// Finished sessions matching `filter` (SQL after the WHERE), that `keep` accepts, filled in.
+    fn summaries(
+        &self,
+        filter: &str,
+        params: impl rusqlite::Params,
+        keep: impl Fn(&SessionSummary) -> bool,
+    ) -> Result<Vec<SessionSummary>, String> {
         let mut stmt = self
             .conn
-            .prepare(&format!(
-                "{SUMMARY_SELECT}
-                 WHERE ended_at IS NOT NULL
-                   AND substr(started_at, 1, 10) >= ?1
-                   AND substr(started_at, 1, 10) < ?2
-                 ORDER BY started_at DESC"
-            ))
+            .prepare(&format!("{SUMMARY_SELECT} WHERE ended_at IS NOT NULL {filter}"))
             .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map(params![from, to], summary_from_row)
-            .map_err(|error| error.to_string())?;
-
+        let rows = stmt.query_map(params, summary_from_row).map_err(|error| error.to_string())?;
         let mut summaries = Vec::new();
         for row in rows {
             let summary = row.map_err(|error| error.to_string())?;
-            if local_day_in(&summary.started_at, start_day, end_day).is_none() {
-                continue;
+            if keep(&summary) {
+                summaries.push(self.complete_summary(summary)?);
             }
-            summaries.push(self.complete_summary(summary)?);
         }
         Ok(summaries)
     }
@@ -1546,24 +1412,6 @@ impl SessionStorage {
         summary.duration_seconds = self.session_duration_seconds(summary.id)?;
         summary.segments = summary_segments(&self.load_spans_for_session(summary.id)?);
         Ok(summary)
-    }
-
-    fn oldest_session_day(&self) -> Result<Option<String>, String> {
-        let mut stmt = self
-            .conn
-            .prepare("SELECT started_at FROM session WHERE ended_at IS NOT NULL")
-            .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map([], |row| row.get::<_, String>(0))
-            .map_err(|error| error.to_string())?;
-        let mut oldest: Option<String> = None;
-        for row in rows {
-            let day = local_day(&row.map_err(|error| error.to_string())?);
-            if oldest.as_ref().is_none_or(|current| day < *current) {
-                oldest = Some(day);
-            }
-        }
-        Ok(oldest)
     }
 
     /// Every week or month from the first one with a session through the current one, empty ones
@@ -1580,38 +1428,15 @@ impl SessionStorage {
         today: time::Date,
         since: Option<time::Date>,
     ) -> Result<Vec<TrendPeriod>, String> {
-        let since_day = since.map(format_day);
-        let from = since_day
-            .as_deref()
-            .map(|day| padded_day_bounds(day, day).0)
-            .unwrap_or_default();
-        let mut stmt = self
-            .conn
-            .prepare(
-                "SELECT id, started_at, focused_seconds
-                 FROM session
-                 WHERE ended_at IS NOT NULL AND substr(started_at, 1, 10) >= ?1",
-            )
-            .map_err(|error| error.to_string())?;
-        let rows = stmt
-            .query_map([from], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, String>(1)?, row.get::<_, i64>(2)?))
-            })
-            .map_err(|error| error.to_string())?;
         let mut buckets = std::collections::BTreeMap::<time::Date, (u64, u64, SpanStats)>::new();
-        for row in rows {
-            let (id, started_at, focused_seconds) = row.map_err(|error| error.to_string())?;
-            let day = local_day(&started_at);
-            if since_day.as_deref().is_some_and(|since| day.as_str() < since) {
-                continue;
-            }
-            let Ok(day) = parse_day(&day) else {
+        for session in self.recap_sessions(since.map(format_day).as_deref(), None)? {
+            let Ok(day) = parse_day(&session.day) else {
                 continue;
             };
             let entry = buckets.entry(unit.start_of(day)).or_default();
             entry.0 += 1;
-            entry.1 += focused_seconds.max(0) as u64;
-            entry.2.add(&self.load_spans_for_session(id as u64)?);
+            entry.1 += session.focused_seconds;
+            entry.2.add(&self.load_spans_for_session(session.id)?);
         }
         let Some(&first) = buckets.keys().next() else {
             return Ok(Vec::new());
@@ -1640,15 +1465,11 @@ impl SessionStorage {
     }
 
     pub fn delete_session(&self, id: u64) -> Result<(), String> {
-        let ended_at = match self.conn.query_row(
+        let ended_at = self.conn.query_row(
             "SELECT ended_at FROM session WHERE id = ?1",
             [id],
             |row| row.get::<_, Option<String>>(0),
-        ) {
-            Ok(ended_at) => Some(ended_at),
-            Err(rusqlite::Error::QueryReturnedNoRows) => None,
-            Err(error) => return Err(error.to_string()),
-        };
+        ).optional().map_err(|error| error.to_string())?;
         match ended_at {
             Some(None) => Err("Stop the session before deleting it.".to_string()),
             Some(Some(_)) => {
@@ -1833,7 +1654,7 @@ fn rounded_percent(part: u64, total: u64) -> u64 {
     }
 }
 
-fn day_buckets(monday: time::Date, by_day: &std::collections::HashMap<String, u64>) -> Vec<RecapBucket> {
+fn day_buckets(monday: time::Date, by_day: &std::collections::BTreeMap<String, u64>) -> Vec<RecapBucket> {
     const LETTERS: [&str; 7] = ["M", "T", "W", "T", "F", "S", "S"];
     (0i64..7)
         .map(|index| {
@@ -1910,25 +1731,15 @@ fn focused_stretches(spans: &[ReportSpan]) -> Vec<u64> {
     stretches
 }
 
+static DAY_FORMAT: std::sync::LazyLock<Vec<time::format_description::BorrowedFormatItem<'static>>> =
+    std::sync::LazyLock::new(|| time::format_description::parse_borrowed::<1>("[year]-[month]-[day]").expect("day format"));
+
 fn parse_day(value: &str) -> Result<time::Date, String> {
-    if !value.is_ascii() || value.len() != 10 || value.as_bytes().get(4) != Some(&b'-') || value.as_bytes().get(7) != Some(&b'-') {
-        return Err("date must be YYYY-MM-DD".into());
-    }
-    let year: i32 = value[0..4]
-        .parse()
-        .map_err(|_| "date must be YYYY-MM-DD".to_string())?;
-    let month: u8 = value[5..7]
-        .parse()
-        .map_err(|_| "date must be YYYY-MM-DD".to_string())?;
-    let day: u8 = value[8..10]
-        .parse()
-        .map_err(|_| "date must be YYYY-MM-DD".to_string())?;
-    let month = time::Month::try_from(month).map_err(|error| error.to_string())?;
-    time::Date::from_calendar_date(year, month, day).map_err(|error| error.to_string())
+    time::Date::parse(value, &DAY_FORMAT).map_err(|_| "date must be YYYY-MM-DD".to_string())
 }
 
 fn format_day(date: time::Date) -> String {
-    format!("{:04}-{:02}-{:02}", date.year(), u8::from(date.month()), date.day())
+    date.format(&DAY_FORMAT).unwrap_or_default()
 }
 
 static STARTUP_OFFSET: std::sync::OnceLock<time::UtcOffset> = std::sync::OnceLock::new();
@@ -1985,26 +1796,21 @@ fn local_day(started_at: &str) -> String {
     calendar_day(instant, local_offset_at(instant))
 }
 
-/// Sums (local day, focused seconds, run seconds) rows into one `DailyFocus` per day, oldest first.
-/// Rows are (day, focused seconds, seconds at the desk): the percent is of time at the desk.
-fn fold_days(rows: Vec<(String, i64, i64)>) -> Vec<DailyFocus> {
-    let mut by_day = std::collections::HashMap::<String, (u64, u64, u64)>::new();
-    for (day, focus_seconds, run_seconds) in rows {
-        let entry = by_day.entry(day).or_insert((0, 0, 0));
-        entry.0 += focus_seconds.max(0) as u64;
-        entry.1 += run_seconds.max(0) as u64;
-        entry.2 += 1;
+/// Focused seconds per local day, oldest first.
+fn day_totals(sessions: &[RecapSession]) -> std::collections::BTreeMap<String, u64> {
+    let mut days = std::collections::BTreeMap::new();
+    for session in sessions {
+        *days.entry(session.day.clone()).or_insert(0) += session.focused_seconds;
     }
-    let mut days: Vec<_> = by_day.into_iter().collect();
-    days.sort_by(|left, right| left.0.cmp(&right.0));
-    days.into_iter()
-        .map(|(date, (focus_seconds, run_seconds, session_count))| DailyFocus {
-            date,
-            focus_percent: rounded_percent(focus_seconds, run_seconds),
-            focus_seconds,
-            session_count,
-        })
-        .collect()
+    days
+}
+
+fn daily_focus(sessions: &[RecapSession]) -> Vec<DailyFocus> {
+    day_totals(sessions).into_iter().map(|(date, focus_seconds)| DailyFocus { date, focus_seconds }).collect()
+}
+
+fn longest_stretch(sessions: &[RecapSession]) -> u64 {
+    sessions.iter().map(|session| session.longest_stretch_seconds).max().unwrap_or(0)
 }
 
 fn local_day_in(started_at: &str, start: &str, end_exclusive: &str) -> Option<String> {
@@ -2131,13 +1937,6 @@ fn parse_strictness(value: &str) -> Strictness {
         "gentle" => Strictness::Gentle,
         "strict" => Strictness::Strict,
         _ => Strictness::Normal,
-    }
-}
-
-fn rule_target_key(target: &RuleTarget) -> &'static str {
-    match target {
-        RuleTarget::App => "app",
-        RuleTarget::Website => "website",
     }
 }
 
@@ -2464,6 +2263,10 @@ mod tests {
     #[test]
     fn invalid_unicode_dates_return_an_error() {
         assert!(parse_day("abcé-1-23").is_err());
+        for bad in ["2026-1-05", "20261-01-05", "2026-01-5", "2026-02-30", "2026-13-01", "2026-01-05 "] {
+            assert!(parse_day(bad).is_err(), "{bad}");
+        }
+        assert_eq!(format_day(parse_day("0999-02-28").unwrap()), "0999-02-28");
     }
 
     fn site(key: &str) -> Activity {
@@ -2636,8 +2439,9 @@ mod tests {
 
         let trends = storage.get_trends().expect("trends");
         assert_eq!(trends.daily_focus.len(), 1);
-        assert_eq!(trends.daily_focus[0].focus_percent, 83);
         assert_eq!(trends.daily_focus[0].focus_seconds, 1500);
+        // Of the 30 minutes run, not the hour planned.
+        assert_eq!(storage.get_session_report(id).unwrap().focus_percent, 83);
     }
 
     #[test]
@@ -2946,8 +2750,8 @@ mod tests {
         let _ = running;
 
         let days = storage.get_focus_days("2026-10-01", "2026-11-01").expect("days");
-        let seen: Vec<(&str, u64, u64)> = days.iter().map(|d| (d.date.as_str(), d.focus_seconds, d.session_count)).collect();
-        assert_eq!(seen, vec![("2026-10-01", 900, 2), ("2026-10-31", 60, 1)]);
+        let seen: Vec<(&str, u64)> = days.iter().map(|d| (d.date.as_str(), d.focus_seconds)).collect();
+        assert_eq!(seen, vec![("2026-10-01", 900), ("2026-10-31", 60)]);
         assert!(storage.get_focus_days("2026-10-01", "10/11/2026").is_err());
     }
 

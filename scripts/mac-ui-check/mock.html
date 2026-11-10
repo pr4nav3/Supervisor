@@ -31,7 +31,7 @@
           const day = addDays(start, d);
           if (day > today) break;
           const fs = Math.round(hours*3600*perDay[d]);
-          if (fs > 0) { total += fs; count += 1; daily.push({date:key(day), focus_percent:72, focus_seconds:fs, session_count:1}); }
+          if (fs > 0) { total += fs; count += 1; daily.push({date:key(day), focus_seconds:fs}); }
         }
         weeks.push({start:key(start), session_count:count, focus_seconds:total, median_stretch_seconds: 60*(9+w*2), recovery_median_seconds: 40+w*12});
       }

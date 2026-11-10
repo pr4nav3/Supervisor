@@ -218,9 +218,7 @@ interface SessionReport {
 
 interface DailyFocus {
   date: string;
-  focus_percent: number;
   focus_seconds: number;
-  session_count: number;
 }
 
 /** One week (from Monday) or month (from the 1st); `start` is its first day. */
