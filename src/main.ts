@@ -8455,10 +8455,7 @@ async function playMomentLine(moment: PhraseMoment, turn: number): Promise<boole
   if (draft.voiceId === "none") {
     return false;
   }
-  const voice = selectedVoice();
-  const ready = momentPhrases(voiceTone(voice), moment)
-    .map((phrase) => clipForPhrase(voice, phrase))
-    .filter((clip): clip is VoiceClipSummary => Boolean(clip));
+  const ready = readyClips(selectedVoice(), moment);
   return playLine(ready.length ? ready[turn % ready.length] : null);
 }
 
@@ -8570,12 +8567,8 @@ function announceNudge(speaking: boolean): void {
  *  clip at all only when it has none ready. */
 function selectedNudgeClip(nudgeCount: number, phone = false): VoiceClipSummary | null {
   const voice = selectedVoice();
-  const readyIn = (moment: PhraseMoment) =>
-    momentPhrases(voiceTone(voice), moment)
-      .map((phrase) => clipForPhrase(voice, phrase))
-      .filter((clip): clip is VoiceClipSummary => Boolean(clip));
-  const phoneReady = phone ? readyIn("phone") : [];
-  const ready = phoneReady.length > 0 ? phoneReady : readyIn("nudge");
+  const phoneReady = phone ? readyClips(voice, "phone") : [];
+  const ready = phoneReady.length > 0 ? phoneReady : readyClips(voice, "nudge");
   // No nudge line in this personality: the voice stays quiet, as the Voice page says. A
   // session-over or round-over line is never a nudge.
   if (ready.length === 0) {
@@ -9023,6 +9016,13 @@ function tonePhrases(tone: VoiceTone): PhraseDefinition[] {
   return effectivePhrases().filter((phrase) => sameTone(phrase.tone, tone));
 }
 
+/** The clips a voice has for its personality's lines at a moment. */
+function readyClips(voice: VoiceOption, moment: PhraseMoment): VoiceClipSummary[] {
+  return momentPhrases(voiceTone(voice), moment)
+    .map((phrase) => clipForPhrase(voice, phrase))
+    .filter((clip): clip is VoiceClipSummary => Boolean(clip));
+}
+
 function momentPhrases(tone: VoiceTone, moment: PhraseMoment): PhraseDefinition[] {
   return tonePhrases(tone).filter((phrase) => phrase.moment === moment);
 }
@@ -9078,11 +9078,6 @@ function voiceSilentMoments(voice: VoiceOption): string[] {
   }).map((moment) => moment.label);
 }
 
-/** "a, b and c" */
-function listWords(words: string[]): string {
-  return words.length <= 1 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
-}
-
 /** The chosen voice, when it has no back to work line it can play: every reminder then stays
  *  quiet (selectedNudgeClip finds nothing). Moving the voice to another personality, making or
  *  deleting one, or adding or moving lines can all lead here, so the screens that name the voice
@@ -9092,7 +9087,7 @@ function quietVoice(): VoiceOption | null {
     return null;
   }
   const voice = selectedVoice();
-  return momentPhrases(voiceTone(voice), "nudge").some((phrase) => clipForPhrase(voice, phrase)) ? null : voice;
+  return readyClips(voice, "nudge").length ? null : voice;
 }
 
 function quietVoiceText(voice: VoiceOption): string {
@@ -9124,7 +9119,7 @@ function renderVoiceGapNotice(voice: VoiceOption, where: "voice" | "start"): str
     if (silent.length === 0) {
       return "";
     }
-    words = `${voice.name} has no lines for ${listWords(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
+    words = `${voice.name} has no lines for ${new Intl.ListFormat("en-GB").format(silent)}, so ${voice.name} stays silent at those moments. Generate them to hear ${voice.name} there.`;
   }
   const action =
     where === "start"
