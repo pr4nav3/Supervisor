@@ -590,7 +590,7 @@ let historyPane: "sessions" | "apps" = "sessions";
 let historySearch = "";
 /** Null until the first search of the current text answers. */
 let historySearchResults: SessionSummary[] | null = null;
-let historySearchTimer: number | null = null;
+let historySearchTimer: number | undefined;
 let historySearchRequest = 0;
 /** The week (and data state) whose charts already played their entrance. */
 let historyChartsFor = "";
@@ -630,7 +630,7 @@ let lastOverlayFit = "";
 const OVERLAY_CORNER_WIDTH = 228;
 const OVERLAY_INTERRUPT_WIDTH = 420;
 let ruleEditor: RuleEditor | null = null;
-let rulePreviewTimer: number | null = null;
+let rulePreviewTimer: number | undefined;
 let siteNames: Record<string, string> = {};
 let appNames: Record<string, string> = {};
 /**
@@ -678,7 +678,7 @@ let newToneDraft: string | null = null;
 /** The ⋯ menu on your own personality's card: Rename and Delete. */
 let toneMenuOpen = false;
 let clipQueue: ClipQueue | null = null;
-let clipQueueTicker: number | null = null;
+let clipQueueTicker: number | undefined;
 /** A one-line job started from the line popup reopens that line when its clip lands. */
 let reopenLineAfterQueue: string | null = null;
 const clipAssetRevision = new Map<string, number>();
@@ -705,7 +705,7 @@ let recordingOpen = false;
 let recordingState: RecordingState = "idle";
 let recordingError = "";
 let recordedVoice: RecordedVoice | null = null;
-let recordingTickId: number | null = null;
+let recordingTickId: number | undefined;
 let recordingStartedAtMs: number | null = null;
 let lastError = "";
 let voiceError = "";
@@ -715,7 +715,7 @@ const feedbackToast = document.createElement("div");
 feedbackToast.className = "feedback-toast";
 feedbackToast.setAttribute("role", "status");
 document.body.appendChild(feedbackToast);
-let feedbackTimer: number | null = null;
+let feedbackTimer: number | undefined;
 let pollId: number | null = null;
 let snapshotInFlight = false;
 let downloadPollId: number | undefined;
@@ -7081,11 +7081,8 @@ async function saveRuleForm(form: HTMLFormElement): Promise<void> {
 }
 
 function scheduleRulePreview(delay = 140): void {
-  if (rulePreviewTimer !== null) {
-    window.clearTimeout(rulePreviewTimer);
-  }
+  clearTimeout(rulePreviewTimer);
   rulePreviewTimer = window.setTimeout(() => {
-    rulePreviewTimer = null;
     void resolveRulePreview();
   }, delay);
 }
@@ -7581,7 +7578,7 @@ async function startVoiceRecording(): Promise<void> {
   try {
     const recording = await invoke<VoiceRecordingSnapshot>("start_voice_recording");
     applyRecordingSnapshot(recording);
-    if (recording.phase === "recording" && recordingTickId === null) {
+    if (recording.phase === "recording" && recordingTickId === undefined) {
       recordingTickId = window.setInterval(paintRecordingClock, 500);
     }
   } catch (error) {
@@ -7725,10 +7722,7 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
       }
     }
   }, false);
-  if (clipQueueTicker !== null) {
-    window.clearInterval(clipQueueTicker);
-    clipQueueTicker = null;
-  }
+  clearInterval(clipQueueTicker);
   const finished = clipQueue;
   if (finished?.phase !== "error") {
     clipQueue = null;
@@ -7980,10 +7974,8 @@ function applyRecordingSnapshot(recording: VoiceRecordingSnapshot): void {
 }
 
 function clearRecordingTick(): void {
-  if (recordingTickId !== null) {
-    window.clearInterval(recordingTickId);
-    recordingTickId = null;
-  }
+  clearInterval(recordingTickId);
+  recordingTickId = undefined;
 }
 
 function reconcilePolling(): void {
@@ -8003,13 +7995,9 @@ function tabButton(tab: Tab, text: string): string {
 function showFeedback(message: string, durationMs = 1400): void {
   feedbackToast.textContent = message;
 
-  if (feedbackTimer !== null) {
-    window.clearTimeout(feedbackTimer);
-  }
-
+  clearTimeout(feedbackTimer);
   feedbackTimer = window.setTimeout(() => {
     feedbackToast.textContent = "";
-    feedbackTimer = null;
   }, durationMs);
 }
 
@@ -9452,10 +9440,7 @@ async function refreshHistoryWeek(shouldRender = true): Promise<void> {
 }
 
 function scheduleHistorySearch(): void {
-  if (historySearchTimer !== null) {
-    window.clearTimeout(historySearchTimer);
-    historySearchTimer = null;
-  }
+  clearTimeout(historySearchTimer);
   const query = historySearch.trim();
   if (!query) {
     historySearchRequest += 1;
@@ -9464,7 +9449,6 @@ function scheduleHistorySearch(): void {
     return;
   }
   historySearchTimer = window.setTimeout(() => {
-    historySearchTimer = null;
     void runHistorySearch(query);
   }, 150);
 }
