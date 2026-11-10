@@ -589,7 +589,6 @@ let historyChartsFor = "";
 /** The week picker under the toolbar: open, the month it shows (its first day), and that
  * month's days with sessions. */
 let weekPickerOpen = false;
-let pickerDismissBound = false;
 let pickerMonth = "";
 let pickerDays: Record<string, DailyFocus> = {};
 let pickerRequest = 0;
@@ -3369,11 +3368,6 @@ function paintLinePopupButtons(): void {
       continue;
     }
     now.replaceWith(next);
-    next.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
-      button.addEventListener("click", () => {
-        void runAction(button.dataset.action || "", button);
-      });
-    });
   }
 }
 /** A voice popup opening or closing repaints only the dialog layer; the page under it stays put. */
@@ -5630,6 +5624,85 @@ function renderTimelineLegend(report: SessionReport, unrecorded: boolean): strin
   `;
 }
 
+// The buttons of every screen, wired once per window: a redraw's markup needs no binding. A button
+// inside an action card (a voice card) runs only its own action. Role=button cards take Enter and
+// Space like a button.
+document.addEventListener("click", (event) => {
+  const target = event.target as Element;
+  const tab = target.closest<HTMLElement>("[data-tab]");
+  const next = tab?.dataset.tab as Tab | undefined;
+  if (next && next !== activeTab) {
+    clearLastError();
+    animateOnArrival(next);
+    const leavingWebcam = settingsView === "webcam";
+    if (voiceInfoId) {
+      dismissVoiceInfo();
+    }
+    activeTab = next;
+    if (next !== "settings") {
+      if (settingsView === "voice") {
+        leaveVoiceScreen();
+      }
+      settingsView = "home";
+      ruleEditor = null;
+    }
+    closeWeekPicker();
+    if (next === "history") {
+      // Fresh data first, then one draw: a second draw mid-rise would snap the bars to full height.
+      historyArriving = true;
+      void Promise.all([refreshTrends(false), refreshHistoryWeek(false)]).then(() => {
+        historyArriving = false;
+        if (activeTab === "history") {
+          render();
+        }
+      });
+    } else {
+      render();
+    }
+    if (leavingWebcam) {
+      void stopWebcamPreview();
+    }
+  }
+  const button = target.closest<HTMLElement>("[data-action]");
+  if (button && button.getAttribute("aria-disabled") !== "true") {
+    void runAction(button.dataset.action || "", button);
+  }
+  const rule = target.closest<HTMLButtonElement>("[data-rule-action]");
+  if (rule) {
+    void handleRuleAction(rule);
+  }
+  const flip = target.closest<HTMLButtonElement>("[data-stat-flip]");
+  if (flip) {
+    const key = flip.dataset.statFlip ?? "";
+    const flipped = !flippedStats.has(key);
+    if (flipped) {
+      flippedStats.add(key);
+    } else {
+      flippedStats.delete(key);
+    }
+    flip.classList.toggle("is-flipped", flipped);
+    flip.setAttribute("aria-pressed", String(flipped));
+  }
+});
+document.addEventListener("keydown", (event) => {
+  const card = event.target as HTMLElement;
+  if (card.matches?.("[data-action]:not(button)") && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    card.click();
+  }
+});
+document.addEventListener("click", (event) => {
+  if (!weekPickerOpen) {
+    return;
+  }
+  const target = event.target as Element | null;
+  if (target?.closest(".week-picker, .history-week-label")) {
+    return;
+  }
+  closeWeekPicker();
+  paintWeekPicker();
+});
+
 /** Every listener for the markup inside `root`: the whole document after a full rebuild, or one
  *  slot after paintSlot, so a partial redraw is wired exactly like a full one. */
 function bindEvents(root: ParentNode = document): void {
@@ -5641,69 +5714,6 @@ function bindEvents(root: ParentNode = document): void {
       paintModalLayer();
     }
   });
-  root.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const next = button.dataset.tab as Tab;
-      if (next === activeTab) {
-        return;
-      }
-      clearLastError();
-      animateOnArrival(next);
-      const leavingWebcam = settingsView === "webcam";
-      if (voiceInfoId) {
-        dismissVoiceInfo();
-      }
-      activeTab = next;
-      if (next !== "settings") {
-        if (settingsView === "voice") {
-          leaveVoiceScreen();
-        }
-        settingsView = "home";
-        ruleEditor = null;
-      }
-      closeWeekPicker();
-      if (next === "history") {
-        // Fresh data first, then one draw: a second draw mid-rise would snap the bars to full height.
-        historyArriving = true;
-        void Promise.all([refreshTrends(false), refreshHistoryWeek(false)]).then(() => {
-          historyArriving = false;
-          if (activeTab === "history") {
-            render();
-          }
-        });
-      } else {
-        render();
-      }
-      if (leavingWebcam) {
-        void stopWebcamPreview();
-      }
-    });
-  });
-
-  root.querySelectorAll<HTMLButtonElement>("[data-action]").forEach((button) => {
-    button.addEventListener("click", (event) => {
-      // A button inside an action card (a voice card) runs only its own action.
-      if ((event.target as Element).closest("[data-action]") !== button || button.getAttribute("aria-disabled") === "true") {
-        return;
-      }
-      void runAction(button.dataset.action || "", button);
-    });
-    if (button.tagName !== "BUTTON") {
-      button.addEventListener("keydown", (event) => {
-        if (event.target === button && (event.key === "Enter" || event.key === " ")) {
-          event.preventDefault();
-          button.click();
-        }
-      });
-    }
-  });
-
-  root.querySelectorAll<HTMLButtonElement>("[data-rule-action]").forEach((button) => {
-    button.addEventListener("click", () => {
-      void handleRuleAction(button);
-    });
-  });
-
   root.querySelectorAll<HTMLFormElement>("[data-rule-form]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -5730,20 +5740,6 @@ function bindEvents(root: ParentNode = document): void {
     }
   });
 
-  if (!pickerDismissBound) {
-    pickerDismissBound = true;
-    document.addEventListener("click", (event) => {
-      if (!weekPickerOpen) {
-        return;
-      }
-      const target = event.target as Element | null;
-      if (target?.closest(".week-picker, .history-week-label")) {
-        return;
-      }
-      closeWeekPicker();
-      paintWeekPicker();
-    });
-  }
   const searchInput = root.querySelector("#history-search") as HTMLInputElement | null;
   searchInput?.addEventListener("input", () => {
     historySearch = searchInput.value;
@@ -5792,20 +5788,6 @@ function bindEvents(root: ParentNode = document): void {
       }
     });
   });
-  root.querySelectorAll<HTMLButtonElement>("[data-stat-flip]").forEach((button) => {
-    button.addEventListener("click", () => {
-      const key = button.dataset.statFlip ?? "";
-      const flipped = !flippedStats.has(key);
-      if (flipped) {
-        flippedStats.add(key);
-      } else {
-        flippedStats.delete(key);
-      }
-      button.classList.toggle("is-flipped", flipped);
-      button.setAttribute("aria-pressed", String(flipped));
-    });
-  });
-
   root.querySelector("#default-strictness")?.addEventListener("change", (event) => {
     void updateDefaultStrictness((event.target as HTMLSelectElement).value as Strictness);
   });
