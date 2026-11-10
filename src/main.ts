@@ -5090,11 +5090,6 @@ function averageOf(values: number[]): number | null {
   return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
 }
 
-/** The median, or null when there is nothing to take it of. */
-function trendMedian(values: number[]): number | null {
-  return values.length ? medianOf(values) : null;
-}
-
 interface TrendPill {
   text: string;
   good: boolean;
@@ -5141,16 +5136,16 @@ function renderTrendsBody(): string {
   const focusBefore = averageOf(done(before).map((period) => period.focus_seconds));
   const total = shown.reduce((sum, period) => sum + period.focus_seconds, 0);
   const sessions = shown.reduce((sum, period) => sum + period.session_count, 0);
-  const spanNow = trendMedian(worked(shown).map((period) => period.median_stretch_seconds));
-  const spanBefore = trendMedian(worked(before).map((period) => period.median_stretch_seconds));
+  const spanNow = medianOf(worked(shown).map((period) => period.median_stretch_seconds));
+  const spanBefore = medianOf(worked(before).map((period) => period.median_stretch_seconds));
   const recoveries = (periods: TrendPeriod[]) =>
     done(periods).flatMap((period) => (period.recovery_median_seconds == null ? [] : [period.recovery_median_seconds]));
-  const recoveryNow = trendMedian(recoveries(shown));
+  const recoveryNow = medianOf(recoveries(shown));
   // With no finished period yet, the running one stands in, marked "so far".
   const runningPeriod = shown[shown.length - 1].start === running ? shown[shown.length - 1] : null;
   const spanSoFar = spanNow == null && runningPeriod && runningPeriod.session_count > 0 ? runningPeriod.median_stretch_seconds : null;
   const recoverySoFar = recoveryNow == null ? runningPeriod?.recovery_median_seconds ?? null : null;
-  const recoveryBefore = trendMedian(recoveries(before));
+  const recoveryBefore = medianOf(recoveries(before));
   const ticks = trendTicks(shown);
   // The half-width line charts fit every other label.
   const lineTicks = trendTicks(shown, shown.length > 6 ? 2 : 1);
@@ -9854,9 +9849,10 @@ function focusedStretches(spans: ReportSpan[]): number[] {
   return stretches;
 }
 
-function medianOf(values: number[]): number {
+/** The median, or null when there is nothing to take it of. */
+function medianOf(values: number[]): number | null {
   if (values.length === 0) {
-    return 0;
+    return null;
   }
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
@@ -9894,7 +9890,7 @@ function summarizeDay(card: { day: string; reports: SessionReport[] }): DaySumma
     day: card.day,
     isToday: card.day === dayKey(new Date()),
     focusedSeconds: card.reports.reduce((sum, report) => sum + report.focused_seconds, 0),
-    attentionSeconds: medianOf(card.reports.flatMap((report) => focusedStretches(report.spans))),
+    attentionSeconds: medianOf(card.reports.flatMap((report) => focusedStretches(report.spans))) ?? 0,
     segments,
   };
 }
