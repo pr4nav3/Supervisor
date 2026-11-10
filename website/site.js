@@ -80,7 +80,7 @@
   }
 
   /* the eye on the promise card looks where the pointer is, within its socket */
-  var eyes = Array.prototype.slice.call(document.querySelectorAll(".eye"));
+  var eyes = Array.from(document.querySelectorAll(".eye"));
   /* the lid comes back by itself, whether or not the browser reports the animation's end */
   function wink(eye) { eye.classList.remove("wink"); void eye.offsetWidth; eye.classList.add("wink"); clearTimeout(eye._wink); eye._wink = setTimeout(function () { eye.classList.remove("wink"); }, 400); }
   eyes.forEach(function (eye) {
@@ -103,7 +103,7 @@
   /* ---- the fan: the front card says its line, then goes to the back of the hand ---- */
   var FANL = { Gentle: "Come on back, you were doing well.", Mom: "Close it, or you're grounded. Don't test me.", "Gen Z": "Bro, lock in.", Stern: "You're wasting your own time. Back to it." };
   var first = document.querySelector(".first");
-  var fcards = Array.prototype.slice.call(document.querySelectorAll(".fcard")), fanOrder = [0, 1, 2, 3], fanTimer = null;
+  var fcards = Array.from(document.querySelectorAll(".fcard")), fanOrder = [0, 1, 2, 3], fanTimer = null;
   fcards.forEach(function (c, i) {
     drawWave(c.querySelector(".wave"), c.dataset.tone); c.classList.add("in");
     setWords(c.querySelector(".quote"), "\u201c" + FANL[c.dataset.tone] + "\u201d");
@@ -146,9 +146,9 @@
   var TABS = { yt: { title: "You opened YouTube.", who: "Derek said", line: "Bro, lock in.", clip: "genz" },
                rd: { title: "You opened Reddit.", who: "Derek said", line: "That isn't the work. Close it.", clip: "stern" } };
   var ORDER = ["session", "caught", "phone", "done"];
-  var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab")), views = Array.prototype.slice.call(document.querySelectorAll(".view"));
+  var tabs = Array.from(document.querySelectorAll(".tab")), views = Array.from(document.querySelectorAll(".view"));
   var card = $("card"), corner = $("corner"), faces = { caught: $("f-caught"), done: $("f-done") };
-  var state = "session", pending = null, userTab = null;
+  var state = "session", pending = null;
   function showTab(key) {
     tabs.forEach(function (t) { t.classList.toggle("front", t.dataset.tab === key); });
     views.forEach(function (v) { v.classList.toggle("on", v.dataset.view === key); });
@@ -226,14 +226,14 @@
   }
   tabs.forEach(function (tab) {
     tab.addEventListener("click", function () {
-      var key = tab.dataset.tab; userTab = key;
+      var key = tab.dataset.tab;
       if (key === "docs") return apply("session");
       showTab(key); clearTimeout(pending);
       pending = setTimeout(function () { apply("caught", { tab: key, speak: true }); }, reduce ? 0 : 650);
     });
   });
-  $("back").addEventListener("click", function () { userTab = null; apply(scrollState()); });
-  $("allow").addEventListener("click", function () { userTab = null; apply(scrollState()); });
+  $("back").addEventListener("click", function () { apply(scrollState()); });
+  $("allow").addEventListener("click", function () { apply(scrollState()); });
   $("c-orb").addEventListener("click", function () {
     if (state === "phone") return play("phone", [$("c-voice")]);
     var key = tabs.filter(function (t) { return t.classList.contains("front"); })[0].dataset.tab;
@@ -247,7 +247,7 @@
   }
   function onScroll() {
     var next = scrollState();
-    if (next !== state) { userTab = null; apply(next); }
+    if (next !== state) apply(next);
     arrivals();
   }
 
@@ -279,7 +279,7 @@
     $("way-mac").hidden = os !== "mac"; $("way-win").hidden = os !== "win";
   }
   pickOS(isMac ? "mac" : "win");
-  document.querySelectorAll(".os .vcard").forEach(function (c) { c.addEventListener("click", function () { pickOS(c.dataset.os); }); });
+  document.querySelectorAll(".os .vcard").forEach(function (c) { c.addEventListener("click", function () { pickOS(c.dataset.os); setTimeout(tail, 0); }); });
   /* each install line has its own Copy */
   document.querySelectorAll("[data-copy]").forEach(function (b) {
     b.addEventListener("click", function () {
@@ -291,8 +291,7 @@
 
   /* the stacked cards: contents rise once as a card arrives; a card loses its shadow once the
      next one has covered it; the voice starts talking when its card is in */
-  var sheets = Array.prototype.slice.call(document.querySelectorAll(".deal"));
-  /* room under the stack so the page ends with the last row parked at its sticky top */
+  var sheets = Array.from(document.querySelectorAll(".deal"));
   /* the hand leans to the right; if the lean would reach past the first screen's edge, the whole
      hand slides left by that much, so no card is ever cut off */
   var fanBox = $("fan");
@@ -311,16 +310,12 @@
     /* never under the bar: 72px of bar, 18px of soft edge, 14px of air */
     var top = function (el) { return Math.max(104, Math.round((innerHeight - el.offsetHeight - foot) / 2)); };
     sheets.forEach(function (el) { el.style.setProperty("--top", top(el) + "px"); });
-    /* the footer sits right under the last row, and the page keeps as much room under it as
-       there is above the row */
-    $("stack").style.setProperty("--tail", "0px");
     /* whatever is left under the group once the last row parks at its top; when the row is
        clamped to the bar that is less than the room above it, and the page must end there, not
        push the row up under the bar */
     document.querySelector("footer").style.marginBottom = (narrow.matches ? 24 : Math.max(24, innerHeight - top(last) - last.offsetHeight - foot)) + "px";
   }
-  tail(); addEventListener("resize", tail); document.querySelectorAll(".os .vcard").forEach(function (b) { b.addEventListener("click", function () { setTimeout(tail, 0); }); });
-  /* a card is "in" while any of it is on screen, so its arrival replays on the way back up */
+  tail(); addEventListener("resize", tail);
   /* the bar's grid lines up with the page's grid whatever the scroll position */
   var bar = document.querySelector("header");
   var h1 = document.querySelector(".hero h1");
@@ -328,6 +323,7 @@
   var scrollFrame = 0;
   addEventListener("scroll", function () { if (!scrollFrame) scrollFrame = requestAnimationFrame(function () { scrollFrame = 0; onScroll(); alignBar(); }); }, { passive: true });
   alignBar();
+  /* a card is "in" while any of it is on screen, so its arrival replays on the way back up */
   function arrivals() {
     sheets.forEach(function (el, i) {
       var r = el.getBoundingClientRect(), was = el.classList.contains("in");
