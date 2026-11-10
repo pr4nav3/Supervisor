@@ -1667,10 +1667,7 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   const shown = rules.map((rule, index) => ({ rule, index })).filter(({ rule, index }) => index < 6 || isAllowed(rule));
   const hidden = rules.length - shown.length;
   const chips = shown
-    .map(({ rule, index }) => {
-      const allowed = isAllowed(rule);
-      return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="toggle-session-exception" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
-    })
+    .map(({ rule, index }) => allowChip(rule, index, isAllowed(rule), "toggle-session-exception"))
     .concat(hidden > 0 ? [`<span class="session-rule-more" aria-label="${hidden} more">…</span>`] : [])
     .join("");
   const allowed = rules.filter(isAllowed).map(ruleName);
@@ -1678,6 +1675,11 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
     <div class="chips session-rule-chips">${chips}</div>
     ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.join(", "))}</p>` : ""}
   `;
+}
+
+/** A distraction chip that allows it once, or takes that back. `index` counts the newest rule first. */
+function allowChip(rule: AppRule, index: number, allowed: boolean, action: string): string {
+  return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="${action}" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
 }
 
 /** The same rule, however it was typed: matching ignores case, so the chips must too. */
@@ -2998,16 +3000,9 @@ function renderRuleManager(title: string): string {
 /** Before a session: tap a distraction to allow it today; "+ Add" adds one for good. */
 function renderPreflightDistractions(): string {
   const chips = permanentRules
-    .map((rule, index) => ({ rule, index }))
+    .slice()
     .reverse()
-    .map(({ rule, index }) => {
-      const allowed = preflightExceptions.some((exception) => sameRule(exception, rule));
-      return `
-        <button class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" type="button" aria-pressed="${allowed}" data-action="toggle-exception" data-rule-index="${index}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">
-          ${escapeHtml(ruleName(rule))}
-        </button>
-      `;
-    })
+    .map((rule, index) => allowChip(rule, index, preflightExceptions.some((exception) => sameRule(exception, rule)), "toggle-exception"))
     .join("");
   return `
     <div class="rule-manager preflight-rule-manager">
@@ -6014,7 +6009,7 @@ async function runAction(action: string, source?: HTMLElement): Promise<void> {
   }
 
   if (action === "toggle-exception") {
-    const rule = permanentRules[Number(source?.dataset.ruleIndex)];
+    const rule = permanentRules.slice().reverse()[Number(source?.dataset.ruleIndex)];
     if (rule) {
       preflightExceptions = preflightExceptions.some((exception) => sameRule(exception, rule))
         ? preflightExceptions.filter((exception) => !sameRule(exception, rule))
