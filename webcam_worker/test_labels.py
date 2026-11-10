@@ -3,13 +3,9 @@
 
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-from labels import Hysteresis, TrackerState, compose_frame, phone_alert, raw_present
+from labels import Hysteresis, TrackerState, compose_frame
 
 
 class HysteresisTests(unittest.TestCase):
@@ -30,10 +26,11 @@ class HysteresisTests(unittest.TestCase):
 
 
 class PresenceTests(unittest.TestCase):
-    def test_face_or_person(self):
-        self.assertTrue(raw_present(True, False))
-        self.assertTrue(raw_present(False, True))
-        self.assertFalse(raw_present(False, False))
+    def test_a_person_without_a_face_is_present(self):
+        state = TrackerState.default()
+        compose_frame(state, face_in_frame=False, person_in_frame=True, phone_raw=False)
+        out = compose_frame(state, face_in_frame=False, person_in_frame=True, phone_raw=False)
+        self.assertTrue(out["present"])
 
     def test_single_face_frame_does_not_assert_present(self):
         state = TrackerState.default()
@@ -52,18 +49,6 @@ class PresenceTests(unittest.TestCase):
         self.assertTrue(out["present"])
         self.assertIsNone(out["gaze"])
         self.assertFalse(out["looking_at_phone"])
-
-
-class PhoneAlertTests(unittest.TestCase):
-    def test_off_never_fires(self):
-        self.assertFalse(phone_alert(False, True, True, True))
-
-    def test_strict_uses_phone_in_frame(self):
-        self.assertTrue(phone_alert(True, True, True, False))
-
-    def test_not_strict_uses_looking_at_phone(self):
-        self.assertTrue(phone_alert(True, False, True, True))
-        self.assertFalse(phone_alert(True, False, True, False))
 
 
 class BurstTests(unittest.TestCase):

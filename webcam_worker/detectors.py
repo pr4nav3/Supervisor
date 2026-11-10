@@ -1,4 +1,4 @@
-"""Ultralytics YOLO ONNX detector for phone (COCO cell phone) and person. CPU only."""
+"""Ultralytics YOLO ONNX detector for phone (COCO cell phone) and person, on CPU or GPU."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ import onnxruntime as ort
 # COCO class indices (Ultralytics / YOLO training order).
 PERSON_CLASS = 0
 CELL_PHONE_CLASS = 67
+INPUT_SIZE = 640
 
 # Windows ships onnxruntime-directml (any DirectX 12 GPU); macOS onnxruntime includes CoreML.
 GPU_PROVIDERS = {
@@ -67,19 +68,6 @@ def letterbox(bgr: np.ndarray, size: int, pad: int = 114) -> Tuple[np.ndarray, f
     return canvas, scale
 
 
-def phone_views(bgr: np.ndarray) -> List[Tuple[np.ndarray, int, int]]:
-    """Full frame plus the lower-center square, where a phone held at the desk usually is."""
-    height, width = bgr.shape[:2]
-    views: List[Tuple[np.ndarray, int, int]] = [(bgr, 0, 0)]
-    side = min(height, width)
-    if side < 32 or side == max(height, width):
-        return views
-    y0 = height - side
-    x0 = max(0, (width - side) // 2)
-    views.append((bgr[y0:, x0 : x0 + side], x0, y0))
-    return views
-
-
 def nms_per_class(boxes: List[Box], iou: float = 0.45) -> List[Box]:
     kept: List[Box] = []
     for class_id in {b.class_id for b in boxes}:
@@ -99,10 +87,8 @@ class UltralyticsYoloDetector:
         onnx_path: Path,
         phone_score: float,
         person_score: float,
-        input_size: int = 640,
-        threads: int = 4,
-        dual_view: bool = True,
-        device: str = "cpu",
+        threads: int,
+        device: str,
     ):
         self._session = create_session(onnx_path, device, threads)
         self.provider = self._session.get_providers()[0]
@@ -110,8 +96,6 @@ class UltralyticsYoloDetector:
             CELL_PHONE_CLASS: phone_score,
             PERSON_CLASS: person_score,
         }
-        self._size = input_size
-        self._dual_view = dual_view
         self._input_name = self._session.get_inputs()[0].name
 
     def _decode(self, raw: np.ndarray, scale: float) -> List[Box]:
@@ -136,7 +120,7 @@ class UltralyticsYoloDetector:
         return out
 
     def _run_view(self, bgr: np.ndarray) -> List[Box]:
-        padded, scale = letterbox(bgr, self._size)
+        padded, scale = letterbox(bgr, INPUT_SIZE)
         rgb = padded[:, :, ::-1].astype(np.float32) / 255.0
         blob = np.ascontiguousarray(np.transpose(rgb, (2, 0, 1))[None])
         raw = self._session.run(None, {self._input_name: blob})[0]
@@ -144,41 +128,13 @@ class UltralyticsYoloDetector:
 
     def detect(self, bgr: np.ndarray) -> List[Box]:
         height, width = bgr.shape[:2]
-        views = phone_views(bgr) if self._dual_view else [(bgr, 0, 0)]
-        merged: List[Box] = []
-        for crop, ox, oy in views:
-            for box in self._run_view(crop):
-                x1 = min(max(box.x + ox, 0.0), float(width - 1))
-                y1 = min(max(box.y + oy, 0.0), float(height - 1))
-                x2 = min(box.x + box.w + ox, float(width))
-                y2 = min(box.y + box.h + oy, float(height))
-                if x2 - x1 < 8 or y2 - y1 < 8:
-                    continue
-                merged.append(Box(x1, y1, x2 - x1, y2 - y1, box.score, box.class_id))
-        return nms_per_class(merged)
-
-
-def load_detector(
-    name: str,
-    models_dir: Path,
-    phone_score: float,
-    person_score: float,
-    threads: int = 4,
-    dual_view: bool = True,
-    device: str = "cpu",
-) -> UltralyticsYoloDetector:
-    if "_416" in name:
-        input_size = 416
-    elif "_512" in name:
-        input_size = 512
-    else:
-        input_size = 640
-    return UltralyticsYoloDetector(
-        models_dir / name,
-        phone_score=phone_score,
-        person_score=person_score,
-        input_size=input_size,
-        threads=threads,
-        dual_view=dual_view,
-        device=device,
-    )
+        boxes: List[Box] = []
+        for box in self._run_view(bgr):
+            x1 = min(max(box.x, 0.0), float(width - 1))
+            y1 = min(max(box.y, 0.0), float(height - 1))
+            x2 = min(box.x + box.w, float(width))
+            y2 = min(box.y + box.h, float(height))
+            if x2 - x1 < 8 or y2 - y1 < 8:
+                continue
+            boxes.append(Box(x1, y1, x2 - x1, y2 - y1, box.score, box.class_id))
+        return nms_per_class(boxes)

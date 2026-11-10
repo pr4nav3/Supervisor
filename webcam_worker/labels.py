@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass, field
-from typing import Deque, Optional
+from typing import Deque
 
 
 @dataclass
@@ -33,8 +33,7 @@ class Hysteresis:
                     self._clear_streak = 0
             return self._state
 
-        hits = sum(1 for v in self._history if v)
-        if len(self._history) >= self.on_threshold and hits >= self.on_threshold:
+        if sum(self._history) >= self.on_threshold:
             self._state = True
             self._clear_streak = 0
         return self._state
@@ -42,11 +41,6 @@ class Hysteresis:
     def recent_hit(self) -> bool:
         """Any raw hit still in the window: a phone may be about to switch on."""
         return any(self._history)
-
-    def reset(self) -> None:
-        self._history.clear()
-        self._state = False
-        self._clear_streak = 0
 
 
 @dataclass
@@ -62,10 +56,6 @@ class TrackerState:
         )
 
 
-def raw_present(face_in_frame: bool, person_in_frame: bool) -> bool:
-    return face_in_frame or person_in_frame
-
-
 def compose_frame(
     state: TrackerState,
     *,
@@ -75,9 +65,8 @@ def compose_frame(
     phone_count: int = 0,
     phone_confidence: float = 0.0,
 ) -> dict:
-    present_raw = raw_present(face_in_frame, person_in_frame)
     phone_on = state.phone.update(phone_raw)
-    present = state.presence.update(present_raw)
+    present = state.presence.update(face_in_frame or person_in_frame)
 
     return {
         "face_in_frame": face_in_frame,
@@ -89,11 +78,3 @@ def compose_frame(
         "phone_count": int(phone_count),
         "phone_confidence": float(phone_confidence),
     }
-
-
-def phone_alert(phone_use: bool, strict: bool, phone_in_frame: bool, looking_at_phone: bool) -> bool:
-    if not phone_use:
-        return False
-    if strict:
-        return phone_in_frame
-    return looking_at_phone

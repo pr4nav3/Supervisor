@@ -30,4 +30,4 @@ Presence (YuNet face or YOLO person) is about 0.98 F1 for every model here. Gaze
 - These numbers are COCO photos, not a webcam at a desk. Check it on a real camera before trusting the threshold.
 - GPU mode keeps a laptop GPU awake. It is a setting, off by default, and it reports an error if the GPU provider cannot start.
 
-Full rows: `eval/results_v2.jsonl` (every model and threshold) and `eval/results_final.jsonl` (CPU vs GPU). Both are gitignored.
+The bakeoff scripts (`benchmark.py`, `eval/build_eval_set.py`) and the two-view detector are in git history: `git show dd9482e:webcam_worker/benchmark.py`. Their result rows were never committed.

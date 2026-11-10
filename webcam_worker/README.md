@@ -18,7 +18,7 @@ On macOS the venv path is `.venv-webcam/bin/python`. macOS 14 or newer.
 
 `download_models.py` only checks the pinned files. It downloads YuNet if that file is missing.
 
-`models/yolo26s.onnx` (38 MB) is **not in git**: `webcam_worker/.gitignore` ignores `models/`. A fresh checkout must get it before the worker will start. Either:
+`models/yolo26s.onnx` (38 MB) is **not in git**: `.gitignore` ignores `webcam_worker/models/`. A fresh checkout must get it before the worker will start. Either:
 
 - copy it from an earlier build, e.g. `~/.cargo-target/supervisor/release/webcam/models/yolo26s.onnx`, or
 - export it with `export_models.py` in `.venv-webcam-tools` (Ultralytics, telemetry off).

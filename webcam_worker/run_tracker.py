@@ -15,22 +15,24 @@ import time
 from pathlib import Path
 from typing import List, Optional
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-if str(SCRIPT_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPT_DIR))
-
 import cv2
 import numpy as np
 
-from detectors import CELL_PHONE_CLASS, PERSON_CLASS, Box, load_detector
+from detectors import CELL_PHONE_CLASS, PERSON_CLASS, Box, UltralyticsYoloDetector
 from download_models import DETECTOR, FACE_MODEL, MODELS_DIR, verify_models
 from labels import TrackerState, compose_frame
 
 YUNET_MAX_SIDE = 960
 # Chosen in RESULTS.md: YOLO26s, full frame only, 0.15 (static look-alikes like remotes stay
 # under it; hysteresis cannot filter an object that scores the same on every frame).
-DEFAULT_PHONE_SCORE = 0.15
-DEFAULT_PERSON_SCORE = 0.35
+PHONE_SCORE = 0.15
+PERSON_SCORE = 0.35
+FACE_SCORE = 0.55
+# Rate from the first frame that looks like a phone until it clears.
+BURST_FPS = 5.0
+# Two threads: a frame takes ~40% longer than with four, but the worker never ties up
+# every core of a slower laptop for a whole session.
+THREADS = 2
 
 CAMERA_HELP = {
     "win32": "Check that no other app is using it, and that Settings > Privacy & security > Camera "
@@ -44,21 +46,12 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--camera", type=int, default=0)
     parser.add_argument("--fps", type=float, default=2.0, help="watch rate while no phone is suspected")
-    parser.add_argument(
-        "--burst-fps", type=float, default=5.0, help="rate from the first frame that looks like a phone until it clears"
-    )
     parser.add_argument("--preview", action="store_true", help="include a jpeg in every line for the app")
     parser.add_argument(
         "--preview-fps", type=float, default=15.0, help="picture rate in preview mode; detection still runs at --fps"
     )
     parser.add_argument("--device", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--self-test", action="store_true", help="load models, run one blank frame, exit")
-    parser.add_argument("--face-score", type=float, default=0.55)
-    parser.add_argument("--phone-score", type=float, default=DEFAULT_PHONE_SCORE)
-    parser.add_argument("--person-score", type=float, default=DEFAULT_PERSON_SCORE)
-    # Two threads: a frame takes ~40% longer than with four, but the worker never ties up
-    # every core of a slower laptop for a whole session.
-    parser.add_argument("--threads", type=int, default=2)
     parser.add_argument("--models", type=Path, default=MODELS_DIR)
     return parser.parse_args()
 
@@ -129,7 +122,7 @@ def fail(device: str, message: str) -> int:
 
 def main() -> int:
     args = parse_args()
-    if args.fps <= 0 or args.burst_fps <= 0:
+    if args.fps <= 0:
         return fail(args.device, "fps must be positive")
 
     try:
@@ -141,18 +134,12 @@ def main() -> int:
             np.fromfile(str(paths[FACE_MODEL]), dtype=np.uint8),
             np.empty(0, dtype=np.uint8),
             (320, 320),
-            args.face_score,
+            FACE_SCORE,
             0.3,
             5000,
         )
-        object_detector = load_detector(
-            DETECTOR,
-            args.models,
-            phone_score=args.phone_score,
-            person_score=args.person_score,
-            threads=args.threads,
-            dual_view=False,
-            device=args.device,
+        object_detector = UltralyticsYoloDetector(
+            paths[DETECTOR], PHONE_SCORE, PERSON_SCORE, threads=THREADS, device=args.device
         )
     except Exception as exc:
         return fail(args.device, str(exc))
@@ -199,7 +186,7 @@ def main() -> int:
 
             # Watch slowly; check fast while any recent frame looked like a phone, so it is
             # confirmed or cleared in about a second without paying the fast rate all session.
-            detect_fps = args.burst_fps if tracker_state.phone.recent_hit() else args.fps
+            detect_fps = BURST_FPS if tracker_state.phone.recent_hit() else args.fps
             detect = labels is None or started - last_detect >= 1.0 / detect_fps
             if detect:
                 last_detect = started

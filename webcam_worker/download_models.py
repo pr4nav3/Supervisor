@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import shutil
 import sys
 import urllib.request
 from pathlib import Path
@@ -14,7 +15,7 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 FACE_MODEL = "face_detection_yunet_2023mar.onnx"
 DETECTOR = "yolo26s.onnx"
 
-# Shipped with the app, but not in git (webcam_worker/.gitignore ignores models/). The YOLO file
+# Shipped with the app, but not in git (the root .gitignore ignores it). The YOLO file
 # is exported once with export_models.py and pinned here, so every build ships exactly the model
 # that was benchmarked. See README.md for where to get it.
 REQUIRED = {
@@ -42,11 +43,8 @@ USER_AGENT = "SupervisorWebcam/1"
 
 
 def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
     with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+        return hashlib.file_digest(handle, "sha256").hexdigest()
 
 
 def download(url: str, dest: Path) -> None:
@@ -54,8 +52,7 @@ def download(url: str, dest: Path) -> None:
     tmp = dest.with_suffix(dest.suffix + ".part")
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
     with urllib.request.urlopen(request, timeout=180) as response, tmp.open("wb") as out:
-        while chunk := response.read(1024 * 1024):
-            out.write(chunk)
+        shutil.copyfileobj(response, out)
     tmp.replace(dest)
 
 
