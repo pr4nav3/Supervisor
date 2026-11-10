@@ -718,8 +718,7 @@ document.body.appendChild(feedbackToast);
 let feedbackTimer: number | null = null;
 let pollId: number | null = null;
 let snapshotInFlight = false;
-let downloadPollId: number | null = null;
-let downloadPollInFlight = false;
+let downloadPollId: number | undefined;
 let nudgeAudio: HTMLAudioElement | null = null;
 /** The voice and line of the nudge playing or last played (main window). */
 let lastNudgeVoice: Omit<NudgeVoice, "speaking"> | null = null;
@@ -7385,11 +7384,11 @@ async function startModelDownload(): Promise<void> {
     const download = await invoke<VoiceDownloadSnapshot>("start_voice_model_download");
     applyDownloadSnapshot(download);
     voiceError = "";
-    startDownloadPolling();
     if (download.phase === "complete") {
-      stopDownloadPolling();
       await refreshVoiceStatus(false);
       showFeedback(download.up_to_date ? "Up to date" : "Voice engine ready");
+    } else {
+      startDownloadPolling();
     }
   } catch (error) {
     voiceBusy = null;
@@ -7411,38 +7410,21 @@ async function cancelModelDownload(): Promise<void> {
 }
 
 function startDownloadPolling(): void {
-  if (downloadPollId !== null) {
-    return;
-  }
-  downloadPollId = window.setInterval(() => {
-    void pollModelDownload();
-  }, 750);
+  downloadPollId ??= window.setTimeout(pollDownload, 750);
 }
 
 function stopDownloadPolling(): void {
-  if (downloadPollId !== null) {
-    window.clearInterval(downloadPollId);
-    downloadPollId = null;
-  }
+  clearTimeout(downloadPollId);
+  downloadPollId = undefined;
 }
 
-async function pollModelDownload(): Promise<void> {
+/** Runs every 750 ms while the voice engine popup waits on a download, until it ends. */
+async function pollDownload(): Promise<void> {
+  const poll = downloadPollId;
   if (voiceBusy !== "download-model") {
     stopDownloadPolling();
     return;
   }
-  if (downloadPollInFlight) {
-    return;
-  }
-  downloadPollInFlight = true;
-  try {
-    await pollModelDownloadNow();
-  } finally {
-    downloadPollInFlight = false;
-  }
-}
-
-async function pollModelDownloadNow(): Promise<void> {
   try {
     const download = await invoke<VoiceDownloadSnapshot>("get_voice_model_download");
     applyDownloadSnapshot(download);
@@ -7477,6 +7459,9 @@ async function pollModelDownloadNow(): Promise<void> {
     return;
   }
   paintDownloadProgress();
+  if (downloadPollId === poll) {
+    downloadPollId = window.setTimeout(pollDownload, 750);
+  }
 }
 
 function dismissDownloadModal(): void {
