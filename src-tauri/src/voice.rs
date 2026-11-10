@@ -275,6 +275,10 @@ impl VoiceWorker {
             if worker_is_dead(live.as_mut()) {
                 *live = None;
                 self.inner.loaded.store(false, Ordering::SeqCst);
+                // Dropping the worker closed its job handle; a later cancel must not reuse it.
+                if let Ok(mut slot) = self.inner.killer.lock() {
+                    *slot = None;
+                }
                 return false;
             }
         }
