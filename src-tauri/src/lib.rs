@@ -523,20 +523,6 @@ fn update_settings(
 }
 
 #[tauri::command]
-fn show_status_window(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<SessionSnapshot, String> {
-    let mut sessions = lock_sessions(&state)?;
-    let now = state.started_at.elapsed();
-    let snapshot = sessions.set_status_window_enabled(true, now);
-    drop(sessions);
-
-    show_status_window_internal(&app)?;
-    Ok(snapshot)
-}
-
-#[tauri::command]
 fn set_status_window_enabled(
     enabled: bool,
     app: AppHandle,
@@ -685,11 +671,6 @@ fn release_voice_worker(state: State<'_, AppState>) {
 #[tauri::command]
 fn cancel_voice_generation(state: State<'_, AppState>) {
     voice::cancel_generation(&state.voice_worker);
-}
-
-#[tauri::command]
-fn list_voice_profiles(app: AppHandle) -> Result<Vec<voice::VoiceProfileSummary>, String> {
-    voice::list_profiles(&app)
 }
 
 #[tauri::command]
@@ -922,7 +903,6 @@ pub fn run() {
             update_phrase_library,
             update_settings,
             set_status_window_size,
-            show_status_window,
             set_status_window_enabled,
             set_status_window_on_top,
             get_voice_backend_status,
@@ -937,7 +917,6 @@ pub fn run() {
             generate_voice_clips,
             release_voice_worker,
             cancel_voice_generation,
-            list_voice_profiles,
             delete_voice_profile,
             delete_voice_profile_clips,
             set_voice_tone,

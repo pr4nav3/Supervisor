@@ -1020,11 +1020,6 @@ pub fn delete_model(app: &AppHandle) -> Result<VoiceModelStatus, String> {
     Ok(model_status(&root))
 }
 
-pub fn list_profiles(app: &AppHandle) -> Result<Vec<VoiceProfileSummary>, String> {
-    let root = voice_root(app)?;
-    Ok(profile_summaries(&root))
-}
-
 pub fn delete_profile(
     app: &AppHandle,
     profile_id: String,
