@@ -10107,17 +10107,7 @@ function cardCanvas(height: number, framed = false): { canvas: HTMLCanvasElement
 function drawCardTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sub = ""): void {
   const palette = cardPalette();
   const valueMax = sub ? 26 : 34;
-  ctx.fillStyle = palette.shadow;
-  ctx.beginPath();
-  ctx.roundRect(x + 4, y + 4, w, h, 6);
-  ctx.fill();
-  ctx.fillStyle = palette.panel;
-  ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 6);
-  ctx.fill();
-  ctx.strokeStyle = palette.border;
-  ctx.lineWidth = 3;
-  ctx.stroke();
+  drawCardPanel(ctx, x, y, w, h, 6);
   const inset = sub ? 12 : 16;
   const inner = w - inset * 2;
   ctx.textAlign = "left";
@@ -10271,16 +10261,16 @@ function drawCardHeader(ctx: CanvasRenderingContext2D, eyebrow: string, period: 
   return bottom + 18;
 }
 
-/** An inner panel in the card's language: hard shadow, fill, border. */
-function drawCardPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void {
+/** An inner panel in the card's language: hard shadow, fill, border. Tiles are less rounded. */
+function drawCardPanel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, radius = 8): void {
   const palette = cardPalette();
   ctx.fillStyle = palette.shadow;
   ctx.beginPath();
-  ctx.roundRect(x + 4, y + 4, w, h, 8);
+  ctx.roundRect(x + 4, y + 4, w, h, radius);
   ctx.fill();
   ctx.fillStyle = palette.panel;
   ctx.beginPath();
-  ctx.roundRect(x, y, w, h, 8);
+  ctx.roundRect(x, y, w, h, radius);
   ctx.fill();
   ctx.strokeStyle = palette.border;
   ctx.lineWidth = 3;
