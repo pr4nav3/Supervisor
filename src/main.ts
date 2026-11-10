@@ -3,14 +3,14 @@ import starterLines from "../scripts/starter_lines.json";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { emit, listen } from "@tauri-apps/api/event";
 import type {
-  AppRule, AppView, CapturePermissions, ClipQueue, CurrentSession, DailyFocus, HistoryConfirm,
-  HistoryView, HistoryWeek, MonthRecap, NudgeVoice, PhraseDefinition, PhraseEditor,
-  PhraseLibraryState, PhraseMoment, PomodoroStatus, RecapApp, RecordedVoice, RecordingState,
-  ReportSpan, RuleEditor, RulePreview, RulesSaved, RuleTarget, SessionReport, SessionSettings,
-  SessionSnapshot, SessionSummary, SettingsView, StorageNotice, Strictness, Tab, TrendPeriod,
-  TrendsData, TrendUnit, VoiceBackendStatus, VoiceBusy, VoiceClipSummary, VoiceDownloadSnapshot,
-  VoiceModelStatus, VoiceOption, VoiceProfileSummary, VoiceRecordingSnapshot, VoiceSource,
-  VoiceTone, WebcamFrame, WeekRecap,
+  AppRule, CapturePermissions, ClipQueue, CurrentSession, DailyFocus, HistoryConfirm, HistoryView,
+  HistoryWeek, MonthRecap, NudgeVoice, PhraseDefinition, PhraseEditor, PhraseLibraryState,
+  PhraseMoment, PomodoroStatus, RecapApp, RecordedVoice, RecordingState, ReportSpan, RuleEditor,
+  RulePreview, RulesSaved, RuleTarget, SessionReport, SessionSettings, SessionSnapshot,
+  SessionSummary, SettingsView, StorageNotice, Strictness, Tab, TrendPeriod, TrendsData, TrendUnit,
+  VoiceBackendStatus, VoiceBusy, VoiceClipSummary, VoiceDownloadSnapshot, VoiceModelStatus,
+  VoiceOption, VoiceProfileSummary, VoiceRecordingSnapshot, VoiceSource, VoiceTone, WebcamFrame,
+  WeekRecap,
 } from "./core/types";
 import {
   addDaysKey, addMonthsKey, averageOf, dayKey, formatBytes, formatDuration, formatHours,
@@ -18,6 +18,10 @@ import {
   formatWeekStart, medianOf, mondayKey, mondayOf, monthKey, monthLabel, parseDayKey, smartBarHeight,
   STREAK_DAY_SECONDS, streakLabel, thisMondayKey,
 } from "./core/format";
+import {
+  afterPointer, app, appView, attr, composing, confirmModal, errorText, escapeHtml, formValue,
+  label, modal, showFeedback,
+} from "./core/dom";
 
 /** Work / break rhythms on the start screen. */
 const POMODORO_RHYTHMS = [
@@ -40,10 +44,6 @@ const TREND_WINDOW = 12;
 
 /** A few seconds of burst photos on a phone. History is a sliver of that. */
 const PHOTO_BURST_BYTES = 30 * 1024 ** 2;
-
-const app = document.querySelector<HTMLDivElement>("#app")!;
-const appView: AppView = new URLSearchParams(window.location.search).get("view") === "overlay" ? "overlay" : "main";
-document.body.classList.toggle("overlay-view", appView === "overlay");
 
 let theme: "light" | "dark" = localStorage.getItem("supervisor-theme") === "dark" ? "dark" : "light";
 
@@ -275,13 +275,6 @@ let recordingTickId: number | undefined;
 let recordingStartedAtMs: number | null = null;
 let lastError = "";
 let voiceError = "";
-// Made once and kept: a live region must already be in the page when its text changes, or
-// screen readers skip the announcement. Empty, it draws nothing (styles.css).
-const feedbackToast = document.createElement("div");
-feedbackToast.className = "feedback-toast";
-feedbackToast.setAttribute("role", "status");
-document.body.appendChild(feedbackToast);
-let feedbackTimer: number | undefined;
 let pollId: number | null = null;
 let snapshotInFlight = false;
 let downloadPollId: number | undefined;
@@ -3393,15 +3386,6 @@ function deleteAllCopy(bytes: number | null | undefined): string[] {
   ];
 }
 
-/** A popup: the backdrop, and the dialog named by its title. */
-function modal(cls: string, titleId: string, inner: string): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel ${cls}" role="dialog" aria-modal="true" aria-labelledby="${titleId}">${inner}</section>
-    </div>
-  `;
-}
-
 function renderHistoryConfirm(): string {
   if (!historyConfirm) {
     return "";
@@ -3425,23 +3409,6 @@ function renderHistoryConfirm(): string {
         };
   const body = copy.body.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
   return confirmModal("history-confirm-title", copy.eyebrow, copy.title, body, ["cancel-history-confirm", copy.cancel], ["confirm-history", copy.confirm]);
-}
-
-/** A yes-or-no popup whose red button goes ahead. `body` is markup. */
-function confirmModal(titleId: string, eyebrow: string, title: string, body: string, cancel: [string, string], confirm: [string, string]): string {
-  return modal("confirm-panel", titleId, `
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">${eyebrow}</p>
-            <h2 id="${titleId}">${escapeHtml(title)}</h2>
-          </div>
-        </div>
-        ${body}
-        <div class="modal-actions">
-          <button type="button" data-action="${cancel[0]}">${escapeHtml(cancel[1])}</button>
-          <button class="danger" type="button" data-action="${confirm[0]}">${escapeHtml(confirm[1])}</button>
-        </div>
-      `);
 }
 
 function renderQuitConfirm(): string {
@@ -5379,31 +5346,6 @@ window.addEventListener("pointerdown", (event) => {
     paintClipsPanel();
   }
 });
-
-/** Whether a mouse or pen is held down, so a rebuild can wait for its click. */
-let pointerHeld = false;
-window.addEventListener("pointerdown", () => (pointerHeld = true), true);
-window.addEventListener("pointerup", () => (pointerHeld = false), true);
-window.addEventListener("pointercancel", () => (pointerHeld = false), true);
-
-/**
- * Runs `paint` now, or once the held pointer is released and its click has landed. A field's blur
- * fires on the press, so a rebuild it starts would replace the button before the release and
- * swallow the click.
- */
-function afterPointer(paint: () => void): void {
-  if (!pointerHeld) {
-    paint();
-    return;
-  }
-  const release = () => {
-    window.removeEventListener("pointerup", release);
-    window.removeEventListener("pointercancel", release);
-    window.setTimeout(paint);
-  };
-  window.addEventListener("pointerup", release);
-  window.addEventListener("pointercancel", release);
-}
 
 /** The picker and the toolbar button that opens it. */
 function paintWeekPicker(): void {
@@ -7364,15 +7306,6 @@ function tabButton(tab: Tab, text: string): string {
   return `<button data-tab="${tab}" class="${activeTab === tab ? "active" : ""}" type="button">${text}</button>`;
 }
 
-function showFeedback(message: string, durationMs = 1400): void {
-  feedbackToast.textContent = message;
-
-  clearTimeout(feedbackTimer);
-  feedbackTimer = window.setTimeout(() => {
-    feedbackToast.textContent = "";
-  }, durationMs);
-}
-
 function paintRecordingClock(): void {
   const el = document.getElementById("recording-elapsed");
   if (el && recordingState === "recording") {
@@ -8724,18 +8657,6 @@ function cloneRules(rules: AppRule[]): AppRule[] {
   return rules.map((rule) => ({ ...rule }));
 }
 
-function formValue(form: HTMLFormElement, name: string): string {
-  const field = form.elements.namedItem(name);
-  if (
-    field instanceof HTMLInputElement ||
-    field instanceof HTMLSelectElement ||
-    field instanceof HTMLTextAreaElement
-  ) {
-    return field.value;
-  }
-  return "";
-}
-
 /** Every week and month since the first session, for Trends; it pages through them itself. */
 async function refreshTrendPeriods(): Promise<void> {
   try {
@@ -9332,12 +9253,6 @@ function fitCanvasText(ctx: CanvasRenderingContext2D, text: string, weight: numb
 const STRIP_GREEN = "#a8eb37";
 const STRIP_RED = "#ff684f";
 
-/** The Enter that confirms Japanese or Chinese input is not a submit. WebKit reports it
- *  with isComposing false, so keyCode 229 (an IME key) is checked too. */
-function composing(event: KeyboardEvent): boolean {
-  return event.isComposing || event.keyCode === 229;
-}
-
 /** Width of every shared card; the day and the week card draw at the same size. */
 const CARD_WIDTH = 640;
 const CARD_PAD = 36;
@@ -9741,21 +9656,5 @@ function dayTotalLine(items: SessionSummary[]): string {
   const focused = items.reduce((sum, item) => sum + item.focus_seconds, 0);
   return `${formatHours(focused)} focused · ${sessions}`;
 }
-
-function label(value: string): string {
-  return value.replaceAll("_", " ").replace(/^\w/, (letter) => letter.toUpperCase());
-}
-
-function errorText(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
-const ESCAPES: Record<string, string> = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" };
-
-function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (char) => ESCAPES[char]);
-}
-
-const attr = escapeHtml;
 
 void init();
