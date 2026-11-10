@@ -8,9 +8,7 @@ import {
   formatStretchChip, formatWeekRange, formatWeekStart, mondayKey, monthKey, parseDayKey,
   smartBarHeight, thisMondayKey,
 } from "../core/format";
-import {
-  renderQuitConfirm, renderReviewLayer, renderSessionOver, setDayCardKey, setSessionReview,
-} from "../main";
+import { setDayCardKey } from "../main";
 import { attr, confirmModal, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
 import {
   appNames, clearLastError, history, knownHistoryIds, setActiveTab, setAppNames, setHistory,
@@ -25,6 +23,7 @@ import { stopWebcamPreview } from "./webcam";
 import { practiceIds } from "./firstRun";
 import { permanentRules, setPermanentRules } from "./rules";
 import { leaveVoiceScreen } from "./lines";
+import { renderQuitConfirm, renderReviewLayer, renderSessionOver, setSessionReview } from "./session";
 
 /** A few seconds of burst photos on a phone. History is a sliver of that. */
 const PHOTO_BURST_BYTES = 30 * 1024 ** 2;

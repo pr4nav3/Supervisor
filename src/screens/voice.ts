@@ -6,7 +6,6 @@ import type {
   VoiceOption, VoiceProfileSummary, VoiceRecordingSnapshot, VoiceSource, VoiceTone,
 } from "../core/types";
 import { formatBytes, formatDuration } from "../core/format";
-import { sessionOver } from "../main";
 import {
   afterPointer, appView, attr, confirmModal, errorText, escapeHtml, modal, showFeedback,
 } from "../core/dom";
@@ -19,6 +18,7 @@ import {
   renderVoiceLinesArea, toneLabel, toneOrder,
 } from "./lines";
 import { paintModalLayer } from "./history";
+import { sessionOver } from "./session";
 
 const noneVoice: VoiceOption = {
   id: "none",

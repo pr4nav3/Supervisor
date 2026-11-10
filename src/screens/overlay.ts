@@ -1,15 +1,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import type { AppRule, CurrentSession, NudgeVoice, PomodoroStatus } from "../core/types";
-import {
-  breakOverLine, isOnBreak, liveTimer, renderRoundDots, resumeLabel, stateClass, stateCopy,
-  stateTitle,
-} from "../main";
 import { formatDuration, formatHours } from "../core/format";
 import { appView, attr, errorText, escapeHtml, showFeedback } from "../core/dom";
 import { appNames, setLastError, settings, siteNames, snapshot } from "../core/state";
 import { bindEvents, invokeSnapshot, render } from "../core/shell";
 import { CAMERA_DOWN_COPY, cameraDown } from "./webcam";
+import {
+  breakOverLine, isOnBreak, liveTimer, renderRoundDots, resumeLabel, stateClass, stateCopy,
+  stateTitle,
+} from "./session";
 
 export let overlayMoreOpen = false;
 export function setOverlayMoreOpen(value: boolean): void {
