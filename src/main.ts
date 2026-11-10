@@ -1730,9 +1730,7 @@ function renderSessionReview(review: { items: ReviewItem[]; saving: boolean }): 
       return `<div class="review-chip ${item.distraction ? "is-distraction" : ""}">${main}<button class="review-rename" type="button" data-review-rename="${index}">${item.renaming ? "Save" : "Rename"}</button></div>`;
     })
     .join("");
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel review-panel" role="dialog" aria-modal="true" aria-labelledby="review-title">
+  return modal("review-panel", "review-title", `
         <p class="eyebrow">Session done</p>
         <h2 id="review-title">Any distractions here?</h2>
         <p class="review-intro">These counted as work. Click any that weren't.</p>
@@ -1741,9 +1739,7 @@ function renderSessionReview(review: { items: ReviewItem[]; saving: boolean }): 
           <button class="review-later" type="button" data-action="review-later">Skip</button>
           <button class="${marked ? "danger" : "primary"}" type="button" data-action="review-save" ${review.saving ? "disabled" : ""}>${marked ? `Add ${marked} to distractions` : "All work"}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** Renames first, then the answers: the distractions go on the list and count in this session. */
@@ -1835,9 +1831,7 @@ function bindSessionReview(root: ParentNode): void {
 }
 
 function renderSessionRulesModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel session-rules-panel" role="dialog" aria-modal="true" aria-labelledby="session-rules-title">
+  return modal("session-rules-panel", "session-rules-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">CURRENT SESSION</p>
@@ -1846,9 +1840,7 @@ function renderSessionRulesModal(): string {
           <button class="small-button" type="button" data-action="close-session-rules">Done</button>
         </div>
         ${renderRuleManager("")}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderOverlay(current: CurrentSession | null): string {
@@ -2415,9 +2407,7 @@ function renderFirstRun(): string {
     done: "You're all set",
   };
   const back = index > 0 && !practice ? `<button type="button" data-action="first-run-back">Back</button>` : "<span></span>";
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel first-run-panel" role="dialog" aria-modal="true" aria-labelledby="first-run-title">
+  return modal("first-run-panel", "first-run-title", `
         <div class="modal-head first-run-head">
           <div>
             <p class="eyebrow">Getting started${step === "done" ? "" : ` · ${index + 1} of ${counted}`}</p>
@@ -2426,9 +2416,7 @@ function renderFirstRun(): string {
           ${practice || step === "done" ? "" : `<button class="small-button" type="button" data-action="first-run-skip">Skip</button>`}
         </div>
         ${renderFirstRunBody(step, back)}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderFirstRunBody(step: FirstRunStep, back: string): string {
@@ -2686,9 +2674,7 @@ function renderHomeTip(): string {
 function renderPreflightModal(): string {
   const ruleCount = permanentRules.length;
   const progress = (draft.duration_minutes - 15) / 75;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel preflight-panel" role="dialog" aria-modal="true" aria-labelledby="preflight-title">
+  return modal("preflight-panel", "preflight-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">New session</p>
@@ -2752,9 +2738,7 @@ function renderPreflightModal(): string {
 
         ${renderVoiceGapNotice(selectedVoice(), "start")}
         <button class="primary preflight-start" type="button" data-action="confirm-start-session">Start focus session</button>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** Work / break chips on the left, rounds on the right, the finish time under them. */
@@ -3472,9 +3456,7 @@ function renderNewPersonalityModal(): string {
     return "";
   }
   const speaks = voiceTone(clipsVoice());
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup new-personality-popup" role="dialog" aria-modal="true" aria-labelledby="new-personality-title">
+  return modal("voice-popup new-personality-popup", "new-personality-title", `
         <h2 id="new-personality-title">New personality</h2>
         <p>A personality is what your voices say. Start from one you like and change a few of its lines, or start with nothing and write your own.</p>
         <form class="phrase-editor" id="new-tone">
@@ -3494,9 +3476,7 @@ function renderNewPersonalityModal(): string {
             <button class="primary" type="submit">Create</button>
           </div>
         </form>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** The voice's personality, one card per moment. */
@@ -3667,9 +3647,7 @@ function renderLinePopup(): string {
         <p class="line-audio-note">${changed ? "This audio says the old words. Saving removes it from every voice." : ""}</p>
       </div>`
     : "";
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup line-popup" role="dialog" aria-modal="true" aria-labelledby="line-popup-title">
+  return modal("voice-popup line-popup", "line-popup-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">${escapeHtml(toneLabel(editor.tone))} · ${escapeHtml(voice.name)}</p>
@@ -3705,9 +3683,7 @@ function renderLinePopup(): string {
           }
         </form>
         ${lock ? `<p class="quiet">${escapeHtml(lock)}</p>` : ""}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function closeToneForms(): void {
@@ -3717,9 +3693,7 @@ function closeToneForms(): void {
   toneMenuOpen = false;
 }
 function renderVoiceHelpModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="voice-help-title">
+  return modal("voice-popup", "voice-help-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Voices</p>
@@ -3735,18 +3709,14 @@ function renderVoiceHelpModal(): string {
           <li><strong>Select it.</strong> Once its back to work lines are generated, select the voice under Voices.</li>
         </ol>
         <p class="quiet">Listen to each line. If one sounds off, press Edit and regenerate it.</p>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderModelInfoModal(): string {
   const model = voiceBackend?.model;
   const installed = modelInstalled();
   const busy = voiceBusy !== null || ["checking", "downloading", "cancelling"].includes(voiceDownload?.phase ?? "");
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="model-info-title">
+  return modal("voice-popup", "model-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Voice engine</p>
@@ -3768,9 +3738,7 @@ function renderModelInfoModal(): string {
           ${installed ? `<button class="danger" type="button" data-action="ask-delete-model" ${busy ? "disabled" : ""}>Delete voice engine</button>` : ""}
           <button class="${installed ? "" : "primary"}" type="button" data-action="download-model-pack" ${busy ? "disabled" : ""}>${installed ? "Check for updates" : "Download voice engine"}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderMemoryInfoModal(): string {
@@ -3779,9 +3747,7 @@ function renderMemoryInfoModal(): string {
   const need = system?.min_free_ram_bytes ?? 0;
   const peak = system?.last_peak_ram_bytes ?? null;
   const locked = ramGenerationLocked();
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-popup" role="dialog" aria-modal="true" aria-labelledby="memory-info-title">
+  return modal("voice-popup", "memory-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Memory</p>
@@ -3799,9 +3765,7 @@ function renderMemoryInfoModal(): string {
         <div class="modal-actions">
           <button class="${locked ? "primary" : ""}" type="button" data-action="check-ram">Check again</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function ramLockCopy(locked: boolean, peak: number | null): string {
@@ -3873,6 +3837,15 @@ function deleteAllCopy(bytes: number | null | undefined): string[] {
   ];
 }
 
+/** A popup: the backdrop, and the dialog named by its title. */
+function modal(cls: string, titleId: string, inner: string): string {
+  return `
+    <div class="modal-backdrop" role="presentation">
+      <section class="modal-panel ${cls}" role="dialog" aria-modal="true" aria-labelledby="${titleId}">${inner}</section>
+    </div>
+  `;
+}
+
 function renderHistoryConfirm(): string {
   if (!historyConfirm) {
     return "";
@@ -3886,7 +3859,6 @@ function renderHistoryConfirm(): string {
           body: deleteAllCopy(historyConfirm.bytes),
           cancel: "Keep my history",
           confirm: "Delete everything",
-          danger: true,
         }
       : {
           eyebrow: "HISTORY",
@@ -3894,49 +3866,34 @@ function renderHistoryConfirm(): string {
           body: ["This session will be removed from this computer. You cannot undo this."],
           cancel: "Cancel",
           confirm: "Delete session",
-          danger: true,
         };
+  const body = copy.body.map((line) => `<p>${escapeHtml(line)}</p>`).join("");
+  return confirmModal("history-confirm-title", copy.eyebrow, copy.title, body, ["cancel-history-confirm", copy.cancel], ["confirm-history", copy.confirm]);
+}
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="history-confirm-title">
+/** A yes-or-no popup whose red button goes ahead. `body` is markup. */
+function confirmModal(titleId: string, eyebrow: string, title: string, body: string, cancel: [string, string], confirm: [string, string]): string {
+  return modal("confirm-panel", titleId, `
         <div class="modal-head">
           <div>
-            <p class="eyebrow">${copy.eyebrow}</p>
-            <h2 id="history-confirm-title">${escapeHtml(copy.title)}</h2>
+            <p class="eyebrow">${eyebrow}</p>
+            <h2 id="${titleId}">${escapeHtml(title)}</h2>
           </div>
         </div>
-        ${copy.body.map((line) => `<p>${escapeHtml(line)}</p>`).join("")}
+        ${body}
         <div class="modal-actions">
-          <button type="button" data-action="cancel-history-confirm">${escapeHtml(copy.cancel)}</button>
-          <button class="${copy.danger ? "danger" : "primary"}" type="button" data-action="confirm-history">${escapeHtml(copy.confirm)}</button>
+          <button type="button" data-action="${cancel[0]}">${escapeHtml(cancel[1])}</button>
+          <button class="danger" type="button" data-action="${confirm[0]}">${escapeHtml(confirm[1])}</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderQuitConfirm(): string {
   if (!quitConfirmOpen) {
     return "";
   }
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="quit-confirm-title">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">QUIT</p>
-            <h2 id="quit-confirm-title">End this session and quit?</h2>
-          </div>
-        </div>
-        <p>The session so far is saved to History.</p>
-        <div class="modal-actions">
-          <button type="button" data-action="cancel-quit">Cancel</button>
-          <button class="danger" type="button" data-action="confirm-quit">End and quit</button>
-        </div>
-      </section>
-    </div>
-  `;
+  const body = "<p>The session so far is saved to History.</p>";
+  return confirmModal("quit-confirm-title", "QUIT", "End this session and quit?", body, ["cancel-quit", "Cancel"], ["confirm-quit", "End and quit"]);
 }
 
 /** Session done (yellow, the round-over card's shape): the session's title and focused time,
@@ -3972,9 +3929,7 @@ function renderRecordingModal(): string {
   const isRecording = recordingState === "recording";
   const canSave = Boolean(recordedVoice?.bytes && recordedVoice.name.trim() && voiceBusy === null);
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel recording-panel" role="dialog" aria-modal="true" aria-labelledby="record-title">
+  return modal("recording-panel", "record-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">New voice</p>
@@ -4013,29 +3968,12 @@ function renderRecordingModal(): string {
             }
           </section>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderDeleteModelModal(): string {
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-model-title">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">Voice engine</p>
-            <h2 id="delete-model-title">Delete the voice engine?</h2>
-          </div>
-        </div>
-        <p>Your voices and their lines stay on this computer. To generate new lines you'll need to download the voice engine again.</p>
-        <div class="modal-actions">
-          <button type="button" data-action="cancel-delete-model">Cancel</button>
-          <button class="danger" type="button" data-action="delete-model-files">Delete voice engine</button>
-        </div>
-      </section>
-    </div>
-  `;
+  const body = "<p>Your voices and their lines stay on this computer. To generate new lines you'll need to download the voice engine again.</p>";
+  return confirmModal("delete-model-title", "Voice engine", "Delete the voice engine?", body, ["cancel-delete-model", "Cancel"], ["delete-model-files", "Delete voice engine"]);
 }
 
 function renderVoiceInfoModal(): string {
@@ -4048,9 +3986,7 @@ function renderVoiceInfoModal(): string {
   const profileId = voice.source === "custom" ? voice.profile?.profile_id ?? "" : "";
   const canRename = Boolean(voice.profile) && voiceBusy === null;
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel voice-info-panel" role="dialog" aria-modal="true" aria-labelledby="voice-info-title">
+  return modal("voice-info-panel", "voice-info-title", `
         <div class="voice-info-head">
           <div>
             <p class="eyebrow">Edit voice</p>
@@ -4087,9 +4023,7 @@ function renderVoiceInfoModal(): string {
           }
           <button class="primary" type="button" data-action="close-voice-info">Done</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 function renderDeleteVoiceModal(): string {
   const profile = voiceDeleteTargetId ? profileById(voiceDeleteTargetId) : null;
@@ -4097,9 +4031,7 @@ function renderDeleteVoiceModal(): string {
     return "";
   }
 
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel confirm-panel" role="dialog" aria-modal="true" aria-labelledby="delete-voice-title">
+  return modal("confirm-panel", "delete-voice-title", `
         <div class="modal-head">
           <div>
             <p class="eyebrow">Delete voice</p>
@@ -4112,9 +4044,7 @@ function renderDeleteVoiceModal(): string {
           <button type="button" data-action="delete-voice-files" ${profile.clips.length === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
           <button class="danger" type="button" data-action="delete-voice-profile">Delete the voice</button>
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function renderVoiceBusyModal(): string {
@@ -4275,9 +4205,7 @@ function renderShareModal(): string {
   queueMicrotask(mountShareCards);
   const week = weekRecap && weekRecap.start === historyWeekStart ? weekRecap : null;
   const month = shareMonth && shareMonth.start.slice(0, 7) === historyWeekStart.slice(0, 7) ? shareMonth : null;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel share-panel" role="dialog" aria-modal="true" aria-labelledby="share-title">
+  return modal("share-panel", "share-title", `
         <div class="modal-head share-head">
           <div>
             <p class="eyebrow">History</p>
@@ -4290,9 +4218,7 @@ function renderShareModal(): string {
           ${renderShareColumn(week !== null, "week", "copy-week-card", week !== null && week.session_count > 0, "No sessions this week")}
           ${renderShareColumn(month !== null, "month", "copy-month-card", month !== null && month.session_count > 0, "No sessions this month")}
         </div>
-      </section>
-    </div>
-  `;
+      `);
 }
 
 /** The card is the button, like the day card on Home: a click copies it. A period with no
@@ -4777,9 +4703,7 @@ function renderAppEdit(): string {
         </div>
       </div>
     `;
-  return `
-    <div class="modal-backdrop" role="presentation">
-      <section class="modal-panel app-edit-panel" role="dialog" aria-modal="true" aria-labelledby="app-edit-title">
+  return modal("app-edit-panel", "app-edit-title", `
         <div class="modal-head app-edit-head">
           <div>
             <p class="eyebrow">${site ? "Website" : "App"}</p>
@@ -4797,9 +4721,7 @@ function renderAppEdit(): string {
         ${site ? `<label class="app-edit-field"><span>Address</span><input id="app-edit-address" maxlength="300" value="${attr(edit.address)}" spellcheck="false" /></label>` : ""}
         ${counts}
         ${edit.error ? `<p class="app-edit-error">${escapeHtml(edit.error)}</p>` : ""}
-      </section>
-    </div>
-  `;
+      `);
 }
 
 function appEditTitle(edit: AppEdit): string {
