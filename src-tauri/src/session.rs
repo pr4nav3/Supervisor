@@ -620,7 +620,6 @@ struct Session {
     started_at_seconds: u64,
     snoozed_until_seconds: Option<u64>,
     metrics: SessionMetrics,
-    evidence: Vec<EvidenceEvent>,
     latest_focus: Option<FocusSnapshot>,
     /// The distractions, as saved; `exceptions` are the ones allowed for this session.
     rules: Vec<AppRule>,
@@ -660,8 +659,6 @@ struct UnreadableBrowser {
     shown: Option<String>,
     /// While `shown` is set and another app is in front: since when.
     away_since: Option<Duration>,
-    /// Browsers already written to the event log this session.
-    logged: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -727,7 +724,6 @@ impl Session {
             started_at_seconds: now.as_secs(),
             snoozed_until_seconds: None,
             metrics: SessionMetrics::default(),
-            evidence: Vec::new(),
             latest_focus: None,
             rules,
             exceptions,
@@ -764,7 +760,6 @@ impl Session {
                 .is_some_and(|until| now.as_secs() >= until)
         {
             self.unmute();
-            self.push_event(now, "Reminders unmuted", "WATCHING");
         }
     }
 
@@ -806,7 +801,6 @@ impl Session {
             // itself.
             plan.break_over_at = if now.as_secs().saturating_sub(until) > LOST_TIME_AFTER.as_secs() { now.as_secs() } else { until };
             plan.moments += 1;
-            self.push_event(now, "Break over", "POMODORO");
         } else if plan.break_over && now.as_secs() >= plan.break_over_at + plan.break_seconds {
             // Waited one more break's length with nobody back: the next round starts itself,
             // as the start screen's "Done around" promised.
@@ -968,11 +962,9 @@ impl Session {
 
         if focus.should_nudge {
             self.metrics.nudges += 1;
-            self.push_event(now, "Voice reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("voice"), storage);
         }
 
-        self.push_focus_event(now, &focus);
         self.latest_focus = Some(focus);
         self.checkpoint_open_span(now, storage);
     }
@@ -992,7 +984,6 @@ impl Session {
         // arrival with a new grace, and the reminder cooldown is not forgotten.
         self.engine.hold(now);
         self.status = SessionStatus::Paused;
-        self.push_event(now, "Session paused", "HOLD");
         self.persist_event(now, "pause", None, storage);
     }
 
@@ -1008,11 +999,9 @@ impl Session {
             self.engine.set_muted(still_muted);
             self.engine.set_camera_away(false);
             self.supervisor_state = None;
-            self.push_event(now, "Session resumed", "LIVE");
             self.persist_event(now, "resume", None, storage);
         } else if self.status == SessionStatus::Snoozed {
             self.unmute();
-            self.push_event(now, "Reminders unmuted", "LIVE");
             self.persist_event(now, "unsnooze", None, storage);
         }
     }
@@ -1029,7 +1018,6 @@ impl Session {
             focus.should_nudge = false;
             focus.next_nudge_in_seconds = None;
         }
-        self.push_event(now, "Reminders muted", &format!("{} MIN", seconds / 60));
         self.persist_event(now, "snooze", Some(&seconds.to_string()), storage);
     }
 
@@ -1068,7 +1056,7 @@ impl Session {
         self.exceptions.retain(|exception| !exception.matches(&focus.activity));
         self.rules.insert(0, rule.clone());
         self.rules = keep_current_rules(std::mem::take(&mut self.rules));
-        self.remark_current(&focus, Some(rule), now, storage, "Marked distraction", "marked_distracting", None);
+        self.remark_current(&focus, Some(rule), now, storage, "marked_distracting", None);
         Some(self.rules.clone())
     }
 
@@ -1081,7 +1069,7 @@ impl Session {
         if !self.exceptions.iter().any(|exception| exception.target == rule.target && exception.value.eq_ignore_ascii_case(&rule.value)) {
             self.exceptions.push(rule);
         }
-        self.remark_current(&focus, None, now, storage, "Allowed this session", "allowed", Some(&detail));
+        self.remark_current(&focus, None, now, storage, "allowed", Some(&detail));
     }
 
     /// After a rule change on the window in front: close the span under the old decision,
@@ -1092,7 +1080,6 @@ impl Session {
         matched_rule: Option<AppRule>,
         now: Duration,
         storage: Option<&SessionStorage>,
-        evidence: &str,
         event: &str,
         detail: Option<&str>,
     ) {
@@ -1118,7 +1105,6 @@ impl Session {
                     focus.sample.window_title.as_deref(), &activity, marked.state, storage);
             }
         }
-        self.push_event(now, evidence, "RULE");
         self.persist_event(now, event, detail, storage);
     }
 
@@ -1133,8 +1119,6 @@ impl Session {
         self.close_open_span(now, storage);
         self.claim_tail(now, storage);
         self.finish_timer_hold(now);
-        self.status = SessionStatus::Complete;
-        self.push_event(now, "Session saved", "LOCAL");
     }
 
     /// Seconds into the session with pauses cut out, so the spans are the timer's time only.
@@ -1297,7 +1281,6 @@ impl Session {
             status: self.status,
             snoozed_until_seconds: self.snoozed_until_seconds,
             metrics: self.metrics.clone(),
-            evidence: self.evidence.clone(),
             focus: self.latest_focus.clone(),
             supervisor_in_front: self.supervisor_state.is_some(),
             unreadable_browser: self.unreadable.shown.clone(),
@@ -1454,21 +1437,6 @@ impl Session {
         }
     }
 
-    fn push_focus_event(&mut self, now: Duration, focus: &FocusSnapshot) {
-        let label = focus_event_label(focus);
-        let value = focus_event_value(focus);
-
-        if self
-            .evidence
-            .first()
-            .is_some_and(|event| event.label == label && event.value == value)
-        {
-            return;
-        }
-
-        self.push_event(now, &label, &value);
-    }
-
     /// Neither the address nor the title named the page: the browser can't be read here.
     /// Never on macOS: Accessibility reads every listed browser's address there, and while
     /// it is missing the Accessibility notice already says why websites aren't caught.
@@ -1491,10 +1459,6 @@ impl Session {
             state.since = Some((label.clone(), since));
             if now.saturating_sub(since) >= UNREADABLE_BROWSER_AFTER && state.shown.as_ref() != Some(label) {
                 state.shown = Some(label.clone());
-                if !state.logged.contains(label) {
-                    state.logged.push(label.clone());
-                    self.push_event(now, &format!("Can't read {label}'s address bar"), "BROWSER");
-                }
             }
         } else {
             state.since = None;
@@ -1513,18 +1477,6 @@ impl Session {
                 state.away_since = None;
             }
         }
-    }
-
-    fn push_event(&mut self, now: Duration, label: &str, value: &str) {
-        self.evidence.insert(
-            0,
-            EvidenceEvent {
-                at_seconds: now.as_secs().saturating_sub(self.started_at_seconds),
-                label: label.to_string(),
-                value: value.to_string(),
-            },
-        );
-        self.evidence.truncate(8);
     }
 
     fn record_webcam(&mut self, phone: bool, present: bool, now: Duration, storage: Option<&SessionStorage>) {
@@ -1560,10 +1512,6 @@ impl Session {
             .is_some_and(|at| now.saturating_sub(at) <= CAMERA_STALE_AFTER)
     }
 
-    fn camera_sees_someone(&self, now: Duration) -> bool {
-        self.camera_live(now) && self.camera.present
-    }
-
     /// Nobody in view for `CAMERA_AWAY_AFTER`, and no input since they left. Input always wins:
     /// someone typing is there even if the camera misses them.
     fn camera_away(&self, sample: &ActivitySample, now: Duration) -> bool {
@@ -1589,7 +1537,6 @@ impl Session {
         self.open_marker_span(Activity::phone(), PHONE_STATE);
         self.camera.phone_since = Some(now);
         self.camera.phone_nudged = false;
-        self.push_event(now, "Phone or watch in view", "WEBCAM");
     }
 
     /// Ends the phone once no frame has seen it for a moment (put down, or the camera
@@ -1603,7 +1550,6 @@ impl Session {
         if now.saturating_sub(self.camera.phone_seen_at) >= PHONE_CLEAR_AFTER {
             self.close_open_span(now, storage);
             self.camera.phone_since = None;
-            self.push_event(now, "Phone or watch put down", "WEBCAM");
             return;
         }
         // A phone is a new distraction, so its first reminder plays with its card whatever the
@@ -1619,7 +1565,6 @@ impl Session {
             self.camera.phone_nudged = true;
             self.camera.last_phone_nudge_at = Some(now);
             self.metrics.nudges += 1;
-            self.push_event(now, "Phone or watch reminder queued", "VOICE 01");
             self.persist_event(now, "nudge", Some("phone"), storage);
         }
     }
@@ -1637,9 +1582,7 @@ impl Session {
             .map_or(0, |since| now.saturating_sub(since).as_secs());
         CameraStatus {
             live: self.camera_live(now),
-            present: self.camera_sees_someone(now),
             phone: self.phone_active(),
-            phone_seconds,
             phone_distracted: self.phone_active() && phone_seconds >= self.phone_grace_seconds(),
         }
     }
@@ -1791,7 +1734,6 @@ pub enum SessionStatus {
     Active,
     Paused,
     Snoozed,
-    Complete,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -1820,7 +1762,6 @@ pub struct CurrentSession {
     pub status: SessionStatus,
     pub snoozed_until_seconds: Option<u64>,
     pub metrics: SessionMetrics,
-    pub evidence: Vec<EvidenceEvent>,
     pub focus: Option<FocusSnapshot>,
     /// Supervisor's own window is in front: `focus` is the place the user came from, with
     /// its clock held, and this time counts as work.
@@ -1839,10 +1780,7 @@ pub struct CurrentSession {
 pub struct CameraStatus {
     /// Frames are arriving.
     pub live: bool,
-    pub present: bool,
     pub phone: bool,
-    /// How long this phone has been in view.
-    pub phone_seconds: u64,
     /// Past the grace: the popup shows and the phone is nudged when due.
     pub phone_distracted: bool,
 }
@@ -1859,13 +1797,6 @@ pub struct SessionMetrics {
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-pub struct EvidenceEvent {
-    pub at_seconds: u64,
-    pub label: String,
-    pub value: String,
-}
-
-#[derive(Clone, Debug, Serialize, PartialEq)]
 pub struct SessionSummary {
     pub id: u64,
     pub goal: String,
@@ -1873,8 +1804,6 @@ pub struct SessionSummary {
     pub duration_seconds: u64,
     /// Time not on a distraction.
     pub focus_seconds: u64,
-    pub distracted_seconds: u64,
-    pub idle_seconds: u64,
     pub nudges: u64,
     pub top_hints: Vec<String>,
     /// The session in order: runs of one state, with gaps where nothing was recorded.
@@ -1933,50 +1862,6 @@ fn keep_current_rules(rules: Vec<AppRule>) -> Vec<AppRule> {
         .filter(|rule| !rule.names_a_browser())
         .filter(|rule| seen.insert((rule.target, rule.value.trim().to_lowercase())))
         .collect()
-}
-
-fn focus_event_label(focus: &FocusSnapshot) -> String {
-    focus.activity.label.clone()
-}
-
-fn focus_event_value(focus: &FocusSnapshot) -> String {
-    format!(
-        "{} / {} / {}",
-        state_label(focus.state),
-        rule_hint(focus.matched_rule.as_ref()),
-        nudge_hint(focus)
-    )
-}
-
-fn state_label(state: FocusState) -> &'static str {
-    match state {
-        FocusState::Focused => "FOCUSED",
-        FocusState::Suspicious => "SUSPICIOUS",
-        FocusState::Distracted => "DISTRACTED",
-        FocusState::Idle => "IDLE",
-    }
-}
-
-fn rule_hint(rule: Option<&AppRule>) -> String {
-    rule.map(|rule| format!("{} {}", rule_target_label(&rule.target), rule.value))
-        .unwrap_or_else(|| "NO RULE".to_string())
-}
-
-fn rule_target_label(target: &RuleTarget) -> &'static str {
-    match target {
-        RuleTarget::App => "APP",
-        RuleTarget::Website => "SITE",
-    }
-}
-
-fn nudge_hint(focus: &FocusSnapshot) -> &'static str {
-    if focus.should_nudge {
-        "NUDGE NOW"
-    } else if focus.next_nudge_in_seconds.is_some() {
-        "NUDGE ARMED"
-    } else {
-        "NO NUDGE"
-    }
 }
 
 fn paths_match(left: &str, right: &str) -> bool {
@@ -2321,11 +2206,12 @@ mod tests {
         record(&mut manager, site("youtube.com", 0.0), seconds(60));
         let snapshot = manager.stop(seconds(90));
         let session = &snapshot.history[0];
+        let report = manager.session_report(session.id).unwrap();
 
         assert_eq!(session.duration_seconds, 90);
-        assert_eq!(session.idle_seconds, 0);
-        assert_eq!(session.focus_seconds + session.distracted_seconds, 90);
-        assert!(session.distracted_seconds >= 30);
+        assert_eq!(report.idle_seconds, 0);
+        assert_eq!(session.focus_seconds + report.distracted_seconds, 90);
+        assert!(report.distracted_seconds >= 30);
         assert_eq!(session.nudges, 0);
     }
 
@@ -2573,7 +2459,6 @@ mod tests {
 
         assert_eq!(metric_total(&current.metrics), 0);
         assert_eq!(current.metrics.nudges, 0);
-        assert!(current.evidence.is_empty());
         assert!(current.focus.is_none());
     }
 
@@ -2889,7 +2774,8 @@ mod tests {
         assert_eq!(manager.snooze(seconds(70), 300).status, SessionStatus::Paused);
         let snapshot = manager.stop(seconds(80));
 
-        assert_eq!(snapshot.history[0].distracted_seconds, 10);
+        let report = manager.session_report(snapshot.history[0].id).unwrap();
+        assert_eq!(report.distracted_seconds, 10);
         assert_eq!(snapshot.history[0].duration_seconds, 10);
     }
 
@@ -3125,7 +3011,7 @@ mod tests {
     }
 
     #[test]
-    fn evidence_records_decision_metadata() {
+    fn focus_records_decision_metadata() {
         let mut manager = test_manager();
         manager.start(
             input("Focus", Strictness::Strict),
@@ -3134,12 +3020,12 @@ mod tests {
         record(&mut manager, site("youtube.com", 0.0), seconds(0));
         let snapshot = record(&mut manager, site("youtube.com", 0.0), seconds(10));
         let current = snapshot.current.unwrap();
-        let event = current.evidence.first().unwrap();
+        let focus = current.focus.unwrap();
 
-        assert_eq!(event.label, "YouTube");
-        assert!(event.value.contains("DISTRACTED"));
-        assert!(event.value.contains("SITE youtube.com"));
-        assert!(event.value.contains("NUDGE ARMED"));
+        assert_eq!(focus.activity.label, "YouTube");
+        assert_eq!(focus.state, FocusState::Distracted);
+        assert_eq!(focus.matched_rule.unwrap().value, "youtube.com");
+        assert!(!focus.should_nudge && focus.next_nudge_in_seconds.is_some());
     }
 
     #[test]
@@ -3487,8 +3373,6 @@ mod tests {
             for t in 0..30 {
                 assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))), None, "at {t} s");
             }
-            let current = manager.snapshot(seconds(29)).current.unwrap();
-            assert!(!current.evidence.iter().any(|event| event.value == "BROWSER"));
             return;
         }
         for t in 0..20 {
@@ -3497,9 +3381,6 @@ mod tests {
         for t in 20..25 {
             assert_eq!(named(record(&mut manager, unread.clone(), seconds(t))).as_deref(), Some("Vivaldi"));
         }
-        let current = manager.snapshot(seconds(24)).current.unwrap();
-        let logged = current.evidence.iter().filter(|event| event.label == "Can't read Vivaldi's address bar");
-        assert_eq!(logged.count(), 1);
 
         let read = ActivitySample {
             browser: Some(crate::activity::BrowserRead {

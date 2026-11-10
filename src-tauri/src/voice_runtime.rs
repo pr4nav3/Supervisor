@@ -40,15 +40,9 @@ pub enum VoiceRuntimeSource {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct VoiceRuntimeStatus {
-    pub target: String,
-    pub install_dir: String,
     pub installed: bool,
-    pub executable_path: Option<String>,
-    pub version: Option<String>,
-    pub worker_api: Option<u32>,
     pub source: VoiceRuntimeSource,
     pub required_bytes: Option<u64>,
-    pub installed_bytes: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -87,59 +81,27 @@ struct RuntimeInstall {
     executable: String,
     archive_sha256: String,
     archive_bytes: u64,
-    /// Size of the extracted runtime, measured once at install. Records from before this
-    /// field was added lack it; `status` then walks the folder once per process.
-    #[serde(default)]
-    installed_bytes: Option<u64>,
-}
-
-/// The one-time walk for a record without `installed_bytes`, cached because the runtime has
-/// thousands of files and `status` is polled by the UI.
-static WALKED_INSTALLED_BYTES: std::sync::OnceLock<u64> = std::sync::OnceLock::new();
-
-fn installed_bytes(root: &Path, install: &RuntimeInstall) -> u64 {
-    install
-        .installed_bytes
-        .unwrap_or_else(|| *WALKED_INSTALLED_BYTES.get_or_init(|| dir_size(&current_runtime_dir(root)).unwrap_or(0)))
 }
 
 pub fn status(root: &Path) -> VoiceRuntimeStatus {
-    if let Some(launch) = dev_worker_launch() {
+    if dev_worker_launch().is_some() {
         return VoiceRuntimeStatus {
-            target: runtime_target(),
-            install_dir: runtime_root(root).to_string_lossy().into_owned(),
             installed: true,
-            executable_path: Some(launch.program.to_string_lossy().into_owned()),
-            version: Some("dev-override".to_string()),
-            worker_api: Some(WORKER_API_VERSION),
             source: VoiceRuntimeSource::DevOverride,
             required_bytes: Some(0),
-            installed_bytes: 0,
         };
     }
 
     match installed_runtime(root) {
-        Ok(Some((install, executable))) => VoiceRuntimeStatus {
-            installed_bytes: installed_bytes(root, &install),
-            target: runtime_target(),
-            install_dir: current_runtime_dir(root).to_string_lossy().into_owned(),
+        Ok(Some((install, _))) => VoiceRuntimeStatus {
             installed: true,
-            executable_path: Some(executable.to_string_lossy().into_owned()),
-            version: Some(install.version),
-            worker_api: Some(install.worker_api),
             source: VoiceRuntimeSource::Release,
             required_bytes: Some(install.archive_bytes),
         },
         _ => VoiceRuntimeStatus {
-            target: runtime_target(),
-            install_dir: current_runtime_dir(root).to_string_lossy().into_owned(),
             installed: false,
-            executable_path: None,
-            version: None,
-            worker_api: None,
             source: VoiceRuntimeSource::Missing,
             required_bytes: None,
-            installed_bytes: 0,
         },
     }
 }
@@ -524,7 +486,6 @@ fn install_archive(
             return Err(format!("The voice engine download is missing its program ({executable})."));
         }
         make_executable(&executable_path)?;
-        let installed_bytes = dir_size(&staging).map_err(|error| error.to_string())?;
 
         let had_previous = replace_runtime_dir(root, &staging)?;
         if let Err(error) = write_json(
@@ -536,7 +497,6 @@ fn install_archive(
                 executable,
                 archive_sha256: asset.sha256.clone(),
                 archive_bytes: asset.bytes,
-                installed_bytes: Some(installed_bytes),
             },
         ) {
             restore_previous_runtime(root, had_previous);
@@ -884,23 +844,6 @@ fn sha256_file(path: &Path, cancel: &AtomicBool) -> Result<String, String> {
         hasher.update(&buffer[..read]);
     }
     Ok(format!("{:x}", hasher.finalize()))
-}
-
-fn dir_size(path: &Path) -> io::Result<u64> {
-    if !path.exists() {
-        return Ok(0);
-    }
-    let mut total = 0;
-    for entry in fs::read_dir(path)? {
-        let path = entry?.path();
-        let metadata = fs::metadata(&path)?;
-        if metadata.is_dir() {
-            total += dir_size(&path)?;
-        } else {
-            total += metadata.len();
-        }
-    }
-    Ok(total)
 }
 
 #[cfg(test)]

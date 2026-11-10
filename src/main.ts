@@ -7,7 +7,7 @@ type RuleTarget = "app" | "website";
 /** A browser's own pages (New Tab, settings, files) are "app": the browser itself. */
 type ActivityKind = "app" | "website" | "other_websites";
 type Strictness = "gentle" | "normal" | "strict";
-type SessionStatus = "idle" | "active" | "paused" | "snoozed" | "complete";
+type SessionStatus = "idle" | "active" | "paused" | "snoozed";
 type FocusState = "focused" | "suspicious" | "distracted" | "idle";
 type Tab = "session" | "settings" | "history";
 type AppView = "main" | "overlay";
@@ -132,17 +132,9 @@ interface SessionMetrics {
 /** What the webcam says during a session. Only flags; frames never reach the session. */
 interface CameraStatus {
   live: boolean;
-  present: boolean;
   phone: boolean;
-  phone_seconds: number;
   /** Past the strictness grace: the popup shows and the phone is nudged when due. */
   phone_distracted: boolean;
-}
-
-interface EvidenceEvent {
-  at_seconds: number;
-  label: string;
-  value: string;
 }
 
 interface CurrentSession {
@@ -155,7 +147,6 @@ interface CurrentSession {
   status: SessionStatus;
   snoozed_until_seconds: number | null;
   metrics: SessionMetrics;
-  evidence: EvidenceEvent[];
   focus: FocusSnapshot | null;
   /** Supervisor's own window is in front: `focus` is the place the user came from, its clock
    *  held, and this time counts as work. */
@@ -176,8 +167,6 @@ interface SessionSummary {
   duration_seconds: number;
   /** Time not on a distraction. */
   focus_seconds: number;
-  distracted_seconds: number;
-  idle_seconds: number;
   nudges: number;
   top_hints: string[];
   /** The session in order: runs of one state, with gaps where nothing was recorded. */
@@ -193,7 +182,6 @@ interface SummarySegment {
 interface ReportSpan {
   started_offset_seconds: number;
   seconds: number;
-  app: string;
   kind: ActivityKind;
   activity_key: string;
   label: string;
@@ -213,17 +201,13 @@ interface SessionReport {
   goal: string;
   strictness: string;
   started_at: string;
-  ended_at: string | null;
   ended_reason: string | null;
-  planned_seconds: number;
   duration_seconds: number;
   focus_percent: number;
   focused_seconds: number;
   distracted_seconds: number;
   idle_seconds: number;
-  away_seconds: number;
   phone_seconds: number;
-  drift_count: number;
   nudge_count: number;
   longest_stretch_seconds: number;
   median_stretch_seconds: number;
@@ -250,13 +234,6 @@ interface TrendPeriod {
 
 type TrendUnit = "week" | "month";
 
-interface FocusRecap {
-  start: string;
-  end: string;
-  focus_seconds: number;
-  session_count: number;
-}
-
 /** A calendar month for the share card; `days[i].label` is the day ("2026-10-01"). */
 interface MonthRecap {
   start: string;
@@ -279,7 +256,6 @@ interface TrendsData {
   weeks: TrendPeriod[];
   /** Sessions exist before the first of those weeks. */
   has_earlier: boolean;
-  week_recap: FocusRecap;
 }
 
 type HistoryView = "list" | "report" | "trends";
@@ -318,9 +294,6 @@ interface WeekRecap {
   median_stretch_seconds: number;
   longest_stretch_seconds: number;
   recovery_median_seconds: number | null;
-  recovery_count: number;
-  unrecovered_count: number;
-  previous_recovery_median_seconds: number | null;
   apps: RecapApp[];
 }
 
@@ -366,60 +339,30 @@ interface RuleEditor {
 
 type RulePreview = { target: RuleTarget; value: string } | { error: string } | null;
 
-interface VoiceModelFileStatus {
-  path: string;
-  bytes: number;
-  sha256: string;
-  installed: boolean;
-  valid: boolean;
-}
-
 interface VoiceModelStatus {
-  id: string;
-  display_name: string;
-  repo: string;
-  revision: string;
-  install_dir: string;
   installed: boolean;
   installed_bytes: number;
   required_bytes: number;
-  recommended_free_bytes: number;
-  files: VoiceModelFileStatus[];
 }
 
 interface VoiceRuntimeStatus {
-  target: string;
-  install_dir: string;
   installed: boolean;
-  executable_path: string | null;
-  version: string | null;
-  worker_api: number | null;
   source: "release" | "dev_override" | "missing";
   required_bytes: number | null;
-  installed_bytes: number;
 }
 
 interface VoiceSystemInfo {
-  os: string;
-  arch: string;
-  cpu_threads: number;
   total_ram_bytes: number | null;
   available_ram_bytes: number | null;
-  min_required_ram_bytes: number;
   min_free_ram_bytes: number;
   last_peak_ram_bytes: number | null;
   has_enough_ram: boolean | null;
-  available_disk_bytes: number | null;
-  recommended_free_disk_bytes: number;
-  has_enough_disk: boolean | null;
 }
 
 interface VoiceClipSummary {
   clip_id: string;
   phrase_id: string;
-  file_name: string;
   path: string;
-  bytes: number;
 }
 
 interface VoiceProfileSummary {
@@ -430,7 +373,6 @@ interface VoiceProfileSummary {
   reference_retained: boolean;
   /** The tone this voice speaks in sessions; null until the user picks one. */
   tone: string | null;
-  clip_count: number;
   clips: VoiceClipSummary[];
 }
 
@@ -445,8 +387,6 @@ interface VoiceDownloadSnapshot {
   phase: VoiceDownloadPhase;
   downloaded_bytes: number;
   total_bytes: number;
-  current_file: string | null;
-  elapsed_seconds: number;
   eta_seconds: number | null;
   message: string;
   up_to_date: boolean;
@@ -508,15 +448,9 @@ interface RecordedVoice {
 
 interface WebcamFrame {
   face_in_frame: boolean;
-  person_in_frame?: boolean;
   present?: boolean;
   phone_in_frame: boolean;
-  looking_at_phone: boolean;
-  phone_count: number;
-  phone_confidence?: number;
   jpeg?: string;
-  device?: string;
-  provider?: string;
   error?: string | null;
   /** False on a preview picture sent between detections; its labels are the last detection's. */
   detected?: boolean;
@@ -528,7 +462,6 @@ interface VoiceRecordingSnapshot {
   bytes: number;
   duration_seconds: number;
   elapsed_seconds: number;
-  sample_rate: number | null;
   message: string;
 }
 
@@ -705,7 +638,6 @@ let settings: SessionSettings = {
   webcam_camera: 0,
 };
 let history: SessionSummary[] = [];
-const EMPTY_RECAP: FocusRecap = { start: "", end: "", focus_seconds: 0, session_count: 0 };
 /** Order of the groups `apps_from_spans` produces; they sum to the scores. */
 /** How the groups and scores are decided, under every Apps & sites list. */
 /** False until the first get_trends answers: the calendar waits for it before popping in. */
@@ -719,7 +651,6 @@ let trends: TrendsData = {
   daily_focus: [],
   weeks: [],
   has_earlier: false,
-  week_recap: EMPTY_RECAP,
 };
 let historyWeekStart = "";
 /** Bumped per week request, so a slow earlier week cannot land over the one shown now. */
@@ -1072,7 +1003,7 @@ function voiceLayoutKey(status: VoiceBackendStatus | null): string {
     status.system.has_enough_ram ? 1 : 0,
     status.model.installed ? 1 : 0,
     status.runtime.installed ? 1 : 0,
-    status.profiles.map((profile) => `${profile.profile_id}:${profile.clip_count}`).join(","),
+    status.profiles.map((profile) => `${profile.profile_id}:${profile.clips.length}`).join(","),
   ].join("|");
 }
 
@@ -1497,7 +1428,7 @@ function paintLive(current: CurrentSession | null): void {
     });
 }
 
-const PRESERVE_SCROLL = [".voice-list", ".evidence-panel .rows", ".modal-panel"] as const;
+const PRESERVE_SCROLL = [".voice-list", ".modal-panel"] as const;
 
 function captureUiState(): {
   winX: number;
@@ -3426,7 +3357,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
       </article>
     `;
   }
-  const preview = previewClipForVoice(voice);
+  const preview = previewPathForVoice(voice);
   const line = voice.source === "starter" ? STARTER_INTROS[voice.profile?.profile_id ?? ""] ?? "" : "";
   return `
     <article ${card}>
@@ -3437,7 +3368,7 @@ function renderVoiceCard(voice: VoiceOption, editable = true): string {
       <span class="voice-card-speaks">speaks like <b>${escapeHtml(toneLabel(voiceTone(voice)))}</b></span>
       ${voiceCardNote(voice)}
       <div class="voice-card-foot">
-        <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview?.path ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
+        <button class="voice-play" type="button" data-action="play-clip" data-clip-path="${attr(preview ?? "")}" ${preview ? "" : "disabled"} aria-label="Play ${attr(voice.name)}'s recording">
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 1.2v9.6L11 6z" fill="currentColor"/></svg>${MINI_ORB}
         </button>
         ${line ? `<span class="voice-card-line" aria-live="polite">${escapeHtml(line)}</span>` : ""}
@@ -4238,7 +4169,7 @@ function renderVoiceInfoModal(): string {
     return "";
   }
 
-  const clip = previewClipForVoice(voice);
+  const clip = previewPathForVoice(voice);
   const profileId = voice.source === "custom" ? voice.profile?.profile_id ?? "" : "";
   const canRename = Boolean(voice.profile) && voiceBusy === null;
 
@@ -4264,7 +4195,7 @@ function renderVoiceInfoModal(): string {
               <span class="voice-preview-icon" aria-hidden="true"></span>
             </button>
             <div class="voice-info-wave">
-              <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip?.path ?? "")}" data-wave-bars="40"></canvas>
+              <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip ?? "")}" data-wave-bars="40"></canvas>
               <input id="voice-preview-bar" type="range" min="0" max="1" value="0" step="0.01" ${clip ? "" : "disabled"} aria-label="Playback" />
               <div class="voice-info-times">
                 <span id="voice-preview-elapsed">0:00</span>
@@ -4303,7 +4234,7 @@ function renderDeleteVoiceModal(): string {
         </div>
         <p class="quiet">Its lines can be regenerated from the recording. Deleting the voice removes the recording too.</p>
         <div class="delete-choice-grid">
-          <button type="button" data-action="delete-voice-files" ${profile.clip_count === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
+          <button type="button" data-action="delete-voice-files" ${profile.clips.length === 0 ? "disabled" : ""}>Delete its lines, keep the recording</button>
           <button class="danger" type="button" data-action="delete-voice-profile">Delete the voice</button>
         </div>
       </section>
@@ -8383,7 +8314,7 @@ function paintWebcamDom(): void {
 }
 
 function webcamWouldAlert(frame: WebcamFrame | null): boolean {
-  return frame !== null && webcamSettings.phoneUse && frame.looking_at_phone;
+  return frame !== null && webcamSettings.phoneUse && frame.phone_in_frame;
 }
 
 /** Red with a phone out, green with someone in frame, plain otherwise. */
@@ -8757,29 +8688,22 @@ function selectedNudgeClip(nudgeCount: number, phone = false): VoiceClipSummary 
   return ready[(Math.max(1, nudgeCount) - 1) % ready.length];
 }
 
-function previewClipForVoice(voice: VoiceOption): VoiceClipSummary | null {
+/** The file a voice's play button plays: a starter's intro, the recording, else a line. */
+function previewPathForVoice(voice: VoiceOption): string | null {
   if (voice.source === "starter" && voice.profile) {
-    const path = `${voice.profile.profile_dir}/intro.wav`;
-    return { clip_id: "intro", phrase_id: "", file_name: "intro.wav", path, bytes: 44 };
+    return `${voice.profile.profile_dir}/intro.wav`;
   }
-  const reference = voice.profile?.reference_path;
-  if (reference) {
-    return {
-      clip_id: "reference",
-      phrase_id: "",
-      file_name: "reference.wav",
-      path: reference,
-      bytes: 44,
-    };
+  if (voice.profile?.reference_path) {
+    return voice.profile.reference_path;
   }
   const clips = voice.profile?.clips ?? [];
   for (const phrase of effectivePhrases()) {
     const clip = clipForPhraseId(clips, phrase.id);
     if (clip) {
-      return clip;
+      return clip.path;
     }
   }
-  return clips.find((clip) => clip.bytes >= 44) ?? null;
+  return clips[0]?.path ?? null;
 }
 
 function clipForPhrase(voice: VoiceOption, phrase: PhraseDefinition): VoiceClipSummary | null {
@@ -8790,7 +8714,7 @@ function clipForPhraseId(clips: VoiceClipSummary[], phraseId: string): VoiceClip
   if (!phraseId) {
     return null;
   }
-  return clips.find((clip) => clip.bytes >= 44 && clipBelongsToPhrase(clip, phraseId)) ?? null;
+  return clips.find((clip) => clipBelongsToPhrase(clip, phraseId)) ?? null;
 }
 
 // Exact id: `custom_gentle_come_on_back` is a different line from `gentle_come_on_back`.
@@ -8911,9 +8835,9 @@ function ensureVoicePreviewAudio(path: string): HTMLAudioElement {
   return audio;
 }
 
-function transportPreviewClip(): VoiceClipSummary | null {
+function transportPreviewPath(): string | null {
   const voice = availableVoices().find((item) => item.id === voiceInfoId);
-  return voice ? previewClipForVoice(voice) : null;
+  return voice ? previewPathForVoice(voice) : null;
 }
 
 function bindVoicePreview(): void {
@@ -8927,9 +8851,9 @@ function bindVoicePreview(): void {
     return;
   }
 
-  const clip = transportPreviewClip();
-  if (clip) {
-    ensureVoicePreviewAudio(clip.path);
+  const path = transportPreviewPath();
+  if (path) {
+    ensureVoicePreviewAudio(path);
   } else {
     stopVoicePreview();
   }
@@ -9156,12 +9080,12 @@ function drawWaveform(canvas: HTMLCanvasElement, peaks: number[], progress: numb
 }
 
 async function toggleVoicePreview(): Promise<void> {
-  const clip = transportPreviewClip();
-  if (!clip) {
+  const path = transportPreviewPath();
+  if (!path) {
     return;
   }
   nudgeAudio?.pause();
-  const audio = ensureVoicePreviewAudio(clip.path);
+  const audio = ensureVoicePreviewAudio(path);
   try {
     if (audio.paused) {
       await audio.play();

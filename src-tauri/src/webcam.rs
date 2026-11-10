@@ -34,27 +34,11 @@ pub struct WebcamFrame {
     #[serde(default)]
     pub face_in_frame: bool,
     #[serde(default)]
-    pub gaze: Option<String>,
-    #[serde(default)]
-    pub person_in_frame: bool,
-    #[serde(default)]
     pub present: bool,
     #[serde(default)]
     pub phone_in_frame: bool,
     #[serde(default)]
-    pub looking_at_phone: bool,
-    #[serde(default)]
-    pub phone_count: u32,
-    #[serde(default)]
-    pub phone_confidence: f32,
-    #[serde(default)]
     pub jpeg: String,
-    /// "cpu" or "gpu", as requested.
-    #[serde(default)]
-    pub device: String,
-    /// The ONNX Runtime provider that actually runs the model.
-    #[serde(default)]
-    pub provider: String,
     #[serde(default)]
     pub error: Option<String>,
     /// False on a preview picture sent between detections: the labels are the last detection's.
@@ -76,16 +60,9 @@ impl WebcamFrame {
     fn error_frame(message: impl Into<String>) -> Self {
         Self {
             face_in_frame: false,
-            gaze: None,
-            person_in_frame: false,
             present: false,
             phone_in_frame: false,
-            looking_at_phone: false,
-            phone_count: 0,
-            phone_confidence: 0.0,
             jpeg: String::new(),
-            device: String::new(),
-            provider: String::new(),
             error: Some(message.into()),
             detected: true,
         }
@@ -558,9 +535,8 @@ mod tests {
         let line = r#"{"face_in_frame":true,"gaze":null,"person_in_frame":true,"present":true,"phone_in_frame":false,"looking_at_phone":false,"phone_count":0,"phone_confidence":0.0,"jpeg":""}"#;
         let frame: WebcamFrame = serde_json::from_str(line).unwrap();
         assert!(frame.face_in_frame);
-        assert_eq!(frame.gaze, None);
         assert!(frame.present);
-        assert!(!frame.looking_at_phone);
+        assert!(!frame.phone_in_frame);
         assert!(frame.jpeg.is_empty());
     }
 
@@ -568,17 +544,15 @@ mod tests {
     fn parses_worker_error_line_with_only_device() {
         let line = r#"{"device":"gpu","error":"GPU mode: DmlExecutionProvider could not start"}"#;
         let frame: WebcamFrame = serde_json::from_str(line).unwrap();
-        assert_eq!(frame.device, "gpu");
         assert!(!frame.phone_in_frame);
         assert!(frame.error.unwrap().starts_with("GPU mode"));
     }
 
     #[test]
-    fn parses_null_gaze_and_error() {
+    fn parses_an_error_and_ignores_fields_it_does_not_read() {
         let line = r#"{"face_in_frame":false,"gaze":null,"phone_in_frame":false,"looking_at_phone":false,"error":"could not open camera 0"}"#;
         let frame: WebcamFrame = serde_json::from_str(line).unwrap();
         assert!(!frame.face_in_frame);
-        assert_eq!(frame.gaze, None);
         assert_eq!(frame.error.as_deref(), Some("could not open camera 0"));
     }
 }
