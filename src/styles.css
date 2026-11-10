@@ -1637,22 +1637,36 @@ button[data-action="cancel-delete-voice"] {
   font-size: var(--sv-type-3);
 }
 
+/* Session states. The live card and the status window draw waiting and away in fixed colours. */
 .state-focused {
-  background: var(--acid);
+  background: var(--sv-green);
 }
 
-.state-paused {
+.state-paused,
+.state-suspicious,
+.state-break {
   background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
 }
 
 .state-distracted {
-  background: var(--danger);
+  background: var(--sv-coral);
 }
 
 .state-idle {
   background: var(--sv-panel-alt);
   color: var(--sv-ink);
+}
+
+.state-waiting {
+  background: var(--sv-soft-white);
+}
+
+:is(.active-session-grid, .overlay-shell) .state-waiting {
+  background: #fff7df;
+}
+
+:is(.active-session-grid, .overlay-shell) .state-idle {
+  background: #eadfc9;
 }
 
 .progress {
@@ -6264,44 +6278,8 @@ button.history-item {
   border-radius: 6px;
 }
 
-.state-waiting {
-  background: var(--white-soft);
-}
-
-.state-suspicious {
-  background: var(--warning);
-}
-
 .active-session-grid .state-slab,
 .overlay-shell .state-slab {
-  color: #141410;
-}
-
-.active-session-grid .state-waiting,
-.overlay-shell .state-waiting {
-  background: #fff7df;
-}
-
-.active-session-grid .state-focused,
-.overlay-shell .state-focused {
-  background: #a8eb37;
-}
-
-.active-session-grid .state-paused,
-.overlay-shell .state-paused,
-.active-session-grid .state-suspicious,
-.overlay-shell .state-suspicious {
-  background: #ffcf31;
-}
-
-.active-session-grid .state-distracted,
-.overlay-shell .state-distracted {
-  background: #ff684f;
-}
-
-.active-session-grid .state-idle,
-.overlay-shell .state-idle {
-  background: #eadfc9;
   color: #141410;
 }
 
@@ -6405,36 +6383,24 @@ button.history-item {
   color: var(--ink);
 }
 
-.timeline-bar .state-focused,
-.mini-timeline .state-focused,
+:is(.timeline-bar, .mini-timeline) .state-focused,
 .legend-key.state-focused {
   background: #a8eb37;
 }
 
-.timeline-bar .state-suspicious,
-.mini-timeline .state-suspicious,
-.legend-key.state-suspicious {
-  background: #ff684f;
-}
-
-.timeline-bar .state-distracted,
-.mini-timeline .state-distracted,
-.legend-key.state-distracted {
+:is(.timeline-bar, .mini-timeline) :is(.state-suspicious, .state-distracted),
+.legend-key:is(.state-suspicious, .state-distracted) {
   background: #ff684f;
 }
 
 /* Phone = the webcam saw a phone in hand. Violet: apart from distraction coral and away blue. */
-.timeline-bar .state-phone,
-.mini-timeline .state-phone,
+:is(.timeline-bar, .mini-timeline) .state-phone,
 .legend-key.state-phone {
   background: #b07cf0;
 }
 
 /* Away = idle (no input) or device asleep / unknown. Cool blue so it never reads as Neutral. */
-.timeline-bar .state-idle,
-.timeline-bar .state-unknown,
-.mini-timeline .state-idle,
-.mini-timeline .state-unknown,
+:is(.timeline-bar, .mini-timeline) :is(.state-idle, .state-unknown),
 .legend-key.state-idle {
   background: #7f93b5;
 }
@@ -6656,14 +6622,6 @@ dt,
   margin: 6px 0 0;
   color: var(--sv-muted);
   font-size: var(--sv-type-3);
-}
-
-/* A break: yellow, like a pause, and the time off it says so. */
-.state-break,
-.active-session-grid .state-break,
-.overlay-shell .state-break {
-  background: #ffcf31;
-  color: var(--sv-colored-ink);
 }
 
 .session-break-note {
