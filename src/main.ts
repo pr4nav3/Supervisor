@@ -7177,17 +7177,36 @@ async function persistPermanentRuleChanges(previous: AppRule[]): Promise<void> {
   render();
 }
 
-function libraryBackup() {
-  return {
+/** Edits the line library and saves it. A failed save puts the library back and redraws. */
+async function editLibrary(mutate: () => void): Promise<boolean> {
+  const backup = {
     customPhrases: customPhrases.map((phrase) => ({ ...phrase })),
     customPhraseSets: [...customPhraseSets],
     phraseOverrides: { ...phraseOverrides },
     hiddenPhrases: new Set(hiddenPhrases),
   };
-}
-
-function restoreLibrary(backup: ReturnType<typeof libraryBackup>): void {
-  ({ customPhrases, customPhraseSets, phraseOverrides, hiddenPhrases } = backup);
+  mutate();
+  try {
+    const library = await invoke<PhraseLibraryState>("update_phrase_library", {
+      library: {
+        custom_tones: customPhraseSets,
+        custom_phrases: customPhrases,
+        phrase_overrides: Object.values(phraseOverrides),
+        hidden_phrases: [...hiddenPhrases],
+      },
+    });
+    customPhraseSets = library.custom_tones;
+    customPhrases = library.custom_phrases;
+    phraseOverrides = Object.fromEntries(library.phrase_overrides.map((phrase) => [phrase.id, phrase]));
+    hiddenPhrases = new Set(library.hidden_phrases);
+    voiceError = "";
+    return true;
+  } catch (error) {
+    voiceError = errorText(error);
+    ({ customPhrases, customPhraseSets, phraseOverrides, hiddenPhrases } = backup);
+    render();
+    return false;
+  }
 }
 
 /** Saves the Line popup. With `regenerate`, the line's clip is made right after, in the queue.
@@ -7205,26 +7224,25 @@ async function saveLine(regenerate: boolean): Promise<void> {
     return;
   }
   const existing = editor.phraseId ? effectivePhrases().find((item) => item.id === editor.phraseId) : null;
-  const backup = libraryBackup();
-  if (!phraseToneOrder().some((item) => sameTone(item, tone))) {
-    customPhraseSets.push(tone);
-  }
-  let id: string;
-  if (existing) {
-    id = existing.id;
-    const index = customPhrases.findIndex((phrase) => phrase.id === existing.id);
-    if (index >= 0) {
-      customPhrases[index] = { id, tone, moment, text };
-    } else {
-      phraseOverrides[id] = { id, tone, moment, text };
+  let id = "";
+  const saved = await editLibrary(() => {
+    if (!phraseToneOrder().some((item) => sameTone(item, tone))) {
+      customPhraseSets.push(tone);
     }
-  } else {
-    id = uniqueCustomPhraseId(text);
-    customPhrases.push({ id, tone, moment, text });
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+    if (existing) {
+      id = existing.id;
+      const index = customPhrases.findIndex((phrase) => phrase.id === existing.id);
+      if (index >= 0) {
+        customPhrases[index] = { id, tone, moment, text };
+      } else {
+        phraseOverrides[id] = { id, tone, moment, text };
+      }
+    } else {
+      id = uniqueCustomPhraseId(text);
+      customPhrases.push({ id, tone, moment, text });
+    }
+  });
+  if (!saved) {
     return;
   }
   if (existing && existing.text !== text) {
@@ -7272,14 +7290,13 @@ async function createTone(): Promise<void> {
     return;
   }
   const from = (document.getElementById("new-tone-from") as HTMLSelectElement | null)?.value ?? "";
-  const backup = libraryBackup();
-  customPhraseSets.push(name);
-  for (const phrase of from ? tonePhrases(from) : []) {
-    customPhrases.push({ id: uniqueCustomPhraseId(phrase.text), tone: name, moment: phrase.moment, text: phrase.text });
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  const saved = await editLibrary(() => {
+    customPhraseSets.push(name);
+    for (const phrase of from ? tonePhrases(from) : []) {
+      customPhrases.push({ id: uniqueCustomPhraseId(phrase.text), tone: name, moment: phrase.moment, text: phrase.text });
+    }
+  });
+  if (!saved) {
     return;
   }
   closeToneForms();
@@ -7287,43 +7304,20 @@ async function createTone(): Promise<void> {
 }
 /** Custom phrases go; bundled ones are hidden, so they stay deletable without a clip cleanup. */
 async function deletePhrase(phraseId: string): Promise<void> {
-  const backup = libraryBackup();
-  if (customPhrases.some((phrase) => phrase.id === phraseId)) {
-    customPhrases = customPhrases.filter((phrase) => phrase.id !== phraseId);
-  } else {
-    hiddenPhrases.add(phraseId);
-    delete phraseOverrides[phraseId];
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  const saved = await editLibrary(() => {
+    if (customPhrases.some((phrase) => phrase.id === phraseId)) {
+      customPhrases = customPhrases.filter((phrase) => phrase.id !== phraseId);
+    } else {
+      hiddenPhrases.add(phraseId);
+      delete phraseOverrides[phraseId];
+    }
+  });
+  if (!saved) {
     return;
   }
   phraseEditor = null;
   paintLines();
   showFeedback("Line deleted");
-}
-
-async function persistPhraseLibrary(): Promise<boolean> {
-  try {
-    const library = await invoke<PhraseLibraryState>("update_phrase_library", {
-      library: {
-        custom_tones: customPhraseSets,
-        custom_phrases: customPhrases,
-        phrase_overrides: Object.values(phraseOverrides),
-        hidden_phrases: [...hiddenPhrases],
-      },
-    });
-    customPhraseSets = library.custom_tones;
-    customPhrases = library.custom_phrases;
-    phraseOverrides = Object.fromEntries(library.phrase_overrides.map((phrase) => [phrase.id, phrase]));
-    hiddenPhrases = new Set(library.hidden_phrases);
-    voiceError = "";
-    return true;
-  } catch (error) {
-    voiceError = errorText(error);
-    return false;
-  }
 }
 
 async function invokeSnapshot(command: string, args?: Record<string, unknown>, paint = true): Promise<boolean> {
@@ -7879,17 +7873,16 @@ async function renameTone(): Promise<void> {
     showFeedback(`There is already a ${toneLabel(next)} personality`);
     return;
   }
-  const backup = libraryBackup();
-  customPhraseSets = customPhraseSets.map((tone) => (sameTone(tone, edit.from) ? next : tone));
-  customPhrases = customPhrases.map((phrase) => (sameTone(phrase.tone, edit.from) ? { ...phrase, tone: next } : phrase));
-  for (const [id, phrase] of Object.entries(phraseOverrides)) {
-    if (sameTone(phrase.tone, edit.from)) {
-      phraseOverrides[id] = { ...phrase, tone: next };
+  const saved = await editLibrary(() => {
+    customPhraseSets = customPhraseSets.map((tone) => (sameTone(tone, edit.from) ? next : tone));
+    customPhrases = customPhrases.map((phrase) => (sameTone(phrase.tone, edit.from) ? { ...phrase, tone: next } : phrase));
+    for (const [id, phrase] of Object.entries(phraseOverrides)) {
+      if (sameTone(phrase.tone, edit.from)) {
+        phraseOverrides[id] = { ...phrase, tone: next };
+      }
     }
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  });
+  if (!saved) {
     return;
   }
   for (const profile of voiceBackend?.profiles ?? []) {
@@ -7913,18 +7906,17 @@ async function deleteTone(tone: VoiceTone): Promise<void> {
     paintLines();
     return;
   }
-  const backup = libraryBackup();
-  customPhraseSets = customPhraseSets.filter((item) => !sameTone(item, tone));
-  customPhrases = customPhrases.filter((phrase) => !sameTone(phrase.tone, tone));
-  for (const [id, phrase] of Object.entries(phraseOverrides)) {
-    if (sameTone(phrase.tone, tone)) {
-      delete phraseOverrides[id];
-      hiddenPhrases.add(id);
+  const saved = await editLibrary(() => {
+    customPhraseSets = customPhraseSets.filter((item) => !sameTone(item, tone));
+    customPhrases = customPhrases.filter((phrase) => !sameTone(phrase.tone, tone));
+    for (const [id, phrase] of Object.entries(phraseOverrides)) {
+      if (sameTone(phrase.tone, tone)) {
+        delete phraseOverrides[id];
+        hiddenPhrases.add(id);
+      }
     }
-  }
-  if (!(await persistPhraseLibrary())) {
-    restoreLibrary(backup);
-    render();
+  });
+  if (!saved) {
     return;
   }
   render();
