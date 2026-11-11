@@ -135,7 +135,9 @@ def dib_bytes(pixels: list[list[tuple[int, int, int, int]]]) -> bytes:
 
 
 def ico_bytes(images: dict[int, bytes]) -> bytes:
-    sizes = sorted(images)
+    # 48 px first: Tauri gives a running window the ICO's first image, and Windows scales that one
+    # for the taskbar (24 px at 100%). Halving 48 stays sharp; stretching 16 was blurry.
+    sizes = sorted(images, key=lambda size: (size != 48, size))
     count = len(sizes)
     offset = 6 + 16 * count
     entries = b""
