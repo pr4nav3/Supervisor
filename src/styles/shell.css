@@ -77,6 +77,17 @@ h1 {
   flex: none;
   width: 1em;
   height: 1em;
+  cursor: pointer;
+  transition: transform 120ms ease-out;
+}
+
+/* Clickable, as on the site: it lifts a pixel under the mouse and presses in on a click. */
+@media (hover: hover) {
+  .brand-eye:hover { transform: translate(-1px, -1px); }
+}
+
+.brand-eye:active {
+  transform: translate(1px, 1px);
 }
 
 /* As on the site: the iris follows the pointer, and the lid blinks every few seconds (its phase
@@ -93,6 +104,15 @@ h1 {
 @keyframes brand-blink {
   0%, 95%, 100% { transform: translateY(-0.83px); }
   97.5% { transform: translateY(0); }
+}
+
+.brand-eye.wink .shutter {
+  animation: brand-wink 300ms ease-in-out;
+}
+
+@keyframes brand-wink {
+  0%, 100% { transform: translateY(-0.83px); }
+  50% { transform: translateY(0); }
 }
 
 @media (prefers-reduced-motion: reduce) {

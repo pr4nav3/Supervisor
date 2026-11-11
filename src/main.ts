@@ -616,6 +616,8 @@ export function render(): void {
     return;
   }
 
+  // The eye outlives the redraw: a new one would drop its blink and the way it was looking.
+  const eye = document.querySelector(".brand-eye");
   app.innerHTML = `
     <main class="app-shell">
       <header class="topbar">
@@ -647,6 +649,9 @@ export function render(): void {
     </main>
   `;
 
+  if (eye) {
+    document.querySelector(".brand-eye")?.replaceWith(eye);
+  }
   bindEvents();
   aimEye();
   fitVoiceCardNames();
@@ -704,6 +709,26 @@ window.addEventListener(
   },
   { passive: true },
 );
+
+/** A click on the eye blinks it, as the site's does; the lid then picks up the clock's blink again. */
+let winkTimer = 0;
+document.addEventListener("click", (event) => {
+  const eye = (event.target as Element | null)?.closest?.(".brand-eye");
+  const shutter = eye?.querySelector<SVGGElement>(".shutter");
+  if (!eye || !shutter) {
+    return;
+  }
+  eye.classList.remove("wink");
+  void eye.getBoundingClientRect();
+  // The blink's clock offset would put the wink already over: it starts now.
+  shutter.style.animationDelay = "0ms";
+  eye.classList.add("wink");
+  clearTimeout(winkTimer);
+  winkTimer = window.setTimeout(() => {
+    shutter.style.animationDelay = `${-(Date.now() % 5200)}ms`;
+    eye.classList.remove("wink");
+  }, 400);
+});
 
 /** Turns the eye toward the pointer (up to the site's 18/128 of its width), and keeps its blink on
  *  the clock: a redraw makes a new eye, which picks up where the last one was. */
