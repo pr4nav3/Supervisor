@@ -242,12 +242,9 @@ function liveStripRuns(current: CurrentSession): string {
     last.to = current.elapsed_seconds;
   }
   const pct = (seconds: number) => Math.min(100, (Math.max(0, seconds) / total) * 100);
-  const now = pct(current.elapsed_seconds);
-  return (
-    runs
-      .map((run) => `<i class="${run.cls}" style="left: ${pct(run.from).toFixed(2)}%; width: ${(pct(run.to) - pct(run.from)).toFixed(2)}%"></i>`)
-      .join("") + `<b class="live-now" style="left: ${now.toFixed(2)}%"></b>`
-  );
+  return runs
+    .map((run) => `<i class="${run.cls}" style="left: ${pct(run.from).toFixed(2)}%; width: ${(pct(run.to) - pct(run.from)).toFixed(2)}%"></i>`)
+    .join("");
 }
 
 /** Focused so far, the longest unbroken stretch, and nudges: the report's numbers, live. */

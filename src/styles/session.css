@@ -59,8 +59,8 @@
   line-height: 0.9;
 }
 
-/* The session so far: work in ink, distractions in coral, away in grey, the time left empty,
-   a cream tick at now. No green, so it reads on every state colour of the card. */
+/* The session so far: work in ink, distractions in coral, away in grey, the time left empty.
+   No green, so it reads on every state colour of the card. */
 .live-strip {
   position: relative;
   overflow: hidden;
@@ -88,16 +88,6 @@
 
 .live-strip .strip-away {
   background: #8d8a80;
-}
-
-.live-strip .live-now {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  margin-left: -1px;
-  background: #fff7df;
-  box-shadow: 0 0 0 1px #101010;
 }
 
 /* So far above Distractions: numbers you glance at go above the list you rarely edit. */
