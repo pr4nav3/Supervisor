@@ -13,10 +13,10 @@
     "windows": [
       {
         "title": "Supervisor",
-        "width": 904,
-        "height": 684,
-        "minWidth": 904,
-        "minHeight": 684,
+        "width": 920,
+        "height": 760,
+        "minWidth": 920,
+        "minHeight": 760,
         "center": true,
         "preventOverflow": true,
         "resizable": true,
