@@ -1,8 +1,9 @@
 /* Two inner cards, no shadow: the same surface as the voice popups' key-value cards. */
+/* Two controls side by side, each with its explanation under it. */
 .defaults-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: 8px 14px;
   margin-top: 14px;
 }
 
@@ -24,10 +25,6 @@
   border: var(--border);
   border-radius: 6px;
   background: var(--sv-soft-white);
-}
-
-.defaults-help {
-  margin-top: 12px;
 }
 
 .default-control > strong {

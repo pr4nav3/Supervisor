@@ -66,9 +66,9 @@ export function renderSettings(): string {
               <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
             </span>
           </label>
+          <small class="field-help">Strictness is ${STRICTNESS_HELP.charAt(0).toLowerCase()}${STRICTNESS_HELP.slice(1)}</small>
+          <small class="field-help">The session timer is the small window in the top right corner while a session runs.</small>
         </div>
-        <small class="field-help defaults-help">Strictness is ${STRICTNESS_HELP.charAt(0).toLowerCase()}${STRICTNESS_HELP.slice(1)}</small>
-        <small class="field-help">The session timer is the small window in the top right corner while a session runs.</small>
       </section>
 
       <div class="settings-feature-grid">
