@@ -266,10 +266,13 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   if (rules.length === 0) {
     return `<p class="session-rules-empty">Nothing on the list yet.</p>`;
   }
-  // Six fit the card; the rest are behind Edit distractions. An allowed one always shows, so
-  // its allowance can be taken back here.
+  // Six fit the card, whatever the list holds; the rest are behind Edit distractions. Allowed
+  // ones come first, so an allowance can be taken back here. (`index` stays the rule's own.)
   const isAllowed = (rule: AppRule) => exceptions.some((exception) => sameRule(exception, rule));
-  const shown = rules.map((rule, index) => ({ rule, index })).filter(({ rule, index }) => index < 6 || isAllowed(rule));
+  const shown = rules
+    .map((rule, index) => ({ rule, index }))
+    .sort((a, b) => Number(isAllowed(b.rule)) - Number(isAllowed(a.rule)))
+    .slice(0, 6);
   const hidden = rules.length - shown.length;
   const chips = shown
     .map(({ rule, index }) => allowChip(rule, index, isAllowed(rule), "toggle-session-exception"))
@@ -278,7 +281,7 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   const allowed = rules.filter(isAllowed).map(ruleName);
   return `
     <div class="chips session-rule-chips">${chips}</div>
-    ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.join(", "))}</p>` : ""}
+    ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.length > 3 ? `${allowed.length} distractions` : allowed.join(", "))}</p>` : ""}
   `;
 }
 

@@ -23,6 +23,7 @@ const STATES = [
   // Eleven rules: the allowed one (youtube.com) is past the first six and still gets its chip.
   ["live-many-allowed", M + "?live=1&many=1&allowed=1", (d) => { if (!d.querySelector('.session-rule-chips .is-allowed')) throw new Error("allowed chip hidden"); }],
   ["live-many-allowed-dark", M + "?live=1&many=1&allowed=1&dark=1", (d) => { if (!d.querySelector('.session-rule-chips .is-allowed')) throw new Error("allowed chip hidden"); }],
+  ["live-all-allowed", M + "?live=1&many=1&allowed=all", (d) => { if (d.querySelectorAll(".session-rule-chips .rule-chip").length > 6) throw new Error("more than six distraction chips"); }],
   ["live-rules", M + "?live=1", (d) => click(d, '[data-action="open-session-rules"]')],
   ["settings", M + "?done=1", (d) => tab(d, "settings")],
   ["settings-rule-editor", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); [...d.querySelectorAll(".settings-rules-panel button")].find((b) => /add/i.test(b.textContent))?.click(); }],
