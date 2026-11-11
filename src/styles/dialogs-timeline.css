@@ -204,16 +204,11 @@
     padding: 16px;
   }
 
-  .topbar,
   .voice-grid,
   .webcam-home,
   .recording-grid,
   .history-item {
     grid-template-columns: 1fr;
-  }
-
-  .topbar {
-    display: grid;
   }
 
   .state-slab h2 {
