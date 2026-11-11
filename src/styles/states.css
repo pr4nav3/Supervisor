@@ -58,9 +58,16 @@
   min-height: 64px;
   margin-top: 14px;
   border-radius: var(--radius-card);
+  box-shadow: var(--shadow);
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.04em;
+}
+
+/* The cards' shadow, so it presses in as far as the session's big buttons. */
+.start-watch-button:active {
+  transform: translate(4px, 4px);
+  box-shadow: none;
 }
 
 .empty,
