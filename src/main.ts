@@ -648,6 +648,7 @@ export function render(): void {
   `;
 
   bindEvents();
+  aimEye();
   fitVoiceCardNames();
   fitQuote();
   fitShareStats();
@@ -688,6 +689,44 @@ window.addEventListener("resize", () =>
     fitQuote();
   }),
 );
+
+/** Where the pointer last was, so the header's eye looks there, as the site's does. */
+let pointer: { x: number; y: number } | null = null;
+let eyeFrame = 0;
+window.addEventListener(
+  "pointermove",
+  (event) => {
+    pointer = { x: event.clientX, y: event.clientY };
+    eyeFrame ||= requestAnimationFrame(() => {
+      eyeFrame = 0;
+      aimEye();
+    });
+  },
+  { passive: true },
+);
+
+/** Turns the eye toward the pointer (up to the site's 18/128 of its width), and keeps its blink on
+ *  the clock: a redraw makes a new eye, which picks up where the last one was. */
+function aimEye(): void {
+  const eye = document.querySelector<SVGSVGElement>(".brand-eye");
+  if (!eye) {
+    return;
+  }
+  const shutter = eye.querySelector<SVGGElement>(".shutter");
+  if (shutter && !shutter.style.animationDelay) {
+    shutter.style.animationDelay = `${-(Date.now() % 5200)}ms`;
+  }
+  const look = eye.querySelector<SVGGElement>(".look");
+  const box = eye.getBoundingClientRect();
+  if (!look || !pointer || !box.width) {
+    return;
+  }
+  const dx = pointer.x - (box.left + box.width / 2);
+  const dy = pointer.y - (box.top + box.height / 2);
+  const distance = Math.hypot(dx, dy) || 1;
+  const reach = (Math.min(distance / 40, 1) * 18) / 128;
+  look.style.transform = `translate(${(dx / distance) * reach}px, ${(dy / distance) * reach}px)`;
+}
 
 // The buttons of every screen, wired once per window: a redraw's markup needs no binding. A button
 // inside an action card (a voice card) runs only its own action. Role=button cards take Enter and

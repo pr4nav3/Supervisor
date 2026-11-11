@@ -11,7 +11,10 @@ import { theme } from "./state";
 const EYE_RINGS: [number, string][] = [[0.46, "#101010"], [0.4, "#f4ead7"], [0.22, "#a8eb37"], [0.13, "#3267ff"], [0.055, "#101010"]];
 /** Where the name starts after the eye, in eye widths. */
 const EYE_GAP = 1.3125;
-export const EYE_SVG = `<svg class="brand-eye" viewBox="0 0 1 1" aria-hidden="true">${EYE_RINGS.map(([r, color]) => `<circle cx="0.5" cy="0.5" r="${r}" fill="${color}"/>`).join("")}</svg>`;
+const ring = ([r, color]: [number, string]) => `<circle cx="0.5" cy="0.5" r="${r}" fill="${color}"/>`;
+/** As on the site: the rim and socket stay put, the iris and pupil (`.look`) turn toward the
+ *  pointer, and a cream lid (`.shutter`) drops inside the socket to blink. */
+export const EYE_SVG = `<svg class="brand-eye" viewBox="0 0 1 1" aria-hidden="true"><defs><clipPath id="brand-eye-socket"><circle cx="0.5" cy="0.5" r="${EYE_RINGS[1][0]}"/></clipPath></defs>${EYE_RINGS.slice(0, 2).map(ring).join("")}<g class="look">${EYE_RINGS.slice(2).map(ring).join("")}</g><g clip-path="url(#brand-eye-socket)"><g class="shutter"><rect width="1" height="0.906" fill="${EYE_RINGS[1][1]}"/><rect y="0.883" width="1" height="0.023" fill="${EYE_RINGS[0][1]}"/></g></g></svg>`;
 
 /** The card's colours in the current theme (the same tokens as styles.css). */
 export function cardPalette() {

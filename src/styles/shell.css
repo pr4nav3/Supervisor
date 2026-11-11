@@ -79,6 +79,26 @@ h1 {
   height: 1em;
 }
 
+/* As on the site: the iris follows the pointer, and the lid blinks every few seconds (its phase
+   is set from the clock, so a redraw of the header doesn't restart it). */
+.brand-eye .look {
+  transition: transform 140ms ease-out;
+}
+
+.brand-eye .shutter {
+  transform: translateY(-0.83px);
+  animation: brand-blink 5.2s ease-in-out infinite;
+}
+
+@keyframes brand-blink {
+  0%, 95%, 100% { transform: translateY(-0.83px); }
+  97.5% { transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-eye .shutter { animation: none; }
+}
+
 .chips {
   display: flex;
   flex-wrap: wrap;
