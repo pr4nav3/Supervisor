@@ -6,8 +6,7 @@ export function formatQueueTime(totalSeconds: number): string {
     return `${totalSeconds} s`;
   }
   const halves = Math.round(totalSeconds / 30);
-  const whole = Math.floor(halves / 2);
-  return `${whole || ""}${halves % 2 ? "½" : ""} min`.replace(/^½/, "½").trim();
+  return `${Math.floor(halves / 2)}${halves % 2 ? "½" : ""} min`;
 }
 
 /** First day of the month `key` falls in. */

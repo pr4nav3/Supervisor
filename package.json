@@ -14,7 +14,7 @@
     "dev": "tauri dev",
     "build": "tauri build",
     "build:ui": "vite build",
-    "check": "tsc && vite build",
+    "check": "tsc && vite build && node --experimental-strip-types --test scripts/ui.test.mjs",
     "dev:ui": "vite",
     "bundle:mac-dev": "APPLE_SIGNING_IDENTITY='Supervisor Dev' tauri build --debug --bundles app --config '{\"bundle\":{\"active\":true,\"targets\":[\"app\"],\"macOS\":{\"entitlements\":\"Entitlements.plist\"}}}'"
   },
