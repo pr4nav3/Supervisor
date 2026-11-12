@@ -199,63 +199,14 @@
   border-radius: 6px;
 }
 
+/* Only the session timer window is ever this narrow (the main window's minimum is 920 wide). */
 @media (max-width: 900px) {
-  .app-shell {
-    padding: 16px;
-  }
-
-  .voice-grid,
-  .webcam-home,
-  .recording-grid,
-  .history-item {
-    grid-template-columns: 1fr;
-  }
-
   .state-slab h2 {
     font-size: 2.2rem;
   }
 
-  .rule-editor,
-  .phrase-editor {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .rule-editor-actions {
-    grid-column: 1 / -1;
-  }
-
   .overlay-slab h2 {
     font-size: 1.45rem;
-  }
-}
-
-@media (max-width: 620px) {
-  .tabs,
-.history-item dl,
-.setting-row,
-.delete-choice-grid,
-.rule-editor,
-.defaults-grid,
-.settings-feature-grid,
-.rule-group {
-    grid-template-columns: 1fr;
-  }
-
-  .rule-group {
-    align-items: start;
-  }
-
-  .preflight-advanced {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .rule-editor-actions,
-  .modal-actions {
-    flex-wrap: wrap;
-  }
-
-  .modal-backdrop {
-    padding: 10px;
   }
 }
 

@@ -90,8 +90,7 @@ h1 {
   transform: translate(1px, 1px);
 }
 
-/* As on the site: the iris follows the pointer, and the lid blinks every few seconds (its phase
-   is set from the clock, so a redraw of the header doesn't restart it). */
+/* As on the site: the iris follows the pointer, and the lid blinks every few seconds. */
 .brand-eye .look {
   transition: transform 140ms ease-out;
 }

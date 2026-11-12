@@ -10,9 +10,8 @@ import {
 } from "../core/format";
 import { attr, confirmModal, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
 import {
-  appNames, clearLastError, history, knownHistoryIds, setActiveTab, setAppNames, setHistory,
-  setLastError, setSettings, setSettingsView, setSiteNames, setSnapshot, settingsView, siteNames,
-  snapshot,
+  appNames, clearLastError, history, knownHistoryIds, setActiveTab, setAppNames,
+  setLastError, setSettingsView, setSiteNames, setSnapshot, settingsView, siteNames,
 } from "../core/state";
 import { paintSlot, reconcilePolling, refreshSnapshotNow, render } from "../core/shell";
 import { copyCanvas, drawMonthCard, drawWeekCard } from "../core/cards";
@@ -621,7 +620,6 @@ function renderWeekAppsPane(recap: WeekRecap | null): string {
   }
   const work = recap.apps.filter((app) => app.group === "Work");
   const distractions = recap.apps.filter((app) => app.group === "Distractions");
-  const away = recap.apps.filter((app) => app.group === "Away");
   if (work.length + distractions.length === 0) {
     return `<section class="panel history-list-panel"><p class="empty">Sessions ran, but Supervisor couldn't name any app or site. Time on the desktop or in a window it couldn't read isn't listed.</p></section>`;
   }

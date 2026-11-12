@@ -9,7 +9,7 @@
 @import "./styles/states.css"; /* Session state colours and the shared label style. */
 @import "./styles/settings.css"; /* Settings, the distractions list and the rule editor. */
 @import "./styles/app-popup.css"; /* The app popup (edit an app or site). */
-@import "./styles/narrow-900.css"; /* Narrow windows (900px and under), across screens. */
+@import "./styles/popups.css"; /* Popups, and the start screen's top half. */
 @import "./styles/start-screen.css"; /* The start screen: duration, distractions, advanced. */
 @import "./styles/voice.css"; /* Voices, personalities, lines, recording and the voice popups. */
 @import "./styles/overlay.css"; /* The timer window and the distraction card. */

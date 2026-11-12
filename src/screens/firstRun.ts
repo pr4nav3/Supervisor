@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, CapturePermissions, CurrentSession, RuleTarget, SessionSnapshot } from "../core/types";
 import { appView, errorText, escapeHtml, modal } from "../core/dom";
 import {
-  draft, history, knownHistoryIds, setActiveTab, setHistory, setLastError, setSettings, setSnapshot,
+  draft, history, knownHistoryIds, setActiveTab, setLastError, setSnapshot,
   settings, snapshot,
 } from "../core/state";
 import { invokeSnapshot, paintSlot, render } from "../core/shell";

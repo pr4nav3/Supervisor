@@ -1,16 +1,3 @@
-@media (max-width: 900px) {
-  .rule-editor > label,
-  .rule-name-field,
-  .rule-preview,
-  .rule-editor .rule-editor-actions {
-    grid-column: 1 / -1;
-  }
-
-  .rule-editor .rule-editor-actions {
-    justify-self: start;
-  }
-}
-
 .modal-backdrop {
   position: fixed;
   inset: 0;

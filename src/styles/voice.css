@@ -518,12 +518,6 @@ button.personality-more:active {
   font-weight: 650;
 }
 
-@media (max-width: 760px) {
-  .moment-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* Edit voice: the name field with its button beside it. */
 .voice-rename {
   display: grid;
@@ -593,22 +587,6 @@ button.personality-more:active {
 
 .voice-kv strong.is-bad {
   color: var(--sv-error);
-}
-
-@media (max-width: 640px) {
-  .voice-tiles,
-  .voice-kv {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .line-row {
-    grid-template-columns: auto minmax(0, 1fr);
-  }
-
-  .line-row .line-actions {
-    grid-column: 2;
-    justify-self: start;
-  }
 }
 
 .voice-roster-panel,

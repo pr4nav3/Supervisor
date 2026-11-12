@@ -710,40 +710,26 @@ window.addEventListener(
   { passive: true },
 );
 
-/** A click on the eye blinks it, as the site's does; the lid then picks up the clock's blink again. */
+/** A click on the eye blinks it, as the site's does; the timed blink starts over after it. */
 let winkTimer = 0;
 document.addEventListener("click", (event) => {
   const eye = (event.target as Element | null)?.closest?.(".brand-eye");
-  const shutter = eye?.querySelector<SVGGElement>(".shutter");
-  if (!eye || !shutter) {
+  if (!eye) {
     return;
   }
   eye.classList.remove("wink");
   void eye.getBoundingClientRect();
-  // The blink's clock offset would put the wink already over: it starts now.
-  shutter.style.animationDelay = "0ms";
   eye.classList.add("wink");
   clearTimeout(winkTimer);
-  winkTimer = window.setTimeout(() => {
-    shutter.style.animationDelay = `${-(Date.now() % 5200)}ms`;
-    eye.classList.remove("wink");
-  }, 400);
+  winkTimer = window.setTimeout(() => eye.classList.remove("wink"), 400);
 });
 
-/** Turns the eye toward the pointer (up to the site's 18/128 of its width), and keeps its blink on
- *  the clock: a redraw makes a new eye, which picks up where the last one was. */
+/** Turns the eye toward the pointer, up to the site's 18/128 of its width. */
 function aimEye(): void {
   const eye = document.querySelector<SVGSVGElement>(".brand-eye");
-  if (!eye) {
-    return;
-  }
-  const shutter = eye.querySelector<SVGGElement>(".shutter");
-  if (shutter && !shutter.style.animationDelay) {
-    shutter.style.animationDelay = `${-(Date.now() % 5200)}ms`;
-  }
-  const look = eye.querySelector<SVGGElement>(".look");
-  const box = eye.getBoundingClientRect();
-  if (!look || !pointer || !box.width) {
+  const look = eye?.querySelector<SVGGElement>(".look");
+  const box = eye?.getBoundingClientRect();
+  if (!look || !box || !pointer || !box.width) {
     return;
   }
   const dx = pointer.x - (box.left + box.width / 2);

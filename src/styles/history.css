@@ -590,12 +590,6 @@ button.share-pick:active {
   line-height: 40px;
 }
 
-@media (max-width: 720px) {
-  .share-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 .share-door-text strong {
   display: block;
   margin-top: 2px;
