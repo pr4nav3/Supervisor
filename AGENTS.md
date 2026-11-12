@@ -20,4 +20,4 @@ The laziest solution that works: standard library and native features first, one
 
 ## Agents
 
-Skills for coding agents live in `.claude/skills/`. Project notes, the tracker and the mockups are in a private companion repo, cloned at `notes/` and ignored by git; its tracker is `notes/plans/STATUS.md`.
+Project notes, the tracker and the mockups are in a private companion repo, cloned at `notes/` and ignored by git; its tracker is `notes/plans/STATUS.md`.
