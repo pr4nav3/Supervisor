@@ -449,3 +449,23 @@ button.share-card:active {
   margin: 0;
 }
 
+
+/* A short window (down to the 600px minimum): every Home card gives up a little height, so the
+   start button stays in view without the page scrolling. */
+@media (max-height: 759px) {
+  .home-grid { gap: 12px; }
+  .home-side { gap: 10px; }
+  .panel.cal-card { gap: 8px; padding: 12px 16px 14px; }
+  .streak-line strong { font-size: 2.4rem; }
+  .streak-line span { font-size: 1.15rem; }
+  .cal-grid { grid-auto-rows: minmax(26px, 1fr); gap: 6px; }
+  .cal-day { min-height: 26px; padding: 3px 5px; }
+  .panel.quote-card { min-height: 96px; padding: 12px 16px 14px; }
+  .panel.last-session-card { gap: 7px; padding: 10px 14px 6px; }
+  .share-card { gap: 8px; padding: 10px 12px; }
+  .share-head strong { font-size: 1rem; }
+  .share-strip { height: 20px; margin-top: 0; }
+  .share-stats > span { gap: 3px; padding: 5px 7px 6px; }
+  .share-stats strong { font-size: 1rem; }
+  .home-ready .start-watch-button { min-height: 50px; margin-top: 12px; font-size: 1.1rem; }
+}
