@@ -436,11 +436,16 @@ pub fn is_plain_name(text: &str) -> bool {
     text.chars().count() <= 40 && !SEPARATORS.iter().any(|sep| text.contains(sep))
 }
 
+/// A fresh install's distractions: the big video and social sites. Rules match the site's own
+/// domain, so twitter.com, which sends everyone to x.com, needs no rule of its own.
 pub fn starter_rules() -> Vec<AppRule> {
-    ["youtube.com", "netflix.com", "tiktok.com", "instagram.com", "reddit.com"]
-        .into_iter()
-        .map(AppRule::website)
-        .collect()
+    [
+        "youtube.com", "netflix.com", "twitch.tv", "hulu.com", "disneyplus.com", "max.com", "primevideo.com",
+        "tiktok.com", "instagram.com", "reddit.com", "x.com", "facebook.com", "pinterest.com", "snapchat.com",
+    ]
+    .into_iter()
+    .map(AppRule::website)
+    .collect()
 }
 
 fn elapsed_seconds(now: Duration, since: Duration) -> u64 {

@@ -58,7 +58,10 @@
         apps:[{group:"Work",kind:"app",key:"code",label:"VS Code",seconds:s.focus_seconds},{group:"Distractions",kind:"website",key:"youtube.com",label:"YouTube",seconds:Math.round(s.duration_seconds*0.12)},{group:"Work",kind:"website",key:"docs.google.com",label:"Google Docs",seconds:Math.round(s.duration_seconds*0.1)}],
         events:[{at_offset_seconds:660,kind:"nudge",detail:null},{at_offset_seconds:720,kind:"nudge",detail:null}, ...(q.get("pomo") ? [{at_offset_seconds:0,kind:"pomodoro",detail:"25/5x4"},{at_offset_seconds:1500,kind:"round_over",detail:"1"}] : [])] });
       const settings = {default_strictness:"normal", voice_profile:"starter-female", status_window_enabled:true, status_window_on_top:true, webcam_gpu:false, webcam_enabled: q.get("webcam") === "1", webcam_camera:0};
-      const rules = [{id:1,target:"app",value:"Slack",source:"user"},{id:2,target:"website",value:"youtube.com",source:"starter"}];
+      // ?starter=1: a fresh install's list (focus.rs starter_rules).
+      const rules = q.get("starter") === "1"
+        ? ["youtube.com","netflix.com","twitch.tv","hulu.com","disneyplus.com","max.com","primevideo.com","tiktok.com","instagram.com","reddit.com","x.com","facebook.com","pinterest.com","snapchat.com"].map((value, i) => ({id:i+1,target:"website",value,source:"starter"}))
+        : [{id:1,target:"app",value:"Slack",source:"user"},{id:2,target:"website",value:"youtube.com",source:"starter"}];
       if (q.get("many") === "1") rules.push(...["netflix.com","tiktok.com","instagram.com","reddit.com","twitter.com","news.ycombinator.com","twitch.tv","discord.com"].map((v,i)=>({id:10+i,target:"website",value:v,source:"starter"})), {id:50,target:"app",value:"Steam",source:"user"});
       const hist = empty ? [] : sessions;
       const trendsData = empty ? {daily_focus:[],weeks:[]} : {daily_focus:daily, weeks};
