@@ -21,7 +21,7 @@ REPO = "pr4nav3/Supervisor"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("platform", choices=["windows-x86_64", "darwin-aarch64"])
+    parser.add_argument("platform", choices=["windows-x86_64", "darwin-aarch64", "darwin-x86_64"])
     parser.add_argument("installer", type=pathlib.Path)
     parser.add_argument("--base-url", help="where the installer is served; default: the latest GitHub release")
     args = parser.parse_args()

@@ -1,9 +1,13 @@
 #!/bin/sh
 # Build a Mac release: freeze and sign the webcam worker, build and sign Supervisor.app, then
-# zip it for scripts/install-mac.sh. Run on a Mac (or the macos CI runner) from the repo root:
-#   sh scripts/release-mac.sh ["Signing identity"]
-# Output: build/release/Supervisor-macos-<arch>.zip and .sha256. Upload both to a GitHub
-# Release; the installer always fetches the latest one.
+# zip it for scripts/install-mac.sh and tar it for the app's own updater. Run on a Mac (or the
+# macos CI runner) from the repo root, with the updater key in the environment:
+#   TAURI_SIGNING_PRIVATE_KEY=~/.tauri/supervisor-updater.key TAURI_SIGNING_PRIVATE_KEY_PASSWORD="" \
+#     sh scripts/release-mac.sh ["Signing identity"]
+# Output in build/release/: Supervisor-macos-<arch>.zip and .sha256 (the install line),
+# Supervisor-macos-<arch>.app.tar.gz and .sig, and latest.json (the updater). Upload the zip, its
+# .sha256, the .app.tar.gz and latest.json to the release GitHub marks Latest; if Windows uploaded
+# a latest.json first, download it into build/release/ before running, so both platforms stay in it.
 #
 # The identity defaults to "Supervisor Dev" (scripts/make_mac_dev_cert.sh). Every release must
 # use the SAME certificate, or macOS treats the update as a different app and silently drops
@@ -25,6 +29,8 @@ out="build/release"
 zip="$out/Supervisor-macos-$arch.zip"
 
 security unlock-keychain -p supervisor-dev "$HOME/Library/Keychains/supervisor-dev.keychain-db" 2>/dev/null || true
+# The updater refuses anything its key did not sign, and the build fails late without the key.
+[ -n "${TAURI_SIGNING_PRIVATE_KEY:-}" ] || { echo "set TAURI_SIGNING_PRIVATE_KEY to the updater key (notes/plans/mac-handoff.md)" >&2; exit 1; }
 
 .venv-webcam/bin/python scripts/build_webcam_runtime.py
 sh scripts/sign_webcam_runtime.sh "$IDENTITY"
@@ -38,5 +44,12 @@ mkdir -p "$out"
 rm -f "$zip" "$zip.sha256"
 ditto -c -k --keepParent "$app" "$zip"
 (cd "$out" && shasum -a 256 "$(basename "$zip")" > "$(basename "$zip").sha256")
-echo "release ready: $zip ($(du -h "$zip" | cut -f1))"
+
+# The updater's copy: the tar the build signed, under its release name, and latest.json.
+tar="$out/Supervisor-macos-$arch.app.tar.gz"
+cp "$app.tar.gz" "$tar"
+cp "$app.tar.gz.sig" "$tar.sig"
+python3 scripts/updater_manifest.py "darwin-$arch" "$tar"
+
+echo "release ready: $zip ($(du -h "$zip" | cut -f1)), $tar and $out/latest.json"
 cat "$zip.sha256"
