@@ -1,6 +1,7 @@
 {
   "bundle": {
     "active": true,
+    "createUpdaterArtifacts": true,
     "targets": ["nsis", "app", "dmg"],
     "resources": {
       "../build/webcam/": "webcam/",

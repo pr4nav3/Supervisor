@@ -70,23 +70,12 @@
   margin-top: auto;
 }
 
-.settings-rules-panel,
-.settings-data-panel {
-  grid-column: 1 / -1;
+.settings-about-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
-.settings-data-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.settings-data-row + .settings-data-row {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1.5px solid color-mix(in srgb, var(--sv-ink) 18%, transparent);
+.settings-about-grid .settings-feature-card {
+  min-height: 150px;
 }
 
 .setting-row {

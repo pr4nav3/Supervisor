@@ -4,7 +4,7 @@ Rules for anyone, person or coding agent, changing this repo.
 
 ## The app
 
-- Local-first. No telemetry, analytics, remote fonts or cloud processing. The only network calls are the ones the user asks for.
+- Local-first. No telemetry, analytics, remote fonts or cloud processing. The only network calls are the ones the user asks for, plus the daily check for a newer voice engine and app.
 - Prefer what the OS already knows (the front window, the app name, the browser's address) over screenshots, OCR or models.
 - Voice generation runs out of process. The main app plays cached audio only.
 - No new dependency unless the current work needs it.

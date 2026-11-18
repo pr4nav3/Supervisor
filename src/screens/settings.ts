@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { SessionSettings, Strictness } from "../core/types";
-import { errorText, escapeHtml, label, showFeedback } from "../core/dom";
+import { errorText, escapeHtml, label, showFeedback, toggle } from "../core/dom";
 import {
   draft, lastError, setLastError, setSettings, setSettingsView, settings, settingsView, theme,
 } from "../core/state";
@@ -17,6 +17,58 @@ import {
  *  Everything in it is on screen in the browser before anything is sent. */
 const PROBLEM_FORM = "https://docs.google.com/forms/d/e/1FAIpQLSdFLtxXlAqQrppIOcciOPrVoa8T7u0MYt-1i2qRd9feXOybVA/viewform";
 const PROBLEM_FORM_DETAILS_FIELD = "entry.320512626";
+
+/** Supervisor's own update: this copy's version, and a newer one once a check finds it. */
+let appVersion = "";
+let newVersion: string | null = null;
+let updateStep: "" | "checking" | "current" | "installing" = "";
+void invoke<string>("app_version").then((version) => (appVersion = version), () => null);
+
+/** The daily check found `version`. */
+export function offerAppUpdate(version: string): void {
+  newVersion = version;
+  showFeedback(`Supervisor ${version} is out. Update it in Settings.`, 6000);
+  render();
+}
+
+function renderAppUpdateCard(): string {
+  const busy = updateStep === "checking" || updateStep === "installing";
+  const text =
+    updateStep === "installing" ? `Downloading ${newVersion}. Supervisor restarts when it's done.`
+    : newVersion ? `Version ${newVersion} is out.`
+    : updateStep === "current" ? "This is the newest version."
+    : "Installs only once you say so.";
+  const button = newVersion
+    ? `<button class="primary" type="button" data-action="install-app-update" ${busy ? "disabled" : ""}>${updateStep === "installing" ? "Updating…" : "Update and restart"}</button>`
+    : `<button type="button" data-action="check-app-update" ${busy ? "disabled" : ""}>${updateStep === "checking" ? "Checking…" : "Check for updates"}</button>`;
+  return `
+        <section class="panel settings-feature-card">
+          <p class="eyebrow">Updates</p>
+          <div class="voice-summary">
+            <strong>Supervisor ${escapeHtml(appVersion)}</strong>
+            <span class="explain">${escapeHtml(text)}</span>
+            ${button}
+          </div>
+        </section>`;
+}
+
+async function runAppUpdate(action: "check-app-update" | "install-app-update"): Promise<void> {
+  updateStep = action === "check-app-update" ? "checking" : "installing";
+  render();
+  try {
+    if (action === "check-app-update") {
+      newVersion = await invoke<string | null>("check_app_update");
+      updateStep = newVersion ? "" : "current";
+    } else {
+      await invoke("install_app_update"); // restarts the app when it works
+    }
+    setLastError("");
+  } catch (error) {
+    updateStep = "";
+    setLastError(errorText(error));
+  }
+  render();
+}
 
 async function openProblemForm(): Promise<void> {
   const version = await invoke<string>("app_version").catch(() => "?");
@@ -61,10 +113,7 @@ export function renderSettings(): string {
           </label>
           <label class="default-control">
             <strong>Show session timer</strong>
-            <span class="toggle-field">
-              <input id="status-window-enabled" class="toggle-input" type="checkbox" ${settings.status_window_enabled ? "checked" : ""} aria-label="Show session timer" />
-              <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-            </span>
+            ${toggle("status-window-enabled", settings.status_window_enabled, "Show session timer")}
           </label>
           <small class="field-help">Strictness is ${STRICTNESS_HELP.charAt(0).toLowerCase()}${STRICTNESS_HELP.slice(1)}</small>
           <small class="field-help">The session timer is the small window in the top right corner while a session runs.</small>
@@ -96,16 +145,24 @@ export function renderSettings(): string {
         ${renderRuleManager("Distractions")}
       </section>
 
-      <section class="panel settings-data-panel">
-        <div class="settings-data-row">
-          <span class="explain">Sessions and history stay on this computer. Nothing is uploaded.</span>
-          <button class="danger" type="button" data-action="ask-delete-all">Delete all history</button>
-        </div>
-        <div class="settings-data-row">
-          <span class="explain">Something broke? Tell us. The form opens in your browser with the app's details filled in.</span>
-          <button type="button" data-action="report-problem">Report a problem</button>
-        </div>
-      </section>
+      <div class="settings-feature-grid settings-about-grid">
+        <section class="panel settings-feature-card">
+          <p class="eyebrow">Your data</p>
+          <div class="voice-summary">
+            <strong>Stays on this computer</strong>
+            <span class="explain">Sessions and history are never uploaded.</span>
+            <button class="danger" type="button" data-action="ask-delete-all">Delete all history</button>
+          </div>
+        </section>
+        <section class="panel settings-feature-card">
+          <p class="eyebrow">Something broke?</p>
+          <div class="voice-summary">
+            <strong>Tell us</strong>
+            <span class="explain">A form opens in your browser with the app's details filled in.</span>
+            <button type="button" data-action="report-problem">Report a problem</button>
+          </div>
+        </section>${renderAppUpdateCard()}
+      </div>
     </section>
   `;
 }
@@ -143,6 +200,11 @@ export function strictnessOptions(selected: Strictness): string {
 export async function settingsAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "report-problem") {
     await openProblemForm();
+    return;
+  }
+
+  if (action === "check-app-update" || action === "install-app-update") {
+    await runAppUpdate(action);
     return;
   }
 

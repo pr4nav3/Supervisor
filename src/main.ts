@@ -37,7 +37,7 @@ import {
 } from "./screens/rules";
 import { bindPreflight, preflightAction, preflightOpen, setPreflightOpen } from "./screens/preflight";
 import {
-  renderSettings, settingsAction, updateDefaultStrictness, updateStatusWindowEnabled,
+  offerAppUpdate, renderSettings, settingsAction, updateDefaultStrictness, updateStatusWindowEnabled,
 } from "./screens/settings";
 import {
   bindClipsControls, bindPhraseEditor, clipQueue, closeToneForms, leaveVoiceScreen, linesAction,
@@ -170,6 +170,8 @@ async function init(): Promise<void> {
       await refreshVoiceStatus(false);
       showFeedback("Voice engine updated", 3000);
     });
+    // The daily check found a newer Supervisor; installing waits for the Settings button.
+    await listen<string>("app-update-available", (event) => offerAppUpdate(event.payload));
     // The backend sends this once per nudge, the moment it is due (a webview timer would be
     // throttled while the window is minimized).
     await listen("session-nudge", async () => {

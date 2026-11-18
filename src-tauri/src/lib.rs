@@ -1,5 +1,6 @@
 mod activity;
 mod app_identity;
+mod app_update;
 mod attribution;
 mod focus;
 mod session;
@@ -810,6 +811,7 @@ pub fn run() {
             }
             show_main_window(app);
         }))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             app.manage(AppState {
                 sessions: Mutex::new(SessionManager::open(database_path(app))),
@@ -851,6 +853,7 @@ pub fn run() {
             start_session_ticker(app.handle().clone());
             start_voice_worker_ticker(app.handle().clone());
             start_voice_update_check(app.handle().clone());
+            app_update::start_check(app.handle().clone());
             #[cfg(debug_assertions)]
             start_automation(app.handle().clone());
             Ok(())
@@ -883,6 +886,8 @@ pub fn run() {
             open_accessibility_settings,
             open_problem_form,
             app_version,
+            app_update::check_app_update,
+            app_update::install_app_update,
             system_line,
             get_rules,
             resolve_rule_input,

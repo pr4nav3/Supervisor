@@ -13,7 +13,7 @@ Everything runs on your computer. No account, no servers, nothing uploaded. Down
 
 ## Privacy
 
-Nothing leaves your computer. There is no account, no analytics, no crash reporting and no remote font. The only network calls the app makes are for the voice engine: downloading it the first time you turn voices on, and a once-a-day check for a newer one. Voice generation and phone detection run as local processes on your machine.
+Nothing leaves your computer. There is no account, no analytics, no crash reporting and no remote font. The only network calls the app makes are for updates: downloading the voice engine the first time you turn voices on, and a once-a-day check for a newer voice engine and a newer Supervisor. A new Supervisor installs only when you click Update. Voice generation and phone detection run as local processes on your machine.
 
 ## Repo layout
 
@@ -43,7 +43,7 @@ On a Mac, `npm run dev` hands the Accessibility and Camera grants to the termina
 The two workers need their own Python environments and model files, which are not in git. Without them the app still runs; it just can't generate lines or watch the webcam.
 
 - Voice: `voice_worker/requirements.txt` into a Python 3.11 environment, plus a voice model pack. `scripts/build_voice_runtime.py` builds the runtime zip the app downloads.
-- Webcam: `webcam_worker/README.md` has the five commands, including fetching the model. `scripts/build_webcam_runtime.py` builds its runtime zip.
+- Webcam: `webcam_worker/README.md` has the five commands, including fetching the model. `scripts/build_webcam_runtime.py` builds it into `build/webcam/`, which the installer bundles.
 
 ## Contributing
 
