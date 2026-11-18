@@ -147,10 +147,10 @@ function renderRuleParts(editor: RuleEditor): string {
     </div>`;
   return `
     ${part("site", editor.siteOn, GLOBE_ICON, "Website", `
-      <input id="rule-site" class="${editor.siteOn ? "rule-site-input" : ""}" maxlength="300" spellcheck="false" aria-label="Website address" value="${attr(editor.siteOn ? editor.site : "")}" placeholder="Click Website to block its site too" ${editor.siteOn ? "" : "disabled"} />
+      <input id="rule-site" maxlength="300" spellcheck="false" aria-label="Website address" value="${attr(editor.siteOn ? editor.site : "")}" placeholder="${editor.siteOn ? "Its address, like netflix.com" : "Click Website to block its site too"}" ${editor.siteOn ? "" : "disabled"} />
       ${editor.siteOn ? `<small class="rule-part-hint">Type the address exactly. One wrong letter and nothing gets blocked.</small>` : ""}`)}
     ${part("app", editor.appOn, APP_ICON, "App", `
-      <input id="rule-app" maxlength="60" spellcheck="false" aria-label="App name" value="${attr(editor.appOn ? editor.app : "")}" placeholder="Click App to block an app too" ${editor.appOn ? "" : "disabled"} />
+      <input id="rule-app" maxlength="60" spellcheck="false" aria-label="App name" value="${attr(editor.appOn ? editor.app : "")}" placeholder="${editor.appOn ? "The app's name, like Spotify" : "Click App to block an app too"}" ${editor.appOn ? "" : "disabled"} />
       ${editor.appOn ? `<small class="rule-part-hint" id="rule-app-hint">${escapeHtml(appHint(editor))}</small>` : ""}`)}
     ${editor.error ? `<p class="rule-editor-error" role="alert">${escapeHtml(editor.error)}</p>` : ""}
   `;

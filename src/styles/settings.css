@@ -319,10 +319,6 @@
   color: var(--sv-colored-ink);
 }
 
-.rule-site-input {
-  font-family: var(--font-mono);
-}
-
 .rule-part-hint {
   color: var(--sv-muted);
   font-size: var(--sv-type-4);
