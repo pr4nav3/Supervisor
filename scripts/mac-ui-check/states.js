@@ -26,7 +26,7 @@ const STATES = [
   ["live-all-allowed", M + "?live=1&many=1&allowed=all", (d) => { if (d.querySelectorAll(".session-rule-chips .rule-chip").length > 6) throw new Error("more than six distraction chips"); }],
   ["live-rules", M + "?live=1", (d) => click(d, '[data-action="open-session-rules"]')],
   ["settings", M + "?done=1", (d) => tab(d, "settings")],
-  ["settings-rule-editor", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); [...d.querySelectorAll(".settings-rules-panel button")].find((b) => /add/i.test(b.textContent))?.click(); }],
+  ["settings-rule-editor", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); [...d.querySelectorAll(".settings-rules-panel button")].find((b) => /add/i.test(b.textContent))?.click(); await sleep(300); const i = d.querySelector("#rule-name"); i.value = "Netflix"; i.dispatchEvent(new Event("input", { bubbles: true })); await sleep(300); d.querySelector('[data-rule-part="app"]').click(); }],
   ["settings-delete-all", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); [...d.querySelectorAll("button")].find((b) => /delete all history/i.test(b.textContent))?.click(); }],
   ["voice", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); click(d, '[data-action="open-voice-settings"]'); }],
   ["voice-model-popup", M + "?done=1", async (d) => { tab(d, "settings"); await sleep(300); click(d, '[data-action="open-voice-settings"]'); await sleep(800); click(d, '[data-action="open-model-info"]'); }],

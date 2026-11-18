@@ -358,24 +358,30 @@ impl AppRule {
         names: &std::collections::HashMap<String, String>,
     ) -> Result<Self, String> {
         let text = text.trim();
-        // Known executable keys may contain dots (WhatsApp.Root); resolve them before URLs.
-        if let Some(key) = names.keys().find(|key| key.eq_ignore_ascii_case(text)) {
-            return Ok(Self::app(key));
-        }
-        let matches: Vec<&String> = names.iter()
-            .filter(|(_, name)| name.eq_ignore_ascii_case(text))
-            .map(|(key, _)| key)
-            .collect();
-        match matches.as_slice() {
-            [key] => return Ok(Self::app(key)),
-            [] => {}
-            _ => return Err(format!(
-                "More than one app is called {text}. Rename one of them from a session report first."
-            )),
+        if let Some(rule) = known_app(text, names)? {
+            return Ok(rule);
         }
         Self::from_input(text).ok_or_else(|| {
             "Type a website like youtube.com or an app like Spotify.".to_string()
         })
+    }
+
+    /// What the App box holds: always an app, even when the name is also a site's ("Netflix").
+    /// A known app's key or name becomes that app; any other plain name is caught by the name.
+    pub fn app_from_input_with_apps(
+        text: &str,
+        names: &std::collections::HashMap<String, String>,
+    ) -> Result<Self, String> {
+        let text = text.trim();
+        if let Some(rule) = known_app(text, names)? {
+            return Ok(rule);
+        }
+        if matches!(website::classify_address(text), website::Address::Website(_)) {
+            return Err("That's a website address. Put it in the Website box.".to_string());
+        }
+        (!text.is_empty() && is_plain_name(text))
+            .then(|| Self::app(text))
+            .ok_or_else(|| "Type the app's name, like Spotify.".to_string())
     }
 
     /// No rule names a browser: sites are judged one by one, and a browser's own pages and
@@ -431,6 +437,29 @@ pub fn matching_rule<'a>(rules: &'a [AppRule], activity: &Activity) -> Option<&'
         })
 }
 
+/// A rule on a known app, by its key or by its name. Keys may contain dots (WhatsApp.Root), so
+/// they are tried before anything is read as an address. A name two apps share is refused.
+fn known_app(
+    text: &str,
+    names: &std::collections::HashMap<String, String>,
+) -> Result<Option<AppRule>, String> {
+    if let Some(key) = names.keys().find(|key| key.eq_ignore_ascii_case(text)) {
+        return Ok(Some(AppRule::app(key)));
+    }
+    let matches: Vec<&String> = names
+        .iter()
+        .filter(|(_, name)| name.eq_ignore_ascii_case(text))
+        .map(|(key, _)| key)
+        .collect();
+    match matches.as_slice() {
+        [key] => Ok(Some(AppRule::app(key))),
+        [] => Ok(None),
+        _ => Err(format!(
+            "More than one app is called {text}. Rename one of them from a session report first."
+        )),
+    }
+}
+
 pub fn is_plain_name(text: &str) -> bool {
     const SEPARATORS: &[&str] = &[" - ", " — ", " – ", " | ", "/", "\\", ":"];
     text.chars().count() <= 40 && !SEPARATORS.iter().any(|sep| text.contains(sep))
@@ -469,6 +498,23 @@ mod tests {
         }
         assert_eq!(AppRule::from_input_with_apps("https://whatsapp.com", &names)
             .unwrap().target, RuleTarget::Website);
+    }
+
+    #[test]
+    fn the_app_box_always_makes_an_app_rule() {
+        let names = std::collections::HashMap::from([("steam".to_string(), "Steam".to_string())]);
+        // A site's name typed in the App box is the app of that name, not the site.
+        assert_eq!(AppRule::from_input_with_apps("Netflix", &names).unwrap().target, RuleTarget::Website);
+        let netflix = AppRule::app_from_input_with_apps("Netflix", &names).unwrap();
+        assert_eq!((netflix.target, netflix.value.as_str()), (RuleTarget::App, "Netflix"));
+        // A known app resolves to its key, as it does in the one-box form.
+        assert_eq!(AppRule::app_from_input_with_apps("steam", &names).unwrap().value, "steam");
+        assert_eq!(AppRule::app_from_input_with_apps(" Steam ", &names).unwrap().value, "steam");
+        // An address or a title is not an app.
+        assert!(AppRule::app_from_input_with_apps("netflix.com", &names).is_err());
+        assert!(AppRule::app_from_input_with_apps("https://netflix.com/browse", &names).is_err());
+        assert!(AppRule::app_from_input_with_apps("Inbox - Gmail", &names).is_err());
+        assert!(AppRule::app_from_input_with_apps("   ", &names).is_err());
     }
 
     #[test]

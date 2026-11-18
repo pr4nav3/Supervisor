@@ -277,16 +277,84 @@
   gap: 8px;
 }
 
-/* Two fields on one row: the site or app, and its name once a site is recognised. */
+/* The add and edit form: a name, then one row for the website and one for the app. Each row's
+   button turns the part on (coral, like the chips) or off. */
 .rule-editor {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 10px;
-  align-items: center;
+  gap: 12px;
   border: var(--border);
   border-radius: var(--radius-card);
-  padding: 10px;
+  padding: 12px;
   background: var(--sv-soft-white);
+}
+
+.rule-name-field,
+.rule-parts,
+.rule-part-body {
+  display: grid;
+  gap: 6px;
+}
+
+.rule-parts {
+  gap: 12px;
+}
+
+.rule-part {
+  display: grid;
+  grid-template-columns: 140px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.rule-part-pick {
+  width: 100%;
+  min-height: 42px;
+  justify-content: flex-start;
+  gap: 9px;
+  padding: 0 12px;
+  background: var(--sv-soft-white);
+  opacity: 0.75;
+}
+
+.rule-part-pick.is-on {
+  background: var(--sv-coral);
+  color: var(--sv-colored-ink);
+  opacity: 1;
+}
+
+.rule-part-body input:disabled {
+  opacity: 0.5;
+}
+
+.rule-site-input {
+  font-family: var(--font-mono);
+}
+
+.rule-part-hint {
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
+  line-height: 1.35;
+}
+
+.rule-icon {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.rule-part-pick .rule-icon {
+  width: 13px;
+  height: 13px;
+}
+
+/* After a chip's name: a globe for its website, a window for its app. The chip is a line of text
+   (so a long name can end in an ellipsis), so the icons sit inline after it. */
+.rule-chip-kinds {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 7px;
+  vertical-align: -1px;
+  opacity: 0.85;
 }
 
 .phrase-editor {
@@ -309,39 +377,8 @@
   resize: none;
 }
 
-.rule-editor > label {
-  align-self: end;
-}
-
-.rule-editor:has(.rule-name-field[hidden]) > label:nth-of-type(1) {
-  grid-column: 1 / -1;
-}
-
-.rule-preview {
-  display: flex;
-  flex-wrap: wrap;
-  grid-column: 1;
-  align-items: center;
-  align-self: center;
-  gap: 8px;
-  min-width: 0;
-  margin: 0;
-  font-size: var(--sv-type-3);
-}
-
 .rule-editor .rule-editor-actions {
-  grid-column: 2;
   justify-self: end;
-  align-self: center;
-}
-
-/* Save fades, like a disabled button anywhere in the app, until the line says there is
-   something to save. It stays a live button, so Enter still tries and says why not. */
-.rule-editor-actions .primary.is-quiet,
-.rule-editor-actions .primary.is-quiet:hover,
-.rule-editor-actions .primary.is-quiet:active {
-  opacity: 0.45;
-  transform: none;
 }
 
 .rule-editor-ask {
@@ -349,38 +386,14 @@
   font-weight: 650;
 }
 
-/* A small yellow tag before the name: what was recognised. The name beside it is the larger. */
-.rule-kind {
-  flex: none;
-  border: var(--border);
-  border-radius: 4px;
-  padding: 4px 6px;
-  background: var(--sv-yellow);
-  color: var(--sv-colored-ink);
-  font-size: var(--sv-type-4);
-  font-weight: 500;
-  line-height: 1;
-}
-
-.rule-preview-value {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  font-family: var(--font-mono);
-  font-size: var(--sv-type-2);
-  font-weight: 600;
-}
-
-.rule-preview-note {
-  color: var(--sv-muted);
-}
-
-.rule-preview-error {
-  display: inline-flex;
+.rule-editor-error {
+  display: flex;
   align-items: center;
   gap: 8px;
+  margin: 0;
 }
 
-.rule-preview-error::before {
+.rule-editor-error::before {
   width: 11px;
   height: 11px;
   flex: 0 0 auto;

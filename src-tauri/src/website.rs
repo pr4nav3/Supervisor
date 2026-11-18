@@ -100,6 +100,17 @@ const SITES: &[(&str, &str)] = &[
     ("x.com", "X"),
 ];
 
+/// Names for display only. Unlike `SITES`, these never identify a site from a window title or a
+/// typed word: "Max" or "Hulu" in a title is too often something else.
+const NAMES_ONLY: &[(&str, &str)] = &[
+    ("hulu.com", "Hulu"),
+    ("disneyplus.com", "Disney+"),
+    ("max.com", "Max"),
+    ("primevideo.com", "Prime Video"),
+    ("pinterest.com", "Pinterest"),
+    ("snapchat.com", "Snapchat"),
+];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Address {
     Website(String),
@@ -168,8 +179,7 @@ pub fn site_label(key: &str) -> String {
     if key == LOCAL_NETWORK {
         return "Local network".to_string();
     }
-    SITES
-        .iter()
+    preset_names()
         .find(|(site, _)| *site == key)
         .map(|(_, label)| label.to_string())
         .unwrap_or_else(|| key.to_string())
@@ -177,7 +187,7 @@ pub fn site_label(key: &str) -> String {
 
 /// The built-in names, for sites the user has not named.
 pub fn preset_names() -> impl Iterator<Item = (&'static str, &'static str)> {
-    SITES.iter().copied()
+    SITES.iter().chain(NAMES_ONLY).copied()
 }
 
 /// Fallback when the address cannot be read: one outer title segment must equal a verified

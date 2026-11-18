@@ -32,8 +32,8 @@ import {
   renderFirstRun, setFirstRunOpen, setFirstRunStep, setPractice, setPracticeQuietUntil,
 } from "./screens/firstRun";
 import {
-  handleRuleAction, paintRuleEditorHost, paintRuleEditorLive, renderRulePreview, ruleEditor,
-  saveRuleForm, scheduleRulePreview, setPermanentRules, setRuleEditor,
+  handleRuleAction, paintRuleEditorHost, ruleEditor, ruleEditorInput, saveRuleForm, setPermanentRules,
+  setRuleEditor, setRuleNames,
 } from "./screens/rules";
 import { bindPreflight, preflightAction, preflightOpen, setPreflightOpen } from "./screens/preflight";
 import {
@@ -106,6 +106,8 @@ async function init(): Promise<void> {
     setAppNames(loadedAppNames);
     setHistory(loadedHistory);
     setPermanentRules(loadedRules);
+    // Only the chips read these; without them each rule shows under its own name.
+    setRuleNames(await invoke<Record<string, string>>("get_rule_names").catch(() => ({})));
     setCustomPhraseSets(loadedPhraseLibrary.custom_tones);
     setHiddenPhrases(new Set(loadedPhraseLibrary.hidden_phrases));
     // An edited line whose bundled original is gone (the old break-over set) stays the user's.
@@ -163,6 +165,7 @@ async function init(): Promise<void> {
     // A rule saved elsewhere (the timer window's Always allow or block) must reach this copy.
     await listen("rules-changed", async () => {
       setPermanentRules(await invoke<AppRule[]>("get_rules"));
+      setRuleNames(await invoke<Record<string, string>>("get_rule_names").catch(() => ({})));
       render();
     });
     // The daily check found and installed a new worker build.
@@ -808,6 +811,14 @@ document.addEventListener("keydown", (event) => {
     card.click();
   }
 });
+// The distraction form's boxes, wherever it shows: its Website and App rows are redrawn while
+// the name is typed, so they are listened to here, not bound per redraw.
+document.addEventListener("input", (event) => {
+  const input = event.target as HTMLInputElement;
+  if (input.closest?.(".rule-editor")) {
+    ruleEditorInput(input);
+  }
+});
 document.addEventListener("click", (event) => {
   if (!weekPickerOpen) {
     return;
@@ -834,27 +845,8 @@ export function bindEvents(root: ParentNode = document): void {
   root.querySelectorAll<HTMLFormElement>("[data-rule-form]").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
-      void saveRuleForm(form);
+      void saveRuleForm();
     });
-  });
-
-  root.querySelector("#rule-value")?.addEventListener("input", (event) => {
-    if (ruleEditor) {
-      ruleEditor.value = (event.currentTarget as HTMLInputElement).value;
-      paintRuleEditorLive();
-      scheduleRulePreview();
-    }
-  });
-
-  root.querySelector("#rule-name")?.addEventListener("input", (event) => {
-    if (ruleEditor) {
-      ruleEditor.name = (event.currentTarget as HTMLInputElement).value;
-      ruleEditor.nameTouched = true;
-      const preview = document.getElementById("rule-preview");
-      if (preview) {
-        preview.innerHTML = renderRulePreview(ruleEditor);
-      }
-    }
   });
 
   const searchInput = root.querySelector("#history-search") as HTMLInputElement | null;

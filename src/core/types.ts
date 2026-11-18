@@ -284,18 +284,22 @@ export interface RulesSaved {
   rules: AppRule[];
 }
 
+/** The add and edit form: a name, and the website and the app it blocks. A part the user typed in
+ *  or switched is theirs; the name no longer fills it. */
 export interface RuleEditor {
-  index: number | null;
-  target: RuleTarget;
-  value: string;
+  /** The chip being edited, or null when adding. */
+  group: { name: string; rules: AppRule[] } | null;
   name: string;
-  nameTouched: boolean;
-  preview: RulePreview;
+  site: string;
+  siteOn: boolean;
+  siteTouched: boolean;
+  app: string;
+  appOn: boolean;
+  appTouched: boolean;
+  error: string;
   /** Delete was pressed once; the actions ask before the rule goes. */
   confirmDelete?: boolean;
 }
-
-export type RulePreview = { target: RuleTarget; value: string } | { error: string } | null;
 
 export interface VoiceModelStatus {
   installed: boolean;

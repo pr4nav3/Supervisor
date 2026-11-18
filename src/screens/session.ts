@@ -17,7 +17,7 @@ import {
   renderUnreadableBrowserNotice,
 } from "./firstRun";
 import {
-  permanentRules, renderRuleManager, ruleName, sameRule, setPermanentRules, setRuleEditor,
+  chipContent, type Distraction, distractions, renderRuleManager, sameRule, setPermanentRules, setRuleEditor,
 } from "./rules";
 import { preflightOpen, renderPreflightModal } from "./preflight";
 import { lastNudgeVoice, nudgeAudio, playLine, readyClips, selectedNudgeClip, selectedVoice } from "./voice";
@@ -260,34 +260,41 @@ function renderSoFarTiles(current: CurrentSession): string {
   ].join("");
 }
 
+/** Whether a chip shows as allowed: any rule behind it is. Clicking a chip allows its website and app
+ *  together, or counts both again; the reminder card's Allow once allows only what was in front. */
+export function groupAllowed(group: Distraction, exceptions: AppRule[]): boolean {
+  return group.rules.some((rule) => exceptions.some((exception) => sameRule(exception, rule)));
+}
+
 /** The distractions, with the ones allowed for this session struck through. */
 function renderSessionDistractions(exceptions: AppRule[]): string {
-  const rules = permanentRules.slice().reverse();
-  if (rules.length === 0) {
+  const groups = distractions();
+  if (groups.length === 0) {
     return `<p class="session-rules-empty">Nothing on the list yet.</p>`;
   }
   // Six fit the card, whatever the list holds; the rest are behind Edit distractions. Allowed
-  // ones come first, so an allowance can be taken back here. (`index` stays the rule's own.)
-  const isAllowed = (rule: AppRule) => exceptions.some((exception) => sameRule(exception, rule));
-  const shown = rules
-    .map((rule, index) => ({ rule, index }))
-    .sort((a, b) => Number(isAllowed(b.rule)) - Number(isAllowed(a.rule)))
+  // ones come first, so an allowance can be taken back here. (`index` stays the chip's own.)
+  const isAllowed = (group: Distraction) => groupAllowed(group, exceptions);
+  const shown = groups
+    .map((group, index) => ({ group, index }))
+    .sort((a, b) => Number(isAllowed(b.group)) - Number(isAllowed(a.group)))
     .slice(0, 6);
-  const hidden = rules.length - shown.length;
+  const hidden = groups.length - shown.length;
   const chips = shown
-    .map(({ rule, index }) => allowChip(rule, index, isAllowed(rule), "toggle-session-exception"))
+    .map(({ group, index }) => allowChip(group, index, isAllowed(group), "toggle-session-exception", false))
     .concat(hidden > 0 ? [`<span class="session-rule-more" aria-label="${hidden} more">…</span>`] : [])
     .join("");
-  const allowed = rules.filter(isAllowed).map(ruleName);
+  const allowed = groups.filter(isAllowed).map((group) => group.name);
   return `
     <div class="chips session-rule-chips">${chips}</div>
     ${allowed.length ? `<p class="session-allowed">Allowed once: ${escapeHtml(allowed.length > 3 ? `${allowed.length} distractions` : allowed.join(", "))}</p>` : ""}
   `;
 }
 
-/** A distraction chip that allows it once, or takes that back. `index` counts the newest rule first. */
-export function allowChip(rule: AppRule, index: number, allowed: boolean, action: string): string {
-  return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="${action}" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${escapeHtml(ruleName(rule))}</button>`;
+/** A distraction chip that allows it once, or takes that back. `index` is its place in `distractions()`.
+ *  The live card shows names only (`icons` false); the website and app marks are in Edit distractions. */
+export function allowChip(group: Distraction, index: number, allowed: boolean, action: string, icons = true): string {
+  return `<button type="button" class="rule-chip rule-chip-distracting ${allowed ? "is-allowed" : ""}" data-action="${action}" data-rule-index="${index}" aria-pressed="${allowed}" title="${attr(allowed ? "Allowed once. Click to count it as a distraction again." : "Click to allow it once, for this session.")}">${icons ? chipContent(group) : escapeHtml(group.name)}</button>`;
 }
 
 /** Pause, mute and end, so a session can be driven from here when the session timer is off. */
@@ -617,15 +624,19 @@ async function playMomentLine(moment: PhraseMoment, turn: number): Promise<boole
 
 export async function sessionAction(action: string, source?: HTMLElement): Promise<void> {
   if (action === "toggle-session-exception" && source) {
-    const rule = permanentRules.slice().reverse()[Number(source.dataset.ruleIndex)];
+    const group = distractions()[Number(source.dataset.ruleIndex)];
     const current = snapshot?.current;
-    if (!rule || !current) {
+    if (!group || !current) {
       return;
     }
-    const allowed = !current.exceptions.some((exception) => sameRule(exception, rule));
-    if (await invokeSnapshot("set_session_exception", { rule, allowed })) {
-      showFeedback(allowed ? `${ruleName(rule)} allowed for this session` : `${ruleName(rule)} counts again`);
+    // The chip's website and app go together; each rule's allowance is set on its own.
+    const allowed = !groupAllowed(group, current.exceptions);
+    for (const rule of group.rules) {
+      if (!(await invokeSnapshot("set_session_exception", { rule, allowed }))) {
+        return;
+      }
     }
+    showFeedback(allowed ? `${group.name} allowed for this session` : `${group.name} counts again`);
     return;
   }
 

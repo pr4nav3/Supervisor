@@ -72,6 +72,9 @@ pub struct StoredPhrase {
 }
 
 /// When a line plays. Back to work (`nudge`) covers drifting and a break ending.
+const RULE_NAMES_KEY: &str = "rules.names";
+const MAX_RULE_NAMES: usize = 1000;
+
 pub const PHRASE_MOMENTS: [&str; 4] = ["nudge", "phone", "roundover", "sessionover"];
 
 pub struct StoredState {
@@ -548,6 +551,28 @@ impl SessionStorage {
             .collect();
         names.extend(self.site_names.borrow().clone());
         names
+    }
+
+    /// What each distraction's chip says, by `target:value` ("website:netflix.com"). A website
+    /// and an app with the same name show as one chip. Only the chips read these: matching,
+    /// reports and history never do.
+    pub fn rule_names(&self) -> Result<HashMap<String, String>, String> {
+        Ok(self
+            .setting(RULE_NAMES_KEY)?
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default())
+    }
+
+    pub fn set_rule_names(&self, names: HashMap<String, String>) -> Result<HashMap<String, String>, String> {
+        let names: HashMap<String, String> = names
+            .into_iter()
+            .map(|(key, name)| (key.trim().to_lowercase(), name.trim().chars().take(60).collect::<String>()))
+            .filter(|(key, name)| !key.is_empty() && !name.is_empty())
+            .take(MAX_RULE_NAMES)
+            .collect();
+        let text = serde_json::to_string(&names).map_err(|error| error.to_string())?;
+        self.set_setting(RULE_NAMES_KEY, &text)?;
+        Ok(names)
     }
 
     /// An empty name, or the built-in name, clears the user's name.
@@ -3028,6 +3053,35 @@ mod tests {
         let saved = storage.save_phrase_library(library).expect("save");
         let got: Vec<&str> = saved.custom_phrases.iter().map(|phrase| phrase.moment.as_str()).collect();
         assert_eq!(got, vec!["nudge", "roundover", "nudge"]);
+    }
+
+    #[test]
+    fn rule_names_are_kept_cleaned_and_replaced_whole() {
+        let storage = SessionStorage::open_in_memory().expect("open db");
+        assert!(storage.rule_names().unwrap().is_empty());
+        let saved = storage
+            .set_rule_names(HashMap::from([
+                ("Website:Netflix.com ".to_string(), " Netflix ".to_string()),
+                ("app:netflix".to_string(), "Netflix".to_string()),
+                ("app:empty".to_string(), "  ".to_string()),
+            ]))
+            .unwrap();
+        assert_eq!(saved.len(), 2);
+        assert_eq!(storage.rule_names().unwrap()["website:netflix.com"], "Netflix");
+        storage.set_rule_names(HashMap::from([("app:steam".to_string(), "Steam".to_string())])).unwrap();
+        assert_eq!(storage.rule_names().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn the_starter_sites_have_names_that_never_identify_a_site() {
+        let names = SessionStorage::open_in_memory().expect("open db").site_names();
+        assert_eq!(names["primevideo.com"], "Prime Video");
+        assert_eq!(names["disneyplus.com"], "Disney+");
+        for key in crate::focus::starter_rules().iter().map(|rule| rule.value.clone()) {
+            assert!(names.contains_key(&key), "{key} has no name");
+        }
+        assert_eq!(crate::website::website_from_input("Hulu"), None);
+        assert_eq!(crate::website::site_from_title("Watch something - Max"), None);
     }
 
     #[test]

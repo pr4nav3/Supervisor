@@ -3,14 +3,14 @@ import { attr, composing, escapeHtml, modal, showFeedback } from "../core/dom";
 import { clearLastError, draft, setActiveTab, setSettingsView, settings } from "../core/state";
 import { invokeSnapshot, paintSlot, render, runAction } from "../core/shell";
 import { renderAccessNotice } from "./firstRun";
-import { cloneRules, permanentRules, renderRuleEditor, ruleEditor, sameRule, setRuleEditor } from "./rules";
+import { cloneRules, distractions, renderRuleEditor, ruleEditor, sameRule, setRuleEditor } from "./rules";
 import { STRICTNESS_HELP, strictnessOptions } from "./settings";
 import {
   refreshVoiceStatus, renderVoiceGapNotice, selectedVoice, setClipsVoiceId, updateSelectedVoice,
   voiceOptions,
 } from "./voice";
 import { animateOnArrival } from "./history";
-import { allowChip } from "./session";
+import { allowChip, groupAllowed } from "./session";
 
 /** Work / break rhythms on the start screen. */
 const POMODORO_RHYTHMS = [
@@ -28,7 +28,9 @@ let preflightBlocksOpen = false;
 let preflightAdvancedOpen = false;
 
 export function renderPreflightModal(): string {
-  const ruleCount = permanentRules.length;
+  const groups = distractions();
+  const ruleCount = groups.length;
+  const allowedCount = groups.filter((group) => groupAllowed(group, preflightExceptions)).length;
   const progress = (draft.duration_minutes - 15) / 75;
   return modal("preflight-panel", "preflight-title", `
         <div class="modal-head">
@@ -67,7 +69,7 @@ export function renderPreflightModal(): string {
           <details class="preflight-disclosure" data-preflight-section="blocks" ${preflightBlocksOpen ? "open" : ""}>
             <summary>
               <span>Distractions</span>
-              <span>${ruleCount} on the list${preflightExceptions.length ? ` · ${preflightExceptions.length} allowed once` : ""}</span>
+              <span>${ruleCount} on the list${allowedCount ? ` · ${allowedCount} allowed once` : ""}</span>
             </summary>
             <div class="disclosure-body">
               ${renderPreflightDistractions()}
@@ -125,10 +127,8 @@ function renderPomodoroField(): string {
 
 /** Before a session: tap a distraction to allow it today; "+ Add" adds one for good. */
 function renderPreflightDistractions(): string {
-  const chips = permanentRules
-    .slice()
-    .reverse()
-    .map((rule, index) => allowChip(rule, index, preflightExceptions.some((exception) => sameRule(exception, rule)), "toggle-exception"))
+  const chips = distractions()
+    .map((group, index) => allowChip(group, index, groupAllowed(group, preflightExceptions), "toggle-exception"))
     .join("");
   return `
     <div class="rule-manager preflight-rule-manager">
@@ -233,11 +233,11 @@ export async function preflightAction(action: string, source?: HTMLElement): Pro
   }
 
   if (action === "toggle-exception") {
-    const rule = permanentRules.slice().reverse()[Number(source?.dataset.ruleIndex)];
-    if (rule) {
-      preflightExceptions = preflightExceptions.some((exception) => sameRule(exception, rule))
-        ? preflightExceptions.filter((exception) => !sameRule(exception, rule))
-        : [...preflightExceptions, { ...rule }];
+    const group = distractions()[Number(source?.dataset.ruleIndex)];
+    if (group) {
+      // The chip's website and app are allowed, or counted again, together.
+      const others = preflightExceptions.filter((exception) => !group.rules.some((rule) => sameRule(exception, rule)));
+      preflightExceptions = groupAllowed(group, preflightExceptions) ? others : [...others, ...group.rules.map((rule) => ({ ...rule }))];
       paintPreflightLayer();
     }
     return;

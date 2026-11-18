@@ -404,6 +404,28 @@ fn resolve_rule_input(text: String, state: State<'_, AppState>) -> Result<focus:
     Ok(rule)
 }
 
+/// The App box: what was typed, as an app, even when it is also a site's name.
+#[tauri::command]
+fn resolve_app_input(text: String, state: State<'_, AppState>) -> Result<focus::AppRule, String> {
+    let names = sessions(&state).storage().and_then(|storage| storage.app_names()).unwrap_or_default();
+    let rule = focus::AppRule::app_from_input_with_apps(&text, &names)?;
+    if rule.names_a_browser() {
+        let name = names.get(&rule.value).cloned().unwrap_or_else(|| text.trim().to_string());
+        return Err(format!("{name} is a browser, so block websites instead, like youtube.com."));
+    }
+    Ok(rule)
+}
+
+#[tauri::command]
+fn get_rule_names(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
+    sessions(&state).storage()?.rule_names()
+}
+
+#[tauri::command]
+fn set_rule_names(names: HashMap<String, String>, state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
+    sessions(&state).storage()?.set_rule_names(names)
+}
+
 #[tauri::command]
 fn get_site_names(state: State<'_, AppState>) -> Result<HashMap<String, String>, String> {
     Ok(sessions(&state).site_names())
@@ -891,6 +913,9 @@ pub fn run() {
             system_line,
             get_rules,
             resolve_rule_input,
+            resolve_app_input,
+            get_rule_names,
+            set_rule_names,
             get_site_names,
             set_site_name,
             get_app_names,
