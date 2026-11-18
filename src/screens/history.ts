@@ -672,9 +672,11 @@ export function renderAppColumns(apps: RecapApp[], sessionId: number | null, per
   };
   const awayLine = away.map((row) => `${row.label} ${formatHours(row.seconds)}`).join(" · ");
   const editable = apps.some((item) => editableApp(item));
+  // With nothing in either column the time was all away (a locked screen, a sleeping Mac).
+  const noWork = distractions.length ? "Every minute was on something from the distractions list." : "Nothing was recorded; this time counted as away.";
   return `
     <div class="week-app-cols">
-      ${column("Work", work, "Every minute was on something from the distractions list.")}
+      ${column("Work", work, noWork)}
       ${column("Distractions", distractions, period === "week" ? "Nothing from the distractions list came up this week." : "Nothing from the distractions list came up.")}
     </div>
     ${awayLine || editable ? `<div class="week-app-foot">${awayLine ? `<span>${escapeHtml(awayLine)}</span>` : ""}${editable ? `<span>${APP_EDIT_HINT}</span>` : ""}</div>` : ""}

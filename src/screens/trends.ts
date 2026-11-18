@@ -227,7 +227,7 @@ function renderTrendsBody(): string {
       ${renderTrendCard({
         tone: "recovery",
         title: "Recovery",
-        hint: "time back to work after a distraction · lower is better",
+        hint: "back to work after a distraction · lower is better",
         value: recoveryNow != null ? formatRecovery(recoveryNow) : recoverySoFar != null ? formatRecovery(recoverySoFar) : "—",
         suffix: recoveryNow != null ? "typical" : recoverySoFar != null ? "so far" : "",
         pill: trendPill(recoveryNow, recoveryBefore, before.length, 5, formatRecovery, true),

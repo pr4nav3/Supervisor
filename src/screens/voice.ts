@@ -260,7 +260,7 @@ function renderVoiceTiles(): string {
         <div><p class="eyebrow">Voice engine</p><strong>${escapeHtml(modelValue)}</strong></div>
         <button type="button" data-action="open-model-info" aria-label="Voice engine details" aria-haspopup="dialog">›</button>
       </div>
-      <div class="voice-tile ${ramGenerationLocked() ? "is-bad" : ""}" data-memory-tile>
+      <div class="voice-tile ${voiceBackend?.system?.available_ram_bytes == null || ramGenerationLocked() ? "is-bad" : ""}" data-memory-tile>
         <span class="voice-tile-dot" aria-hidden="true"></span>
         <div><p class="eyebrow">Memory</p><strong data-memory-value>${escapeHtml(memoryTileValue())}</strong></div>
         <button type="button" data-action="open-memory-info" aria-label="Memory details" aria-haspopup="dialog">›</button>
