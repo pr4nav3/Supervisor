@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, CapturePermissions, CurrentSession, RuleTarget, SessionSnapshot } from "../core/types";
-import { appView, errorText, escapeHtml, modal } from "../core/dom";
+import { appView, errorText, escapeHtml, modal, toggle } from "../core/dom";
 import {
   draft, history, knownHistoryIds, setActiveTab, setLastError, setSnapshot,
   settings, snapshot,
@@ -244,10 +244,7 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
         <p class="eyebrow">Webcam</p>
         <label class="setting-row toggle-row">
           <span>Turn on webcam models</span>
-          <span class="toggle-field">
-            <input id="first-run-webcam" class="toggle-input" type="checkbox" ${settings.webcam_enabled ? "checked" : ""} aria-label="Turn on webcam models" />
-            <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-          </span>
+          ${toggle("first-run-webcam", settings.webcam_enabled, "Turn on webcam models")}
         </label>
         <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
       </section>

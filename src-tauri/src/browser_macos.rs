@@ -9,7 +9,7 @@
 
 use crate::activity::BrowserRead;
 use objc2_core_foundation::{
-    kCFBooleanTrue, CFArray, CFBoolean, CFDictionary, CFRetained, CFString, CFType, Type, CFURL,
+    kCFBooleanTrue, CFArray, CFDictionary, CFRetained, CFString, CFType, Type, CFURL,
 };
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
@@ -311,11 +311,6 @@ fn string_attr(element: &CFType, name: &'static str) -> Option<String> {
         return Some(text.to_string());
     }
     value.downcast_ref::<CFURL>().map(|url| url.string().to_string())
-}
-
-#[allow(dead_code)]
-fn bool_attr(element: &CFType, name: &'static str) -> Option<bool> {
-    attr(element, name)?.downcast_ref::<CFBoolean>().map(CFBoolean::value)
 }
 
 #[cfg(test)]

@@ -71,16 +71,12 @@ export function showFeedback(message: string, durationMs = 1400): void {
   }, durationMs);
 }
 
-export function formValue(form: HTMLFormElement, name: string): string {
-  const field = form.elements.namedItem(name);
-  if (
-    field instanceof HTMLInputElement ||
-    field instanceof HTMLSelectElement ||
-    field instanceof HTMLTextAreaElement
-  ) {
-    return field.value;
-  }
-  return "";
+/** A switch: a checkbox drawn as a track and a knob. The label around it is the caller's. */
+export function toggle(id: string, checked: boolean, label: string, disabled = false): string {
+  return `<span class="toggle-field">
+    <input id="${id}" class="toggle-input" type="checkbox" ${checked ? "checked" : ""} ${disabled ? "disabled" : ""} aria-label="${attr(label)}" />
+    <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
+  </span>`;
 }
 
 /** The Enter that confirms Japanese or Chinese input is not a submit. WebKit reports it

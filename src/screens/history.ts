@@ -5,7 +5,7 @@ import type {
 } from "../core/types";
 import {
   addDaysKey, addMonthsKey, dayKey, formatBytes, formatHours, formatRecovery, formatSpan,
-  formatStretchChip, formatWeekRange, formatWeekStart, mondayKey, monthKey, parseDayKey,
+  formatWeekRange, formatWeekStart, mondayKey, monthKey, parseDayKey,
   smartBarHeight, thisMondayKey,
 } from "../core/format";
 import { attr, confirmModal, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
@@ -427,7 +427,7 @@ function renderWeekHero(weekStart: string, recap: WeekRecap | null, animate: boo
   const buckets = recap?.buckets ?? WEEKDAY_LABELS.map((label) => ({ label, focus_seconds: 0 }));
   const max = Math.max(...buckets.map((bucket) => bucket.focus_seconds), 1);
   const todayIndex = current ? (new Date().getDay() + 6) % 7 : -1;
-  const longest = recap?.longest_stretch_seconds ? formatStretchChip(recap.longest_stretch_seconds) : "—";
+  const longest = recap?.longest_stretch_seconds ? formatHours(recap.longest_stretch_seconds) : "—";
   const recovery =
     recap?.recovery_median_seconds != null
       ? formatRecovery(recap.recovery_median_seconds)

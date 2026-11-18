@@ -47,8 +47,7 @@ class PresenceTests(unittest.TestCase):
         compose_frame(state, face_in_frame=True, person_in_frame=False, phone_raw=False)
         out = compose_frame(state, face_in_frame=True, person_in_frame=False, phone_raw=False)
         self.assertTrue(out["present"])
-        self.assertIsNone(out["gaze"])
-        self.assertFalse(out["looking_at_phone"])
+        self.assertFalse(out["phone_in_frame"])
 
 
 class BurstTests(unittest.TestCase):

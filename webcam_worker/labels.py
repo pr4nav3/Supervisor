@@ -1,4 +1,4 @@
-"""Phone + presence labels with temporal hysteresis. Gaze is paused."""
+"""Phone and presence labels with temporal hysteresis."""
 
 from __future__ import annotations
 
@@ -62,19 +62,8 @@ def compose_frame(
     face_in_frame: bool,
     person_in_frame: bool,
     phone_raw: bool,
-    phone_count: int = 0,
-    phone_confidence: float = 0.0,
 ) -> dict:
     phone_on = state.phone.update(phone_raw)
     present = state.presence.update(face_in_frame or person_in_frame)
 
-    return {
-        "face_in_frame": face_in_frame,
-        "person_in_frame": person_in_frame,
-        "present": present,
-        "gaze": None,
-        "phone_in_frame": phone_on,
-        "looking_at_phone": phone_on,
-        "phone_count": int(phone_count),
-        "phone_confidence": float(phone_confidence),
-    }
+    return {"face_in_frame": face_in_frame, "present": present, "phone_in_frame": phone_on}

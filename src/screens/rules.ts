@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, RuleEditor, RulePreview, RulesSaved } from "../core/types";
-import { attr, errorText, escapeHtml, formValue, showFeedback } from "../core/dom";
+import { attr, errorText, escapeHtml, showFeedback } from "../core/dom";
 import { appNames, setLastError, setSiteNames, siteNames } from "../core/state";
 import { render } from "../core/shell";
 import { firstRunOpen, paintFirstRun } from "./firstRun";
@@ -211,7 +211,7 @@ export async function saveRuleForm(form: HTMLFormElement): Promise<void> {
     return;
   }
 
-  const text = formValue(form, "value").trim();
+  const text = String(new FormData(form).get("value") ?? "").trim();
   if (!text) {
     showFeedback("Enter a website or an app name");
     return;
@@ -227,7 +227,7 @@ export async function saveRuleForm(form: HTMLFormElement): Promise<void> {
     return;
   }
   if (rule.target === "website" && previewSite(editor) === rule.value) {
-    const name = formValue(form, "name").trim();
+    const name = String(new FormData(form).get("name") ?? "").trim();
     if (name !== (siteNames[rule.value] ?? "")) {
       try {
         setSiteNames(await invoke<Record<string, string>>("set_site_name", { key: rule.value, name }));

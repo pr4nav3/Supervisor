@@ -9,7 +9,7 @@ import { formatBytes, formatDuration } from "../core/format";
 import {
   afterPointer, appView, attr, confirmModal, errorText, escapeHtml, modal, showFeedback,
 } from "../core/dom";
-import { playVolume } from "../core/audio";
+import { decodeClip, playVolume } from "../core/audio";
 import { activeTab, draft, setSettings, settingsView, theme } from "../core/state";
 import { paintSlot, render } from "../core/shell";
 import {
@@ -87,8 +87,6 @@ export function setVoiceDeleteTargetId(value: string | null): void {
 export let voiceInfoId: string | null = null;
 let voicePreviewAudio: HTMLAudioElement | null = null;
 const waveformPeaks = new Map<string, number[]>();
-const waveformPending = new Map<string, Promise<AudioBuffer>>();
-let waveformContext: AudioContext | null = null;
 let voicePreviewPath = "";
 let previewWaveRaf = 0;
 let previewBarDragging = false;
@@ -1419,7 +1417,7 @@ async function loadWaveformPeaks(path: string, bars: number): Promise<number[]> 
   if (cached) {
     return cached;
   }
-  const buffer = await loadWaveformBuffer(path);
+  const buffer = await decodeClip(clipAssetUrl(path)); // not kept: seconds of float32 per line
   const data = buffer.getChannelData(0);
   const size = Math.max(1, Math.floor(data.length / bars));
   const peaks: number[] = [];
@@ -1433,28 +1431,6 @@ async function loadWaveformPeaks(path: string, bars: number): Promise<number[]> 
   }
   waveformPeaks.set(key, peaks);
   return peaks;
-}
-
-/** Not cached: peaks are, and a decoded buffer is seconds of float32 per clip. */
-async function loadWaveformBuffer(path: string): Promise<AudioBuffer> {
-  let pending = waveformPending.get(path);
-  if (!pending) {
-    pending = (async () => {
-      const response = await fetch(clipAssetUrl(path));
-      if (!response.ok) {
-        throw new Error("waveform fetch failed");
-      }
-      const bytes = await response.arrayBuffer();
-      const context = waveformContext ?? (waveformContext = new AudioContext());
-      return context.decodeAudioData(bytes.slice(0));
-    })();
-    waveformPending.set(path, pending);
-  }
-  try {
-    return await pending;
-  } finally {
-    waveformPending.delete(path);
-  }
 }
 
 function sizeWaveformCanvas(canvas: HTMLCanvasElement): void {
@@ -1804,7 +1780,6 @@ export function bumpClipAsset(path: string): void {
       waveformPeaks.delete(key);
     }
   }
-  waveformPending.delete(path);
   if (voicePreviewPath === path) {
     stopVoicePreview();
   }

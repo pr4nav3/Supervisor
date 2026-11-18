@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live webcam worker: phone in frame + user present. Gaze paused.
+"""Live webcam worker: phone in frame + user present.
 
 Frames stay in memory. JSON lines to stdout. Shipped frozen (PyInstaller) inside the app.
 """
@@ -143,7 +143,6 @@ def main() -> int:
         )
     except Exception as exc:
         return fail(args.device, str(exc))
-    provider = object_detector.provider
 
     if args.self_test:
         blank = np.zeros((720, 1280, 3), dtype=np.uint8)
@@ -154,7 +153,7 @@ def main() -> int:
             {
                 "self_test": "ok",
                 "device": args.device,
-                "provider": provider,
+                "provider": object_detector.provider,
                 "ms": round(1000 * (time.perf_counter() - started), 1),
             }
         )
@@ -203,10 +202,8 @@ def main() -> int:
                     face_in_frame=face is not None,
                     person_in_frame=bool(persons),
                     phone_raw=bool(phones),
-                    phone_count=len(phones),
-                    phone_confidence=max((p.score for p in phones), default=0.0),
                 )
-            row = {"ts": time.time(), "device": args.device, "provider": provider, "detected": detect, **labels}
+            row = {"detected": detect, **labels}
             if args.preview:
                 draw_boxes(frame, face, phones, persons)
                 row["jpeg"] = encode_preview(frame)

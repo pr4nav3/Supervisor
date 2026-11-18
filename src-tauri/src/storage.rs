@@ -66,8 +66,7 @@ pub struct StoredPhrase {
     /// The personality the line belongs to.
     pub tone: String,
     pub text: String,
-    /// When the line plays: `nudge`, `phone`, `roundover` or `sessionover`. Older libraries
-    /// have none and kept those moments as tones of their own; cleaning moves them.
+    /// When the line plays: `nudge`, `phone`, `roundover` or `sessionover`; `nudge` when missing.
     #[serde(default)]
     pub moment: String,
 }
@@ -1976,25 +1975,9 @@ fn clean_phrase_library(library: StoredPhraseLibrary) -> Result<StoredPhraseLibr
     })
 }
 
-/// A line's personality and moment. Lines saved before personalities kept the app's moments as
-/// tones of their own (`phone`, `roundover`, `breakover`, `sessionover`); those were shared by
-/// every voice, so they move to Gentle, the first personality. A break ending now plays the back
-/// to work lines.
-fn phrase_moment(tone: String, moment: &str) -> (String, String) {
-    if let Some(known) = PHRASE_MOMENTS.iter().find(|item| item.eq_ignore_ascii_case(moment)) {
-        return (tone, (*known).to_string());
-    }
-    let old = match tone.to_ascii_lowercase().as_str() {
-        "phone" => Some("phone"),
-        "roundover" => Some("roundover"),
-        "breakover" => Some("nudge"),
-        "sessionover" => Some("sessionover"),
-        _ => None,
-    };
-    match old {
-        Some(moment) => ("gentle".to_string(), moment.to_string()),
-        None => (tone, "nudge".to_string()),
-    }
+/// One of `PHRASE_MOMENTS`; anything else plays as a back to work line.
+fn phrase_moment(moment: &str) -> String {
+    PHRASE_MOMENTS.iter().find(|item| item.eq_ignore_ascii_case(moment)).unwrap_or(&"nudge").to_string()
 }
 
 fn clean_stored_phrases(phrases: Vec<StoredPhrase>) -> Result<Vec<StoredPhrase>, String> {
@@ -2009,7 +1992,7 @@ fn clean_stored_phrases(phrases: Vec<StoredPhrase>) -> Result<Vec<StoredPhrase>,
             .collect();
         let tone: String = phrase.tone.trim().chars().take(80).collect();
         let text: String = phrase.text.trim().chars().take(140).collect();
-        let (tone, moment) = phrase_moment(tone, phrase.moment.trim());
+        let moment = phrase_moment(phrase.moment.trim());
         if !id.is_empty()
             && !tone.is_empty()
             && !text.is_empty()
@@ -3032,30 +3015,19 @@ mod tests {
     }
 
     #[test]
-    fn old_moment_tones_become_gentle_lines_with_a_moment() {
+    fn a_line_without_a_known_moment_plays_as_back_to_work() {
         let storage = SessionStorage::open_in_memory().expect("open db");
-        let old: StoredPhraseLibrary = serde_json::from_str(
+        let library: StoredPhraseLibrary = serde_json::from_str(
             r#"{"custom_tones":["coach"],"custom_phrases":[
-                {"id":"a","tone":"phone","text":"Phone away."},
-                {"id":"b","tone":"breakover","text":"Break's over."},
                 {"id":"c","tone":"coach","text":"Next rep."},
-                {"id":"d","tone":"coach","text":"Rest.","moment":"roundover"},
+                {"id":"d","tone":"coach","text":"Rest.","moment":"Roundover"},
                 {"id":"e","tone":"mom","text":"Huh.","moment":"bogus"}
-            ],"phrase_overrides":[{"id":"sessionover_session_done","tone":"sessionover","text":"Done."}]}"#,
+            ],"phrase_overrides":[]}"#,
         )
-        .expect("old shape");
-        let saved = storage.save_phrase_library(old).expect("save");
-        let got: Vec<(&str, &str)> = saved
-            .custom_phrases
-            .iter()
-            .map(|phrase| (phrase.tone.as_str(), phrase.moment.as_str()))
-            .collect();
-        assert_eq!(
-            got,
-            vec![("gentle", "phone"), ("gentle", "nudge"), ("coach", "nudge"), ("coach", "roundover"), ("mom", "nudge")]
-        );
-        assert_eq!(saved.phrase_overrides[0].tone, "gentle");
-        assert_eq!(saved.phrase_overrides[0].moment, "sessionover");
+        .expect("library");
+        let saved = storage.save_phrase_library(library).expect("save");
+        let got: Vec<&str> = saved.custom_phrases.iter().map(|phrase| phrase.moment.as_str()).collect();
+        assert_eq!(got, vec!["nudge", "roundover", "nudge"]);
     }
 
     #[test]

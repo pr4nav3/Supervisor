@@ -1,6 +1,6 @@
 # Webcam worker
 
-Shipped inside the app. It reports whether a phone is in frame and whether the user is present. Gaze is off.
+Shipped inside the app. It reports whether a phone is in frame and whether the user is present.
 
 The model is YOLO26s (`models/yolo26s.onnx`) plus YuNet for faces. See `RESULTS.md`.
 

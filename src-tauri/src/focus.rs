@@ -730,7 +730,6 @@ mod tests {
     fn observe(engine: &mut FocusEngine, activity: &Activity, idle_seconds: f64, at: u64) -> FocusSnapshot {
         let sample = ActivitySample {
             captured_at: "2026-08-12T00:00:00Z".to_string(),
-            platform: "macos",
             app_name: activity.app_id.clone(),
             app_label: activity.app_label.clone(),
             process_path: format!("/Applications/{}.app", activity.app_id),

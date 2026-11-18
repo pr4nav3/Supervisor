@@ -290,7 +290,6 @@ fn build_sample(
 
     ActivitySample {
         captured_at,
-        platform: "windows",
         app_label,
         app_identity,
         app_key: None,

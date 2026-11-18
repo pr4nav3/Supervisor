@@ -245,7 +245,6 @@ mod tests {
     fn sample(app: &str, window: &str, title: &str, address: Option<&str>, editing: bool) -> ActivitySample {
         ActivitySample {
             captured_at: "2026-10-15T12:00:00Z".to_string(),
-            platform: "windows",
             app_name: app.to_string(),
             app_label: if app == "chrome" { "Google Chrome" } else { app }.to_string(),
             process_path: format!("C:\\Apps\\{app}.exe"),

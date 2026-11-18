@@ -26,29 +26,14 @@ export type ClipQueue = {
 type VoiceDownloadPhase = "idle" | "checking" | "downloading" | "cancelling" | "complete" | "error";
 export type RecordingState = "idle" | "recording" | "recorded" | "error";
 
-interface Bounds {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
 export interface CapturePermissions {
   screen_recording: PermissionState;
   accessibility: PermissionState;
 }
 
+/** The window in front; the backend sends more than the screens read. */
 interface ActivitySample {
-  captured_at: string;
-  platform: string;
   app_name: string;
-  app_label: string;
-  process_path: string;
-  process_id: number;
-  window_id: string;
-  bounds: Bounds;
-  idle_seconds: number | null;
-  permissions: CapturePermissions;
 }
 
 /** What is being supervised: an app, a website, or one of the browser's own rows. */
@@ -320,8 +305,6 @@ export interface VoiceModelStatus {
 
 interface VoiceRuntimeStatus {
   installed: boolean;
-  source: "release" | "dev_override" | "missing";
-  required_bytes: number | null;
 }
 
 interface VoiceSystemInfo {

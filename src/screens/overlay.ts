@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import type { AppRule, CurrentSession, NudgeVoice, PomodoroStatus } from "../core/types";
 import { formatDuration, formatHours } from "../core/format";
-import { appView, attr, errorText, escapeHtml, showFeedback } from "../core/dom";
+import { appView, attr, errorText, escapeHtml, showFeedback, toggle } from "../core/dom";
 import { appNames, setLastError, settings, siteNames, snapshot } from "../core/state";
 import { bindEvents, invokeSnapshot, render } from "../core/shell";
 import { CAMERA_DOWN_COPY, cameraDown } from "./webcam";
@@ -243,10 +243,7 @@ function renderOverlayWatchControls(current: CurrentSession, held: boolean, nudg
   return `
     <label class="overlay-mute">
       <span>Mute for 5 min</span>
-      <span class="toggle-field">
-        <input id="overlay-snooze" class="toggle-input" type="checkbox" ${nudgesMuted ? "checked" : ""} ${held ? "disabled" : ""} aria-label="Mute reminders for 5 minutes" />
-        <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-      </span>
+      ${toggle("overlay-snooze", nudgesMuted, "Mute reminders for 5 minutes", held)}
     </label>
     <div class="overlay-marks">
       ${

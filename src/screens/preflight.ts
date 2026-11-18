@@ -267,14 +267,15 @@ export async function preflightAction(action: string, source?: HTMLElement): Pro
   }
 
   if (action === "confirm-start-session") {
+    // Read and reset first: an Enter on an empty goal must not mark the next click's start.
+    const source = startSource;
+    startSource = "start screen";
     if (!draft.goal.trim()) {
       showFeedback("Name the session");
       return;
     }
     preflightOpen = false;
     setRuleEditor(null);
-    const source = startSource;
-    startSource = "start screen";
     if (!(await startSession(source))) {
       preflightOpen = true;
       render();

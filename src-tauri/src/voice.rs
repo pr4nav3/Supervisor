@@ -455,9 +455,9 @@ impl VoiceWorker {
             .loaded
             .store(parsed.loaded.unwrap_or(parsed.ok), Ordering::SeqCst);
         if !parsed.ok {
-            return Err(parsed
-                .error
-                .unwrap_or_else(|| "The voice engine could not generate this line.".to_string()));
+            // The engine's own reason names its files and fields; the line shows plain words.
+            eprintln!("voice engine: {}", parsed.error.as_deref().unwrap_or("no reason given"));
+            return Err("The voice engine could not make this line. Try Generate again.".to_string());
         }
         Ok(())
     }

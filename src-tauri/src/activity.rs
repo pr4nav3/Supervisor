@@ -25,7 +25,6 @@ use time::{format_description::well_known::Rfc3339, OffsetDateTime};
 #[derive(Clone, Debug, PartialEq, Serialize)]
 pub struct ActivitySample {
     pub captured_at: String,
-    pub platform: &'static str,
     pub app_name: String,
     pub app_label: String,
     /// Native identity (see `app_identity`): a packaged app's AUMID, a bundle id, or the
@@ -207,7 +206,6 @@ fn sample_from_active_window(
     let window_title = clean_title(&app_name, &active_window.title);
     ActivitySample {
         captured_at,
-        platform: platform(),
         app_label: activity_normalize::app_label(
             &app_name,
             bundle_display_name(&active_window.process_path).as_deref(),
@@ -260,19 +258,6 @@ fn app_identity(process_path: &str, app_name: &str) -> String {
 #[cfg(not(target_os = "windows"))]
 fn clean_title(app_name: &str, raw: &str) -> Option<String> {
     activity_normalize::normalize_title_for_browser(app_name, raw).or_else(|| normalize_title_text(raw))
-}
-
-#[cfg(not(target_os = "windows"))]
-fn platform() -> &'static str {
-    if cfg!(target_os = "macos") {
-        "macos"
-    } else if cfg!(target_os = "windows") {
-        "windows"
-    } else if cfg!(target_os = "linux") {
-        "linux"
-    } else {
-        "unknown"
-    }
 }
 
 /// The Mac twin of `manual_foreground_probe`, run from the bundled app so it has the app's

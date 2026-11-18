@@ -11,7 +11,6 @@
   color-scheme: light;
   --sv-canvas: #f4ead7;
   --sv-panel: #fff4cf;
-  --sv-panel-alt: #eadfc9;
   --sv-ink: #101010;
   --sv-muted: #5d564a;
   --sv-border: #101010;
@@ -40,7 +39,6 @@
   color-scheme: dark;
   --sv-canvas: #40403c;
   --sv-panel: #353530;
-  --sv-panel-alt: #32322e;
   --sv-ink: #fff8e9;
   --sv-muted: #ddd5c5;
   --sv-border: #151512;

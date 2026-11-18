@@ -1,5 +1,3 @@
-
-
 /** "4½ min", "1 min", "45 s". */
 export function formatQueueTime(totalSeconds: number): string {
   if (totalSeconds < 60) {
@@ -49,19 +47,6 @@ export function formatBytes(bytes: number): string {
 export function formatMinutes(totalSeconds: number): string {
   if (totalSeconds > 0 && totalSeconds < 60) return "<1 min";
   return `${Math.max(0, Math.round(totalSeconds / 60))} min`;
-}
-
-export function formatStretchChip(totalSeconds: number): string {
-  if (totalSeconds < 60) {
-    return "<1m";
-  }
-  const minutes = Math.round(totalSeconds / 60);
-  if (minutes >= 60) {
-    const hours = Math.floor(minutes / 60);
-    const rest = minutes % 60;
-    return rest ? `${hours}h ${rest}m` : `${hours}h`;
-  }
-  return `${minutes}m`;
 }
 
 /** A day counts toward the streak at this much focused time. */

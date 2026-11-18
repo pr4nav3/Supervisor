@@ -46,9 +46,7 @@ test("durations read the way the screens print them", () => {
   assert.equal(f.formatSpan(13), "13s");
   assert.equal(f.formatSpan(785), "13m 05s");
   assert.equal(f.formatSpan(6000), "1h 40m");
-  assert.equal(f.formatStretchChip(59), "<1m");
-  assert.equal(f.formatStretchChip(3600), "1h");
-  assert.equal(f.formatStretchChip(3900), "1h 5m");
+  assert.equal(f.formatHours(3900), "1h 05m");
   assert.equal(f.formatRecovery(40), "40s");
   assert.equal(f.formatRecovery(90), "1m 30s");
   assert.equal(f.formatRecovery(120), "2m");

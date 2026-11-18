@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { CurrentSession, SessionSettings, WebcamFrame } from "../core/types";
-import { errorText, escapeHtml, showFeedback } from "../core/dom";
+import { errorText, escapeHtml, showFeedback, toggle } from "../core/dom";
 import { activeTab, setSettings, setSettingsView, settings, settingsView, snapshot } from "../core/state";
 import { render } from "../core/shell";
 import { captureAccess } from "./firstRun";
@@ -64,17 +64,11 @@ export function renderWebcamSettings(): string {
             <p class="eyebrow">Settings</p>
             <label class="setting-row toggle-row">
               <span>Turn on webcam models</span>
-              <span class="toggle-field">
-                <input id="webcam-phone-use" class="toggle-input" type="checkbox" ${settings.webcam_enabled ? "checked" : ""} aria-label="Turn on webcam models" />
-                <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-              </span>
+              ${toggle("webcam-phone-use", settings.webcam_enabled, "Turn on webcam models")}
             </label>
             <label class="setting-row toggle-row">
               <span>Run on GPU</span>
-              <span class="toggle-field">
-                <input id="webcam-gpu" class="toggle-input" type="checkbox" ${settings.webcam_gpu ? "checked" : ""} aria-label="Run on GPU" />
-                <span class="toggle-track" aria-hidden="true"><span class="toggle-knob"></span></span>
-              </span>
+              ${toggle("webcam-gpu", settings.webcam_gpu, "Run on GPU")}
             </label>
             <small id="webcam-gpu-note" class="field-help is-bad"${webcamGpuFailed && settings.webcam_gpu ? "" : " hidden"}>${GPU_FALLBACK_COPY}</small>
             <label class="setting-row camera-row">

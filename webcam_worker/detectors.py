@@ -119,17 +119,14 @@ class UltralyticsYoloDetector:
                 )
         return out
 
-    def _run_view(self, bgr: np.ndarray) -> List[Box]:
+    def detect(self, bgr: np.ndarray) -> List[Box]:
+        height, width = bgr.shape[:2]
         padded, scale = letterbox(bgr, INPUT_SIZE)
         rgb = padded[:, :, ::-1].astype(np.float32) / 255.0
         blob = np.ascontiguousarray(np.transpose(rgb, (2, 0, 1))[None])
         raw = self._session.run(None, {self._input_name: blob})[0]
-        return self._decode(raw, scale)
-
-    def detect(self, bgr: np.ndarray) -> List[Box]:
-        height, width = bgr.shape[:2]
         boxes: List[Box] = []
-        for box in self._run_view(bgr):
+        for box in self._decode(raw, scale):
             x1 = min(max(box.x, 0.0), float(width - 1))
             y1 = min(max(box.y, 0.0), float(height - 1))
             x2 = min(box.x + box.w, float(width))

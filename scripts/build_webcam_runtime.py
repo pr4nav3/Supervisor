@@ -23,12 +23,12 @@ sys.path.insert(0, str(REPO / "webcam_worker"))
 from download_models import REQUIRED, verify_models  # noqa: E402
 
 WORKER_NAME = "supervisor-webcam-worker"
-BAKEOFF = REPO / "webcam_worker"
+WORKER_DIR = REPO / "webcam_worker"
 STAGED = REPO / "build" / "webcam"
 
 
 def main() -> int:
-    models = verify_models(BAKEOFF / "models")
+    models = verify_models(WORKER_DIR / "models")
     build_root = REPO / "build" / "webcam_pyinstaller"
     if build_root.exists():
         shutil.rmtree(build_root)
@@ -50,7 +50,7 @@ def main() -> int:
             str(build_root),
             "--collect-all",
             "onnxruntime",
-            str(BAKEOFF / "run_tracker.py"),
+            str(WORKER_DIR / "run_tracker.py"),
         ],
         cwd=REPO,
     )

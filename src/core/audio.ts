@@ -19,10 +19,18 @@ export function playVolume(url: string): Promise<number> {
   return volume;
 }
 
+/** A file's samples. An offline context decodes without holding the speakers open. */
+export async function decodeClip(url: string): Promise<AudioBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`could not load ${url}`);
+  }
+  return new OfflineAudioContext(1, 1, 44_100).decodeAudioData(await response.arrayBuffer());
+}
+
 async function measureVolume(url: string): Promise<number> {
   try {
-    const bytes = await (await fetch(url)).arrayBuffer();
-    const audio = await new OfflineAudioContext(1, 1, 44_100).decodeAudioData(bytes);
+    const audio = await decodeClip(url);
     const samples = audio.getChannelData(0);
     const block = Math.max(1, Math.round(audio.sampleRate * 0.02));
     const floor = 10 ** (-45 / 10);

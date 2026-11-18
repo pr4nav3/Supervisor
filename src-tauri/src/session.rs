@@ -1567,7 +1567,7 @@ pub struct StartSessionInput {
     /// Rounds of work with breaks between them; the session is the rounds' work time.
     #[serde(default)]
     pub pomodoro: Option<PomodoroInput>,
-    /// What started it ("start screen", "Enter", "streak chip", "practice"): kept as the
+    /// What started it ("start screen", "Enter", "practice"): kept as the
     /// session's first event, so a session nobody remembers starting can be traced.
     #[serde(default)]
     pub source: Option<String>,
@@ -3373,7 +3373,6 @@ mod tests {
     ) -> ActivitySample {
         ActivitySample {
             captured_at: "2026-08-12T00:00:00Z".to_string(),
-            platform: "macos",
             app_name: app_name.to_string(),
             app_label: app_name.to_string(),
             process_path: format!("/Applications/{app_name}.app"),
@@ -3400,7 +3399,6 @@ mod tests {
 
     fn shell_sample() -> ActivitySample {
         ActivitySample {
-            platform: "windows",
             app_name: "explorer".to_string(),
             process_path: "C:\\Windows\\explorer.exe".to_string(),
             process_id: 99,

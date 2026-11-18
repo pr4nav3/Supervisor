@@ -479,7 +479,7 @@ fn worker_command(_app: &AppHandle) -> Result<Command, String> {
         .join("..")
         .canonicalize()
         .map_err(|error| error.to_string())?;
-    let bakeoff = root.join("webcam_worker");
+    let worker_dir = root.join("webcam_worker");
     let venv = root.join(".venv-webcam");
     let python = if cfg!(windows) {
         venv.join("Scripts").join("python.exe")
@@ -495,10 +495,10 @@ fn worker_command(_app: &AppHandle) -> Result<Command, String> {
     let mut command = Command::new(python);
     command
         .arg("-u")
-        .arg(bakeoff.join("run_tracker.py"))
+        .arg(worker_dir.join("run_tracker.py"))
         .arg("--models")
-        .arg(bakeoff.join("models"))
-        .current_dir(&bakeoff);
+        .arg(worker_dir.join("models"))
+        .current_dir(&worker_dir);
     Ok(command)
 }
 
@@ -525,7 +525,7 @@ mod tests {
 
     #[test]
     fn parses_worker_json_line() {
-        let line = r#"{"face_in_frame":true,"gaze":null,"person_in_frame":true,"present":true,"phone_in_frame":false,"looking_at_phone":false,"phone_count":0,"phone_confidence":0.0,"jpeg":""}"#;
+        let line = r#"{"detected":true,"face_in_frame":true,"present":true,"phone_in_frame":false,"jpeg":""}"#;
         let frame: WebcamFrame = serde_json::from_str(line).unwrap();
         assert!(frame.face_in_frame);
         assert!(frame.present);
@@ -539,13 +539,5 @@ mod tests {
         let frame: WebcamFrame = serde_json::from_str(line).unwrap();
         assert!(!frame.phone_in_frame);
         assert!(frame.error.unwrap().starts_with("GPU mode"));
-    }
-
-    #[test]
-    fn parses_an_error_and_ignores_fields_it_does_not_read() {
-        let line = r#"{"face_in_frame":false,"gaze":null,"phone_in_frame":false,"looking_at_phone":false,"error":"could not open camera 0"}"#;
-        let frame: WebcamFrame = serde_json::from_str(line).unwrap();
-        assert!(!frame.face_in_frame);
-        assert_eq!(frame.error.as_deref(), Some("could not open camera 0"));
     }
 }
