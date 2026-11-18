@@ -426,3 +426,8 @@ button.recap-app-row:active {
   box-shadow: none;
 }
 
+
+/* Regular buttons here; Voice's Customize and Webcam's Open keep their larger size. */
+.settings-about-grid .settings-feature-card .voice-summary button {
+  font-size: var(--sv-type-4);
+}
