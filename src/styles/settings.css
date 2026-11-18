@@ -312,18 +312,11 @@
   justify-content: flex-start;
   gap: 9px;
   padding: 0 12px;
-  background: var(--sv-soft-white);
-  opacity: 0.75;
 }
 
 .rule-part-pick.is-on {
   background: var(--sv-coral);
   color: var(--sv-colored-ink);
-  opacity: 1;
-}
-
-.rule-part-body input:disabled {
-  opacity: 0.5;
 }
 
 .rule-site-input {

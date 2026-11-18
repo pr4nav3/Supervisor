@@ -284,8 +284,8 @@ export interface RulesSaved {
   rules: AppRule[];
 }
 
-/** The add and edit form: a name, and the website and the app it blocks. A part the user typed in
- *  or switched is theirs; the name no longer fills it. */
+/** The add and edit form: a name, and the website and the app it blocks. The name fills a box until
+ *  the user types in it (`siteTouched`), and turns a part on or off until the user clicks it (`siteOnTouched`). */
 export interface RuleEditor {
   /** The chip being edited, or null when adding. */
   group: { name: string; rules: AppRule[] } | null;
@@ -293,9 +293,11 @@ export interface RuleEditor {
   site: string;
   siteOn: boolean;
   siteTouched: boolean;
+  siteOnTouched: boolean;
   app: string;
   appOn: boolean;
   appTouched: boolean;
+  appOnTouched: boolean;
   error: string;
   /** Delete was pressed once; the actions ask before the rule goes. */
   confirmDelete?: boolean;

@@ -105,21 +105,27 @@ function looksLikeAddress(text: string): boolean {
   return /^(https?:\/\/)?[^\s/]+\.[a-z]{2,}(\/\S*)?$/i.test(text.trim());
 }
 
-/** Typing the name fills what Supervisor can guess, until the user changes that part. A known
- *  site's name or an address turns Website on; App is on for a name that isn't a known site, or
- *  for an app already seen on this computer. */
+/** Typing the name fills what Supervisor can guess. Each box follows the name until the user types
+ *  in it; each part is turned on or off until the user clicks its button. A known site's name or an
+ *  address turns Website on; App is on for a name that isn't a known site, or for an app already
+ *  seen on this computer. */
 function fillFromName(editor: RuleEditor): void {
   const name = editor.name.trim();
   const lower = name.toLowerCase();
   const address = looksLikeAddress(name);
   const knownSite = Object.keys(siteNames).find((key) => siteNames[key].toLowerCase() === lower);
   const seenApp = Object.hasOwn(appNames, lower) || Object.values(appNames).some((app) => app.toLowerCase() === lower);
+  const site = address ? name : knownSite ?? "";
   if (!editor.siteTouched) {
-    editor.site = address ? name : knownSite ?? "";
-    editor.siteOn = Boolean(editor.site);
+    editor.site = site;
+  }
+  if (!editor.siteOnTouched) {
+    editor.siteOn = Boolean(site);
   }
   if (!editor.appTouched) {
     editor.app = address ? "" : name;
+  }
+  if (!editor.appOnTouched) {
     editor.appOn = Boolean(name) && !address && (!knownSite || seenApp);
   }
 }
@@ -237,7 +243,8 @@ export async function handleRuleAction(button: HTMLButtonElement): Promise<void>
 
   if (action === "add") {
     ruleEditor = {
-      group: null, name: "", site: "", siteOn: false, siteTouched: false, app: "", appOn: false, appTouched: false, error: "",
+      group: null, name: "", site: "", siteOn: false, siteTouched: false, siteOnTouched: false,
+      app: "", appOn: false, appTouched: false, appOnTouched: false, error: "",
     };
     paintRuleEditorHost();
     document.getElementById("rule-name")?.focus();
@@ -266,13 +273,10 @@ export async function handleRuleAction(button: HTMLButtonElement): Promise<void>
     editor.error = "";
     if (button.dataset.rulePart === "site") {
       editor.siteOn = !editor.siteOn;
-      editor.siteTouched = true;
+      editor.siteOnTouched = true;
     } else {
       editor.appOn = !editor.appOn;
-      editor.appTouched = true;
-      if (editor.appOn && !editor.app.trim() && !looksLikeAddress(editor.name)) {
-        editor.app = editor.name.trim();
-      }
+      editor.appOnTouched = true;
     }
     paintRuleEditorLive();
     const turnedOn = button.dataset.rulePart === "site" ? editor.siteOn : editor.appOn;
@@ -294,9 +298,11 @@ export async function handleRuleAction(button: HTMLButtonElement): Promise<void>
       site: site?.value ?? "",
       siteOn: Boolean(site),
       siteTouched: true,
+      siteOnTouched: true,
       app: app ? appNames[app.value.toLowerCase()] ?? app.value : "",
       appOn: Boolean(app),
       appTouched: true,
+      appOnTouched: true,
       error: "",
     };
     paintRuleEditorHost();
