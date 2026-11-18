@@ -217,6 +217,13 @@ textarea {
   padding: 0 10px;
 }
 
+/* Hint text in an empty box: the ink at half strength, readable on both themes. The browser's own
+   grey all but vanished on the dark theme. */
+::placeholder {
+  color: color-mix(in srgb, var(--sv-ink) 50%, transparent);
+  opacity: 1;
+}
+
 textarea {
   min-height: 84px;
   padding: 10px;

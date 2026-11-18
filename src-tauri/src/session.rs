@@ -413,18 +413,62 @@ impl SessionManager {
     /// The card's Allow once: its own distraction (`rule`) stops counting until the session
     /// ends, even when another window is in front by now. With no rule, the window in front.
     pub fn allow_current_for_session(&mut self, rule: Option<AppRule>, now: Duration) -> SessionSnapshot {
-        if let Some(rule) = rule {
-            let in_front = self.current.as_ref()
+        let before = self.current.as_ref().map(|session| session.exceptions.clone()).unwrap_or_default();
+        let in_front = rule.as_ref().is_none_or(|rule| {
+            self.current.as_ref()
                 .and_then(|session| session.latest_focus.as_ref())
-                .is_some_and(|focus| rule.matches(&focus.activity));
-            if !in_front {
-                return self.set_session_exception(rule, true, now);
+                .is_some_and(|focus| rule.matches(&focus.activity))
+        });
+        match rule {
+            Some(rule) if !in_front => {
+                self.set_session_exception(rule, true, now);
+            }
+            _ => {
+                if let Some(session) = self.current.as_mut() {
+                    session.allow_current(now, self.storage.as_ref());
+                }
             }
         }
-        if let Some(session) = self.current.as_mut() {
-            session.allow_current(now, self.storage.as_ref());
+        // A chip covers a website and an app under one name: allowing one allows the other.
+        let added: Vec<AppRule> = self.current.as_ref()
+            .map(|session| session.exceptions.iter().filter(|rule| !before.iter().any(|old| same_rule(old, rule))).cloned().collect())
+            .unwrap_or_default();
+        for rule in added {
+            for partner in self.chip_partners(&rule) {
+                self.set_session_exception(partner, true, now);
+            }
         }
         self.snapshot(now)
+    }
+
+    /// The other saved rules on the same chip as `rule`: the screens show rules that share a
+    /// name as one chip (rules.ts `ruleName`). The name is the chip's own, else the site's or
+    /// the app's.
+    fn chip_partners(&self, rule: &AppRule) -> Vec<AppRule> {
+        let Some(storage) = self.storage.as_ref() else {
+            return Vec::new();
+        };
+        let rule_names = storage.rule_names().unwrap_or_default();
+        let site_names = storage.site_names();
+        let app_names = storage.app_names().unwrap_or_default();
+        let name = |rule: &AppRule| {
+            let value = rule.value.trim().to_lowercase();
+            rule_names
+                .get(&format!("{}:{value}", rule.target.key()))
+                .or_else(|| match rule.target {
+                    RuleTarget::Website => site_names.get(&value),
+                    RuleTarget::App => app_names.get(&value),
+                })
+                .cloned()
+                .unwrap_or_else(|| rule.value.trim().to_string())
+                .to_lowercase()
+        };
+        let wanted = name(rule);
+        self.persisted_rules
+            .iter()
+            .filter(|other| !same_rule(other, rule) && name(other) == wanted)
+            .cloned()
+            .collect()
     }
 
     /// From the live card's chips: allow a listed distraction for this session, or take that
@@ -434,9 +478,7 @@ impl SessionManager {
         if let Some(session) = self.current.as_mut() {
             // The card's Allow once stores the rule as matched (lower case); the chip sends the
             // rule as typed. The same rule either way, or the allowance could never be taken back.
-            let same = |exception: &AppRule| {
-                exception.target == rule.target && exception.value.trim().eq_ignore_ascii_case(rule.value.trim())
-            };
+            let same = |exception: &AppRule| same_rule(exception, &rule);
             let had = session.exceptions.iter().any(same);
             session.exceptions.retain(|exception| !same(exception));
             if allowed {
@@ -1007,7 +1049,7 @@ impl Session {
             return;
         };
         let detail = allowed_detail(&rule);
-        if !self.exceptions.iter().any(|exception| exception.target == rule.target && exception.value.eq_ignore_ascii_case(&rule.value)) {
+        if !self.exceptions.iter().any(|exception| same_rule(exception, &rule)) {
             self.exceptions.push(rule);
         }
         self.remark_current(&focus, None, now, storage, "allowed", Some(&detail));
@@ -1765,6 +1807,11 @@ fn clean_goal(goal: String) -> String {
     } else {
         goal.chars().take(120).collect()
     }
+}
+
+/// The same rule however it was typed: matching ignores case.
+fn same_rule(a: &AppRule, b: &AppRule) -> bool {
+    a.target == b.target && a.value.trim().eq_ignore_ascii_case(b.value.trim())
 }
 
 /** The `detail` of an "allowed" or "unallowed" event: "website:youtube.com", "app:slack". */
@@ -2809,6 +2856,31 @@ mod tests {
         let snapshot = record(&mut manager, shell_sample(), seconds(1));
 
         assert!(snapshot.current.unwrap().focus.is_none());
+    }
+
+    #[test]
+    fn allowing_once_from_the_card_allows_the_whole_chip() {
+        let mut manager = test_manager();
+        let rules = vec![AppRule::website("netflix.com"), AppRule::app("Netflix"), AppRule::app("Steam")];
+        manager.update_rules(rules, seconds(0));
+        manager.storage().unwrap().set_rule_names(HashMap::from([
+            ("website:netflix.com".to_string(), "Netflix".to_string()),
+            ("app:netflix".to_string(), "Netflix".to_string()),
+        ])).unwrap();
+        manager.start(input("Focus", Strictness::Strict), seconds(1));
+        record(&mut manager, site("netflix.com/browse", 0.0), seconds(1));
+        let allowed = manager.allow_current_for_session(None, seconds(2)).current.unwrap().exceptions;
+        assert_eq!(allowed.len(), 2, "{allowed:?}");
+        assert!(allowed.iter().any(|rule| rule.target == RuleTarget::App && rule.value == "Netflix"));
+
+        // A rule sent by the card for something no longer in front pairs the same way.
+        manager.set_session_exception(AppRule::website("netflix.com"), false, seconds(3));
+        manager.set_session_exception(AppRule::app("Netflix"), false, seconds(3));
+        let allowed = manager.allow_current_for_session(Some(AppRule::app("netflix")), seconds(4)).current.unwrap().exceptions;
+        assert_eq!(allowed.len(), 2, "{allowed:?}");
+        // A chip of its own allows only itself.
+        let allowed = manager.allow_current_for_session(Some(AppRule::app("Steam")), seconds(5)).current.unwrap().exceptions;
+        assert_eq!(allowed.len(), 3, "{allowed:?}");
     }
 
     #[test]
