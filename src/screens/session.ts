@@ -272,8 +272,9 @@ function renderSessionDistractions(exceptions: AppRule[]): string {
   if (groups.length === 0) {
     return `<p class="session-rules-empty">Nothing on the list yet.</p>`;
   }
-  // Six fit the card, whatever the list holds; the rest are behind Edit distractions. Chips keep
-  // their places when allowed or counted again; the line under them names every allowed one.
+  // Six fit the card, whatever the list holds; the rest are behind Edit distractions. Nothing here
+  // moves when a chip is allowed or counted again; an allowed chip past the six is named in the
+  // line below, and its allowance ends with the session.
   const isAllowed = (group: Distraction) => groupAllowed(group, exceptions);
   const shown = groups.map((group, index) => ({ group, index })).slice(0, 6);
   const hidden = groups.length - shown.length;

@@ -163,9 +163,10 @@ async function init(): Promise<void> {
       applyWebcamFrame(event.payload);
     });
     // A rule saved elsewhere (the timer window's Always allow or block) must reach this copy.
+    // Only this window writes chip names, so they are not re-read here: a read that landed before
+    // this window's own save finished would show a renamed chip under its old name.
     await listen("rules-changed", async () => {
       setPermanentRules(await invoke<AppRule[]>("get_rules"));
-      setRuleNames(await invoke<Record<string, string>>("get_rule_names").catch(() => ({})));
       render();
     });
     // The daily check found and installed a new worker build.

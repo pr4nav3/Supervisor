@@ -383,11 +383,15 @@ export async function saveRuleForm(): Promise<void> {
         : appNames[app!.value.toLowerCase()] ?? app!.value;
   const added = [site, app].filter((rule): rule is AppRule => rule !== null);
   const addedKeys = new Set(added.map(ruleKey));
-  // Editing replaces the website and app the chip showed; anything else under its name stays.
+  // Editing replaces the website and app the chip showed, in their place, so the chip stays where
+  // it was; anything else under its name stays too. A new chip goes at the front (the list's end).
   const replaced = new Set(
     editor.group ? Object.values(groupParts(editor.group)).filter((rule): rule is AppRule => Boolean(rule)).map(ruleKey) : [],
   );
-  const rules = [...added, ...permanentRules.filter((rule) => !replaced.has(ruleKey(rule)) && !addedKeys.has(ruleKey(rule)))];
+  const kept = permanentRules.filter((rule) => !replaced.has(ruleKey(rule)) && !addedKeys.has(ruleKey(rule)));
+  const firstReplaced = permanentRules.findIndex((rule) => replaced.has(ruleKey(rule)));
+  const at = firstReplaced < 0 ? 0 : permanentRules.slice(0, firstReplaced).filter((rule) => !replaced.has(ruleKey(rule)) && !addedKeys.has(ruleKey(rule))).length;
+  const rules = [...kept.slice(0, at), ...added, ...kept.slice(at)];
   ruleEditor = null;
   await saveRules(rules, Object.fromEntries(added.map((rule) => [ruleKey(rule), name])));
 }
@@ -415,14 +419,14 @@ async function saveRules(next: AppRule[], named: Record<string, string>): Promis
 /** Whether the list saved. On a failure the old list is back and the error is showing. */
 async function persistPermanentRuleChanges(previous: AppRule[]): Promise<boolean> {
   try {
-    // The timer window can add rules behind this window's back: apply this edit (what changed
-    // from previous) to the backend's fresh list, so a stale copy never overwrites it.
+    // The timer window can add rules behind this window's back: anything in the backend's fresh
+    // list that this window never had joins the list (at the front, as the newest), and this
+    // window's own order, with its edit applied, is kept.
     const before = new Set(previous.map(ruleKey));
     const after = new Set(permanentRules.map(ruleKey));
-    const added = permanentRules.filter((rule) => !before.has(ruleKey(rule)));
-    const addedKeys = new Set(added.map(ruleKey));
     const fresh = await invoke<AppRule[]>("get_rules");
-    const rules = [...added, ...fresh.filter((rule) => !addedKeys.has(ruleKey(rule)) && (after.has(ruleKey(rule)) || !before.has(ruleKey(rule))))];
+    const concurrent = fresh.filter((rule) => !before.has(ruleKey(rule)) && !after.has(ruleKey(rule)));
+    const rules = [...concurrent, ...permanentRules];
     const saved = await invoke<RulesSaved>("update_rules", { rules });
     permanentRules = saved.rules;
     setLastError("");

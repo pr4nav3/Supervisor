@@ -5,17 +5,27 @@
 
 use std::time::Duration;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_updater::UpdaterExt;
+use tauri_plugin_updater::{Error, UpdaterExt};
 
 /// The newer version on offer, if there is one.
 #[tauri::command]
 pub async fn check_app_update(app: AppHandle) -> Result<Option<String>, String> {
     let updater = app.updater().map_err(|error| error.to_string())?;
-    let update = updater
-        .check()
-        .await
-        .map_err(|_| "Could not check for updates. Are you online?".to_string())?;
+    let update = updater.check().await.map_err(check_failed)?;
     Ok(update.map(|update| update.version))
+}
+
+/// Plain words for the user; the real reason goes to stderr, where a report can find it.
+fn check_failed(error: Error) -> String {
+    eprintln!("update check: {error}");
+    match error {
+        Error::Reqwest(_) => "Could not check for updates. Are you online?",
+        Error::ReleaseNotFound | Error::TargetNotFound(_) | Error::TargetsNotFound(_) => {
+            "The update list isn't available right now. Try again later."
+        }
+        _ => "Could not check for updates right now.",
+    }
+    .to_string()
 }
 
 /// Downloads the new version, installs it and restarts into it. On Windows the installer closes
@@ -33,12 +43,12 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
     let update = updater
         .check()
         .await
-        .map_err(|_| "Could not check for updates. Are you online?".to_string())?
+        .map_err(check_failed)?
         .ok_or_else(|| "Supervisor is up to date.".to_string())?;
-    update
-        .download_and_install(|_, _| {}, || {})
-        .await
-        .map_err(|_| "The update could not be installed. Try again later.".to_string())?;
+    update.download_and_install(|_, _| {}, || {}).await.map_err(|error| {
+        eprintln!("update install: {error}");
+        "The update could not be installed. Try again later.".to_string()
+    })?;
     app.restart();
 }
 
