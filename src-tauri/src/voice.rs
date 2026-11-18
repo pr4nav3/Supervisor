@@ -2338,12 +2338,19 @@ fn starter_resource(relative: &str, app: Option<&AppHandle>) -> Option<PathBuf> 
 /// arrives.
 const STARTER_CLIPS_MARKER: &str = "starter-clips-seeded";
 
+/// The length of the bundled recording a starter voice's lines were made from. A different
+/// recording is a new voice, and its bundled lines replace the ones made from the old one.
+const STARTER_RECORDING_MARKER: &str = "starter-recording";
+
 /// The bundled phrase clips (`voices/<id>/<phrase_id>.wav`), so a first session with a starter
-/// voice already speaks. Each is offered once; a clip the profile already has for it is kept.
-fn seed_starter_clips(dir: &Path, id: &str, app: Option<&AppHandle>) {
+/// voice already speaks. Each is offered once; a clip the profile already has for it is kept,
+/// unless the voice changed (`replace`): then every bundled line still in the folder is made
+/// from the new recording. A line the user deleted stays deleted, their own lines stay theirs.
+fn seed_starter_clips(dir: &Path, id: &str, replace: bool, app: Option<&AppHandle>) {
     let Some(entries) = starter_resource(id, app).and_then(|src| fs::read_dir(src).ok()) else {
         return;
     };
+    let bundled: Vec<PathBuf> = entries.flatten().map(|entry| entry.path()).collect();
     let marker = dir.join(STARTER_CLIPS_MARKER);
     let mut offered: std::collections::BTreeSet<String> = fs::read_to_string(&marker)
         .unwrap_or_default()
@@ -2355,10 +2362,20 @@ fn seed_starter_clips(dir: &Path, id: &str, app: Option<&AppHandle>) {
     if fs::create_dir_all(&clips).is_err() {
         return;
     }
-    let existing: Vec<PathBuf> = fs::read_dir(&clips)
+    let mut existing: Vec<PathBuf> = fs::read_dir(&clips)
         .map(|entries| entries.flatten().map(|entry| entry.path()).collect())
         .unwrap_or_default();
-    for path in entries.flatten().map(|entry| entry.path()) {
+    if replace {
+        for phrase in bundled.iter().filter_map(|path| path.file_stem().and_then(|value| value.to_str())) {
+            let (stale, kept): (Vec<PathBuf>, Vec<PathBuf>) =
+                existing.into_iter().partition(|clip| clip_path_matches(clip, phrase));
+            existing = kept;
+            if !stale.is_empty() && stale.iter().all(|clip| fs::remove_file(clip).is_ok()) {
+                offered.remove(phrase);
+            }
+        }
+    }
+    for path in bundled {
         let (Some("wav"), Some(phrase), Some(name)) = (
             path.extension().and_then(|value| value.to_str()),
             path.file_stem().and_then(|value| value.to_str()),
@@ -2392,7 +2409,19 @@ fn seed_starter_profiles(root: &Path, app: Option<&AppHandle>) {
         if fs::create_dir_all(&dir).is_err() {
             continue;
         }
-        if !dest.exists() && fs::copy(src, &dest).is_err() {
+        let length = |path: &Path| fs::metadata(path).map(|meta| meta.len()).ok();
+        let bundled = length(&src);
+        let marker = dir.join(STARTER_RECORDING_MARKER);
+        let seeded = fs::read_to_string(&marker)
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+            // Before the marker existed, the recording a profile has is the one it was given.
+            .or_else(|| length(&dest));
+        // A new install, or a starter voice re-recorded in a newer version; only the latter had
+        // lines made from an older recording.
+        let fresh = seeded != bundled;
+        let re_recorded = fresh && seeded.is_some();
+        if fresh && fs::copy(&src, &dest).is_err() {
             continue;
         }
         // The voice's hello, played from its card. Not a line, so it lives beside the recording
@@ -2404,7 +2433,10 @@ fn seed_starter_profiles(root: &Path, app: Option<&AppHandle>) {
                 let _ = fs::copy(&intro, &dest);
             }
         }
-        seed_starter_clips(&dir, id, app);
+        seed_starter_clips(&dir, id, re_recorded, app);
+        if let Some(bundled) = bundled.filter(|_| fresh || !marker.exists()) {
+            let _ = fs::write(&marker, bundled.to_string());
+        }
         // A rename and a picked personality are the user's; only a missing name is filled in.
         let existing = read_profile_metadata(&dir);
         let _ = write_json(
@@ -2823,6 +2855,50 @@ mod tests {
         fs::remove_file(clips.join("gentle_phone_face_down.wav")).unwrap();
         seed_starter_profiles(&root, None);
         assert!(clips.join("gentle_phone_face_down.wav").exists());
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_re_recorded_starter_voice_replaces_its_lines_but_not_the_users_choices() {
+        let root = test_dir("starter-rerecord");
+        let dir = profile_dir(&root, "elise");
+        let clips = dir.join("clips");
+        fs::create_dir_all(&clips).unwrap();
+        // An install from before this version: the old recording, the old lines (one regenerated
+        // by the user, one deleted by the user), and a line of the user's own.
+        fs::write(dir.join("reference.wav"), vec![1u8; 4000]).unwrap();
+        fs::write(clips.join("gentle_itll_keep.wav"), vec![2u8; 100]).unwrap();
+        fs::write(clips.join("03_gentle_come_on_back.wav"), vec![3u8; 100]).unwrap();
+        fs::write(clips.join("custom_hello.wav"), vec![4u8; 100]).unwrap();
+        let offered = "gentle_come_on_back\ngentle_itll_keep\nstern_not_the_work";
+        fs::write(dir.join(STARTER_CLIPS_MARKER), offered).unwrap();
+
+        seed_starter_profiles(&root, None);
+        let bundled = starter_resource("elise.wav", None).unwrap();
+        let bundled_len = bundled.metadata().unwrap().len();
+        assert_eq!(dir.join("reference.wav").metadata().unwrap().len(), bundled_len, "new recording");
+        assert_eq!(fs::read_to_string(dir.join(STARTER_RECORDING_MARKER)).unwrap(), bundled_len.to_string());
+        let src = starter_resource("elise", None).unwrap();
+        assert_eq!(fs::read(clips.join("gentle_itll_keep.wav")).unwrap(), fs::read(src.join("gentle_itll_keep.wav")).unwrap());
+        assert!(!clips.join("03_gentle_come_on_back.wav").exists(), "the regenerated old-voice line goes");
+        assert!(clips.join("gentle_come_on_back.wav").is_file(), "and the new voice's take arrives");
+        assert!(!clips.join("stern_not_the_work.wav").exists(), "a deleted line stays deleted");
+        assert_eq!(fs::read(clips.join("custom_hello.wav")).unwrap(), vec![4u8; 100], "the user's line is theirs");
+
+        // The next start changes nothing.
+        fs::write(clips.join("gentle_itll_keep.wav"), vec![5u8; 100]).unwrap();
+        seed_starter_profiles(&root, None);
+        assert_eq!(fs::read(clips.join("gentle_itll_keep.wav")).unwrap(), vec![5u8; 100]);
+
+        // A voice whose recording did not change keeps the user's regenerated line, marker or not.
+        let derek = profile_dir(&root, "derek");
+        fs::create_dir_all(derek.join("clips")).unwrap();
+        fs::copy(starter_resource("derek.wav", None).unwrap(), derek.join("reference.wav")).unwrap();
+        fs::write(derek.join("clips").join("03_gentle_come_on_back.wav"), vec![9u8; 100]).unwrap();
+        fs::write(derek.join(STARTER_CLIPS_MARKER), "gentle_come_on_back").unwrap();
+        seed_starter_profiles(&root, None);
+        assert_eq!(fs::read(derek.join("clips").join("03_gentle_come_on_back.wav")).unwrap(), vec![9u8; 100]);
+        assert!(derek.join(STARTER_RECORDING_MARKER).is_file());
         let _ = fs::remove_dir_all(root);
     }
 
