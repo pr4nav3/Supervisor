@@ -404,28 +404,35 @@ button.share-door,
   text-transform: none;
 }
 
-/* A row that opens its popup: quiet until the mouse is on it, like the list it sits in. */
+/* A row that opens its popup: plain in the list until the mouse is on it, then it lifts into a
+   small card, like the report's stat tiles. The border is always there, unseen, so nothing shifts. */
 button.recap-app-row {
   width: calc(100% + 12px);
   margin: 0 -6px;
   padding: 4px 6px;
-  border: 0;
+  border: var(--border);
+  border-color: transparent;
   border-radius: 6px;
   background: transparent;
   box-shadow: none;
   color: inherit;
   cursor: pointer;
+  transition:
+    transform 120ms ease-out,
+    box-shadow 120ms ease-out;
 }
 
-/* A tint of the ink: dark on the light theme's boxes, light on the dark theme's. */
 button.recap-app-row:hover,
 button.recap-app-row:focus-visible {
-  background: color-mix(in srgb, var(--sv-ink) 9%, transparent);
+  border-color: var(--sv-border);
+  background: var(--sv-panel);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--sv-shadow-color);
 }
 
 button.recap-app-row:active {
-  transform: none;
-  box-shadow: none;
+  transform: translate(1px, 1px);
+  box-shadow: 1px 1px 0 var(--sv-shadow-color);
 }
 
 

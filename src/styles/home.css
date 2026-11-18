@@ -176,7 +176,8 @@ button.share-door,
 button.share-pick,
 button.share-card,
 .panel.trend-door,
-button.wp-day {
+button.wp-day,
+button.recap-app-row {
   position: relative;
 }
 
@@ -189,7 +190,8 @@ button.wp-day {
     button.share-pick,
     button.share-card,
     .panel.trend-door,
-    .trend-point
+    .trend-point,
+    button.recap-app-row
   ):hover::after,
 .wp-week:hover button.wp-day:not(:disabled)::after {
   position: absolute;
