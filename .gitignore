@@ -8,6 +8,8 @@ dist/
 src-tauri/target/
 vendor/ponytail/
 webcam_worker/models/*
+webcam_worker/train/data/
+webcam_worker/train/runs/
 Ultralytics/
 *.pt
 .claude/worktrees/
