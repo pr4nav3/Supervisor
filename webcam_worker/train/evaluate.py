@@ -6,7 +6,8 @@
   python evaluate.py compare BASE NEW                 prints the pass checks as a table
 
 Phone scores come from the worker's own detector (detectors.py, ONNX on CPU), and a picture
-counts as "phone" if any phone box clears the threshold, as in RESULTS.md. Person and phone
+counts as "phone" if any phone box clears the threshold, as in RESULTS.md. False alarms are
+judged on the COCO val photos with no phone, which training never sees. Person and phone
 box accuracy on COCO val comes from Ultralytics' validator on the .pt weights.
 """
 
@@ -83,11 +84,12 @@ def at(rows: list, threshold: float) -> dict:
     return out
 
 
-def val_set() -> tuple[list[Path], list[int]]:
-    images = sorted((DATA / "yolo" / "images" / "val").iterdir())
+def yolo_set(root: Path) -> tuple[list[Path], list[int]]:
+    """A YOLO folder's val pictures, and whether each has a phone box."""
+    images = sorted((root / "images" / "val").iterdir())
     truth = []
     for img in images:
-        label = DATA / "yolo" / "labels" / "val" / (img.stem + ".txt")
+        label = root / "labels" / "val" / (img.stem + ".txt")
         truth.append(int(any(line.split()[0] == "67" for line in label.read_text().splitlines() if line)))
     return images, truth
 
@@ -101,11 +103,13 @@ def score(name: str, onnx: Path, pt: Path) -> dict:
     """Every picture's highest phone score (val, each test set), and COCO val box accuracy."""
     detector = UltralyticsYoloDetector(onnx, phone_score=0.05, person_score=0.99, threads=4, device="cpu")
     result: dict = {"name": name, "onnx": str(onnx), "pt": str(pt), "scores": {}}
-    images, truth = val_set()
+    images, truth = yolo_set(DATA / "yolo")
     result["scores"]["val"] = [[t, round(sc, 4), ""] for t, sc in zip(truth, phone_scores(detector, images))]
     for root in sorted((DATA / "test").iterdir()):
         images, truth, kinds = image_set(root)
         result["scores"][root.name] = [[t, round(sc, 4), k] for t, sc, k in zip(truth, phone_scores(detector, images), kinds)]
+    images, truth = yolo_set(DATA / "cocoval")  # every COCO val photo with a person or a phone
+    result["scores"]["cocoval"] = [[t, round(sc, 4), ""] for t, sc in zip(truth, phone_scores(detector, images))]
 
     from ultralytics import YOLO
 
@@ -151,15 +155,27 @@ def compare(base_name: str, new_name: str) -> None:
     new = json.loads((RESULTS / f"{new_name}.json").read_text())
     budget = false_alarms(base["scores"]["val"], SHIPPED_THRESHOLD)
     tb, tn = (pick_threshold(m["scores"]["val"], budget) for m in (base, new))
-    tests = sorted(k for k in new["scores"] if k not in ("val", "coco605"))
+    tests = sorted(k for k in new["scores"] if k not in ("val", "coco605", "cocoval"))
     webcam = {n: [r for k in tests for r in m["scores"][k]] for n, m in ((base_name, base), (new_name, new))}
     rows = []
 
     def row(label: str, b, n, ok: bool | None = None) -> None:
         rows.append(f"| {label} | {b} | {n} | {'' if ok is None else 'pass' if ok else 'FAIL'} |")
 
+    # Validation pictures come from the training sources, so a fine-tuned model looks quieter on them
+    # than it is. The 2,900 COCO val photos with no phone are the held-out check: at the chosen
+    # thresholds, and with each model set to raise exactly as many false alarms there as the shipped one.
+    cocob, coconew = base["scores"]["cocoval"], new["scores"]["cocoval"]
+    allowed = sum(1 for r in cocob if not r[0] and r[1] >= tb)
+    same = [sorted((r[1] for r in m if not r[0]), reverse=True)[allowed] + 1e-6 for m in (cocob, coconew)]
     wb, wn = at(webcam[base_name], tb), at(webcam[new_name], tn)
+    sb, sn = at(webcam[base_name], same[0]), at(webcam[new_name], same[1])
     row("Threshold (same false-alarm budget on validation)", tb, tn)
+    row("COCO val photos with no phone, false alarms", round(false_alarms(cocob, tb), 4), round(false_alarms(coconew, tn), 4),
+        false_alarms(coconew, tn) <= false_alarms(cocob, tb))
+    row("  false alarms by one model only", "", paired(cocob, coconew, tb, tn, lambda r: r[0] == 0))
+    row(f"Webcam phones caught at {allowed} COCO val false alarms each", sb["recall"], sn["recall"], sn["recall"] > sb["recall"])
+    row("  phones caught by one model only", "", paired(webcam[base_name], webcam[new_name], *same, lambda r: r[0] == 1))
     row("Webcam tests, phone F1", wb["f1"], wn["f1"], wn["f1"] > wb["f1"])
     row("Webcam tests, phones caught", wb["recall"], wn["recall"])
     row("  phones caught by one model only", "", paired(webcam[base_name], webcam[new_name], tb, tn, lambda r: r[0] == 1))
