@@ -2,11 +2,15 @@
 """Fetch the public sources and build the fine-tuning set. Run in .venv-train.
 
   python dataset.py fetch    downloads everything into data/raw (resumable)
+  python dataset.py teacher  runs the teacher over the non-COCO pictures into a cache (CPU is fine)
   python dataset.py build    pseudo-labels, dedupes, splits; writes data/yolo, data/test, data/cocoval
 
 Every picture carries all 80 COCO classes, in COCO numbering so the app's detector is
 unchanged: COCO photos as COCO drew them, the rest from the source's own boxes where it has the
-class and YOLO26x everywhere else. Sources and licences are in README.md.
+class and YOLO26x everywhere else. Outside COCO, every phone box is YOLO26x's: the small model
+learns to see phones the way the big one does (distillation), and pictures where the big model is
+unsure, or disagrees with the people who labelled them, are left out. Sources and licences are in
+README.md.
 """
 
 from __future__ import annotations
@@ -35,11 +39,13 @@ KEY_FILE = Path.home() / ".supervisor-train" / "roboflow.key"
 PHONE = 67
 SEED = 42
 
-# Roboflow (workspace, project, role). Train: desk-webcam frames with phone and person boxes.
-# Test: four unrelated sources, scored only on "is there a phone in this picture".
+# Roboflow (workspace, project, role). Train: desk-webcam frames. Test: unrelated sources, scored
+# only on "is there a phone in this picture". Desk: laptop-and-phone, the one source in the app's own
+# view (a person at a laptop webcam), held out of training and relabelled by eye (desk-labels.csv: one
+# upright copy per frame, two labellers, frames they disagreed on or were unsure of left out).
 ROBOFLOW = [
     ("project-2morrow-software-limited", "online-proctoring-system-x27ou", "train"),
-    ("detection-gbx6c", "laptop-and-phone-detection", "train"),
+    ("detection-gbx6c", "laptop-and-phone-detection", "desk"),
     ("hackhounds", "phone_detection-txozd", "test"),
     ("college-aivcu", "mobile_detection-leiya", "test"),
     ("dwarkadas-j-sanghvi", "phone-usage-detection", "test"),
@@ -55,6 +61,9 @@ COCO_PERSON, COCO_PHONE = 1, 77
 # COCO category ids (1-90, ten unused) to the 0-79 class index the model uses.
 COCO_INDEX = {cid: i for i, cid in enumerate(c for c in range(1, 91) if c not in {12, 26, 29, 30, 45, 66, 68, 69, 71, 83})}
 COCO_LOOKALIKES = {65: "remote", 64: "mouse", 73: "book", 41: "cup", 76: "keyboard", 39: "bottle", 74: "clock"}
+# Hand-sized things people hold in COCO photos. Every fine-tune so far learned "a small thing in a hand
+# is a phone"; photos of people holding these, with no phone, are the replay that says otherwise.
+COCO_HELD = set(COCO_LOOKALIKES) | {40, 42, 43, 44, 80, 79, 46, 50, 84, 32, 31}
 
 OI_CSV = "https://storage.googleapis.com/openimages/v5/{split}-annotations-bbox.csv"
 OI_CLASSES = "https://storage.googleapis.com/openimages/v5/class-descriptions-boxable.csv"
@@ -62,8 +71,16 @@ OI_IMG = "https://s3.amazonaws.com/open-images-dataset/{split}/{id}.jpg"
 OI_PHONE = "Mobile phone"
 OI_LOOKALIKES = ["Remote control", "Computer mouse", "Mug", "Coffee cup", "Calculator", "Computer keyboard", "Book"]
 
-CAPS = {"oi_phone": 2000, "oi_lookalike": 1000, "coco_phone": 4803, "coco_lookalike": 1500, "coco_person": 1000}
-TEACHER = "yolo26x.pt"  # labels every class a source left unboxed
+CAPS = {"oi_phone": 2000, "oi_lookalike": 1000, "coco_phone": 4803, "coco_lookalike": 3000, "coco_person": 1500,
+        "coco_mine": 20000, "coco_hard": 1500, "coco_select": 3000}
+TEACHER = "yolo26x.pt"  # labels the phones outside COCO, and every class a source left unboxed
+STUDENT = "yolo26s.pt"  # the shipped model, whose false phones are mined as hard negatives
+# A teacher phone at SURE or above is a phone; from UNSURE up to SURE, the picture is left out. 0.15 is
+# where YOLO26x raises as many false alarms on COCO photos as the app's model does at its 0.15; a cut
+# at 0.4 threw away half of the phones the teacher catches and the student misses.
+SURE, UNSURE = 0.15, 0.05
+# Roboflow exported these 16:9 webcam videos squashed to 640x640; the app sees 16:9 frames, letterboxed.
+STRETCHED = {"online-proctoring-system-x27ou", "laptop-and-phone-detection"}
 
 
 def log(*parts: object) -> None:
@@ -176,6 +193,25 @@ def roboflow_items(project: str) -> list[dict]:
 
 
 def coco_json(split: str) -> dict:
+    """COCO's boxes without the outlines. The full train file takes about 10 GB once loaded, more
+    than this laptop can spare next to the models, so a slim copy is written once, in its own process."""
+    slim = RAW / "coco" / "annotations" / f"boxes_{split}.json"
+    if not slim.is_file():
+        import subprocess
+
+        subprocess.run([sys.executable, __file__, "slim", split], check=True)
+    return json.loads(slim.read_text(encoding="utf-8"))
+
+
+def write_slim(split: str) -> None:
+    data = coco_full_json(split)
+    keep = ("image_id", "category_id", "bbox", "iscrowd")
+    out = {"images": [{k: i[k] for k in ("id", "file_name", "width", "height")} for i in data["images"]],
+           "annotations": [{k: a[k] for k in keep} for a in data["annotations"]]}
+    (RAW / "coco" / "annotations" / f"boxes_{split}.json").write_text(json.dumps(out), encoding="utf-8")
+
+
+def coco_full_json(split: str) -> dict:
     target = RAW / "coco" / "annotations" / f"instances_{split}.json"
     if not target.is_file():
         archive = download(COCO_ANN, RAW / "coco" / "annotations_trainval2017.zip")
@@ -231,8 +267,9 @@ def coco_605(val: dict) -> list[tuple[int, int, str]]:
 
 def coco_fetch() -> None:
     train, val = coco_json("train2017"), coco_json("val2017")
+    mine, select = coco_mine_select_ids(train)
     jobs = []
-    for split, data, ids in (("train2017", train, coco_replay_ids(train)), ("val2017", val, coco_val_ids(val))):
+    for split, data, ids in (("train2017", train, coco_replay_ids(train) + mine + select), ("val2017", val, coco_val_ids(val))):
         images = {img["id"]: img for img in data["images"]}
         for i in ids:
             name = images[i]["file_name"]
@@ -242,17 +279,36 @@ def coco_fetch() -> None:
 
 
 def coco_replay_ids(train: dict) -> list[int]:
-    """Training replay, fully labelled by COCO: every photo with a phone, photos of phone
-    look-alikes (remote, mouse, book...) with no phone, and photos of people with no phone."""
+    """Training replay, fully labelled by COCO: every photo with a phone, photos of people holding
+    hand-sized things (remote, cup, fork...) with no phone, and photos of people with no phone."""
     images, anns = coco_index(train)
+    mine, select = coco_mine_select_ids(train)
+    held_out = set(mine) | set(select)
     phone = sorted(i for i, a in anns.items() if any(x["category_id"] == COCO_PHONE for x in a))
-    look = sorted(i for i, a in anns.items() if i not in set(phone) and any(x["category_id"] in COCO_LOOKALIKES for x in a))
-    person = sorted(i for i, a in anns.items() if i not in set(phone) and any(x["category_id"] == COCO_PERSON for x in a))
+    look = sorted(i for i, a in anns.items() if i not in set(phone) and i not in held_out and any(x["category_id"] == COCO_PERSON for x in a)
+                  and any(x["category_id"] in COCO_HELD for x in a))
+    person = sorted(i for i, a in anns.items() if i not in set(phone) and i not in held_out and any(x["category_id"] == COCO_PERSON for x in a))
     rng = random.Random(SEED)
     chosen = rng.sample(phone, min(CAPS["coco_phone"], len(phone)))
     chosen += rng.sample(person, CAPS["coco_person"])
     picked = set(chosen)
     return chosen + rng.sample([i for i in look if i not in picked], CAPS["coco_lookalike"])
+
+
+def coco_mine_select_ids(train: dict) -> tuple[list[int], list[int]]:
+    """Photos of people with no phone that training never uses: a pool to mine hard negatives from,
+    and a separate held-out set that picks thresholds and runs (never trained on, never tested).
+    Drawn once and kept in data/coco-heldout.json, so later changes to the replay cannot move them."""
+    frozen = DATA / "coco-heldout.json"
+    if frozen.is_file():
+        saved = json.loads(frozen.read_text())
+        return saved["mine"], saved["select"]
+    images, anns = coco_index(train)
+    pool = sorted(i for i, a in anns.items() if any(x["category_id"] == COCO_PERSON for x in a)
+                  and not any(x["category_id"] == COCO_PHONE for x in a))
+    picked = random.Random(SEED + 1).sample(pool, CAPS["coco_mine"] + CAPS["coco_select"])
+    frozen.write_text(json.dumps({"mine": picked[:CAPS["coco_mine"]], "select": picked[CAPS["coco_mine"]:]}))
+    return picked[:CAPS["coco_mine"]], picked[CAPS["coco_mine"]:]
 
 
 def coco_val_ids(val: dict) -> list[int]:
@@ -308,8 +364,7 @@ def oi_items() -> list[dict]:
                 x1, x2, y1, y2 = (float(r[k]) for k in ("XMin", "XMax", "YMin", "YMax"))
                 boxes.append((PHONE, (x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1))
         items.append({"path": path, "boxes": boxes, "phone": bool(boxes), "original": image_id,
-                      "group": f"oi:{image_id}", "source": "openimages", "labelled": {PHONE},
-                      "lookalike": not boxes})
+                      "group": f"oi:{image_id}", "source": "openimages", "labelled": {PHONE}})
     return items
 
 
@@ -322,39 +377,77 @@ def box_iou(a: tuple, b: tuple) -> float:
     return inter / (a[2] * a[3] + b[2] * b[3] - inter + 1e-9)
 
 
-def phone_box_guard(items: list[dict]) -> list[dict]:
-    """Keep a Roboflow picture only if the teacher also sees each of its phones, even faintly
-    (a teacher phone at confidence 0.1 or more overlapping it by IoU above 0.3), and give each
-    box the teacher's tighter, COCO-style outline. Checked by eye on 2026-11-20: the boxes the
-    teacher cannot confirm include office chairs, books held up to the camera and hands, and a
-    model trained on them took calculators and paperbacks for phones. Dropping just the box would
-    leave a real phone unlabelled, so the whole picture goes."""
+def teacher_boxes(paths: list[Path]) -> dict[str, list]:
+    """The teacher's boxes on each picture, every class at confidence 0.05 or more, from a cache in
+    data/teacher-cache.json so a rebuild with other cuts or caps costs no teacher time. Fill it ahead
+    on the CPU with `dataset.py teacher` while the GPU trains."""
     from ultralytics import YOLO
 
-    check = [it for it in items if it["source"] not in ("coco", "openimages") and any(b[0] == PHONE for b in it["boxes"])]
-    model = YOLO(TEACHER)
-    bad = set()
-    for start in range(0, len(check), 32):
-        batch = check[start:start + 32]
-        for it, res in zip(batch, model.predict([str(i["path"]) for i in batch], classes=[PHONE],
-                                                 conf=0.1, imgsz=640, verbose=False)):
-            seen = res.boxes.xywhn.tolist()
-            boxes = []
-            for b in it["boxes"]:
-                best = max(seen, key=lambda t: box_iou(b[1:], t), default=None)
-                if b[0] != PHONE:
-                    boxes.append(b)
-                elif best is not None and box_iou(b[1:], best) > 0.3:
-                    boxes.append((PHONE, *best))
-                else:
-                    bad.add(id(it))
-            it["boxes"] = boxes
-    by_source = defaultdict(lambda: [0, 0])
-    for it in check:
-        by_source[it["source"]][0] += 1
-        by_source[it["source"]][1] += id(it) in bad
-    log("phone-box check, pictures dropped: " + ", ".join(f"{k} {v[1]} of {v[0]}" for k, v in sorted(by_source.items())))
-    return [it for it in items if id(it) not in bad]
+    cache_file = DATA / "teacher-cache.json"
+    cache = json.loads(cache_file.read_text()) if cache_file.is_file() else {}
+    todo = [p for p in paths if str(p) not in cache]
+    if todo:
+        model = YOLO(TEACHER)
+        log(f"teacher {TEACHER} on {len(todo)} pictures ({len(paths) - len(todo)} cached)")
+        for start in range(0, len(todo), 32):
+            batch = todo[start:start + 32]
+            for path, res in zip(batch, model.predict([str(p) for p in batch], conf=0.05, imgsz=640, verbose=False,
+                                                       device=os.environ.get("TEACHER_DEVICE"))):
+                cache[str(path)] = [[c, *b, round(s, 4)] for b, c, s in zip(res.boxes.xywhn.tolist(), res.boxes.cls.int().tolist(), res.boxes.conf.tolist())]
+            if start % 640 == 0:
+                cache_file.write_text(json.dumps(cache))
+        cache_file.write_text(json.dumps(cache))
+    return {str(p): cache[str(p)] for p in paths}
+
+
+def teacher_phones(items: list[dict]) -> list[dict]:
+    """Outside COCO, the phone boxes are the teacher's: every teacher phone at SURE or above. A
+    picture is left out when the teacher sees a phone it is unsure of (UNSURE up to SURE), or when a
+    phone the source's labellers drew has no sure teacher phone on it. The first attempt kept the
+    human boxes once the teacher saw them at 0.1, and the model learned that anything small in a
+    hand is a phone: in one proctoring room people hold laptops, tablets and paper up to the camera."""
+    boxes = teacher_boxes([it["path"] for it in items])
+    kept, dropped = [], defaultdict(lambda: [0, 0, 0])
+    for it in items:
+        if True:
+            seen = [(b[1:5], b[5]) for b in boxes[str(it["path"])] if b[0] == PHONE and b[5] >= UNSURE]
+            sure = [b for b, c in seen if c >= SURE]
+            unsure = any(c < SURE and all(box_iou(b, x) <= 0.3 for x in sure) for b, c in seen)
+            unmatched = any(all(box_iou(h[1:], x) <= 0.3 for x in sure) for h in it["boxes"] if h[0] == PHONE)
+            dropped[it["source"]][0] += 1
+            dropped[it["source"]][1] += unsure
+            dropped[it["source"]][2] += unmatched and not unsure
+            if unsure or unmatched:
+                continue
+            it["boxes"] = [b for b in it["boxes"] if b[0] != PHONE] + [(PHONE, *x) for x in sure]
+            it["phone"] = bool(sure)
+            it["labelled"] = it["labelled"] | {PHONE}
+            kept.append(it)
+    log("teacher phones, pictures left out (teacher unsure / labelled phone not confirmed): "
+        + ", ".join(f"{k} {v[1]} / {v[2]} of {v[0]}" for k, v in sorted(dropped.items())))
+    return kept
+
+
+def hard_negatives(items: list[dict]) -> list[dict]:
+    """Photos with no phone in which the shipped model sees one (0.1 or more) and the teacher sees
+    none at all (0.05): the mistakes to unlearn, such as a remote or a hairbrush in a hand."""
+    from ultralytics import YOLO
+
+    def phone_hits(model_file: str, pool: list[dict], conf: float) -> list[dict]:
+        model, hits = YOLO(model_file), []
+        for start in range(0, len(pool), 32):
+            batch = pool[start:start + 32]
+            for it, res in zip(batch, model.predict([str(i["path"]) for i in batch], classes=[PHONE],
+                                                     conf=conf, imgsz=640, verbose=False)):
+                if len(res.boxes):
+                    hits.append(it)
+        return hits
+
+    student = phone_hits(STUDENT, items, 0.1)
+    doubted = {id(it) for it in phone_hits(TEACHER, student, 0.05)}
+    hard = [it for it in student if id(it) not in doubted]
+    log(f"hard negatives: shipped model sees a phone in {len(student)} of {len(items)}, teacher in none of {len(hard)}")
+    return random.Random(SEED).sample(hard, min(CAPS["coco_hard"], len(hard)))
 
 
 def ahash(path: Path) -> int | None:
@@ -390,38 +483,29 @@ def teacher_fill(items: list[dict]) -> None:
     source has no boxes for, people included. Left unboxed, a laptop or a remote is taught as
     background, and the model forgets it (the first run lost 4.5 points of person mAP and took
     18 % of COCO's look-alikes for phones)."""
-    from ultralytics import YOLO
-
     need = [it for it in items if len(it["labelled"]) < len(COCO_NAMES)]
     if not need:
         return
-    model = YOLO(TEACHER)
-    log(f"teacher {TEACHER} on {len(need)} images")
-    for start in range(0, len(need), 32):
-        batch = need[start:start + 32]
-        for it, res in zip(batch, model.predict([str(i["path"]) for i in batch], conf=0.5, imgsz=640,
-                                                 verbose=False)):
-            for (cx, cy, w, h), cls in zip(res.boxes.xywhn.tolist(), res.boxes.cls.int().tolist()):
-                if cls not in it["labelled"]:
-                    it["boxes"].append((cls, cx, cy, w, h))
-                    it["phone"] |= cls == PHONE
+    boxes = teacher_boxes([it["path"] for it in need])
+    for it in need:
+        for cls, cx, cy, w, h, conf in boxes[str(it["path"])]:
+            if conf >= 0.5 and cls not in it["labelled"]:
+                it["boxes"].append((cls, cx, cy, w, h))
+                it["phone"] |= cls == PHONE
 
 
-def teacher_lookalike_guard(items: list[dict]) -> list[dict]:
-    """Look-alike photos are only useful if they really have no phone: drop any the big model
-    sees a phone in, since Open Images leaves unverified phones unboxed."""
-    from ultralytics import YOLO
-
-    model = YOLO(TEACHER)
-    clean = []
-    for start in range(0, len(items), 32):
-        batch = items[start:start + 32]
-        for it, res in zip(batch, model.predict([str(i["path"]) for i in batch], classes=[PHONE],
-                                                 conf=0.35, imgsz=640, verbose=False)):
-            if len(res.boxes) == 0:
-                clean.append(it)
-    log(f"look-alikes: kept {len(clean)} of {len(items)} with no phone the teacher can see")
-    return clean
+def unstretch(items: list[dict]) -> list[dict]:
+    """Frames of a squashed export, resized back to 16:9 (640x360) once, into data/unstretched. Box
+    coordinates are fractions of the frame, so the labels stay right."""
+    for it in items:
+        if it["source"] in STRETCHED:
+            dest = DATA / "unstretched" / it["source"] / it["path"].name
+            if not dest.is_file():
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                cv2.imwrite(str(dest), cv2.resize(cv2.imread(str(it["path"])), (640, 360), interpolation=cv2.INTER_AREA),
+                            [cv2.IMWRITE_JPEG_QUALITY, 95])
+            it["path"] = dest
+    return items
 
 
 def place(item: dict, split: str, root: Path, index: int) -> None:
@@ -445,21 +529,34 @@ def build() -> None:
     train_items = []
     for ws, project, role in ROBOFLOW:
         if role == "train":
-            train_items += roboflow_items(project)
+            train_items += unstretch(roboflow_items(project))
     train_items += oi_items()
-    looks = [it for it in train_items if it.get("lookalike")]
-    train_items = [it for it in train_items if not it.get("lookalike")] + teacher_lookalike_guard(looks)
 
     coco_train = coco_json("train2017")
     images, anns = coco_index(coco_train)
-    for i in coco_replay_ids(coco_train):
+
+    def coco_item(i: int) -> dict | None:
         img = images[i]
         path = RAW / "coco" / "train2017" / img["file_name"]
-        if path.is_file():
-            boxes = coco_boxes(img, anns[i])
-            train_items.append({"path": path, "boxes": boxes, "phone": any(b[0] == PHONE for b in boxes),
-                                "original": img["file_name"], "group": f"coco:{i}", "source": "coco",
-                                "labelled": set(range(len(COCO_NAMES)))})
+        if not path.is_file():
+            return None
+        boxes = coco_boxes(img, anns[i])
+        return {"path": path, "boxes": boxes, "phone": any(b[0] == PHONE for b in boxes), "original": img["file_name"],
+                "group": f"coco:{i}", "source": "coco", "labelled": set(range(len(COCO_NAMES)))}
+
+    mine_ids, select_ids = coco_mine_select_ids(coco_train)
+    train_items += [it for it in map(coco_item, coco_replay_ids(coco_train)) if it]
+    mined = DATA / "hard-negatives.json"  # mining takes half an hour; reused while the pool is unchanged
+    pool = [it for it in map(coco_item, mine_ids) if it]
+    if mined.is_file() and json.loads(mined.read_text())["pool"] == mine_ids:
+        keep = set(json.loads(mined.read_text())["hard"])
+        hard = [it for it in pool if it["original"] in keep]
+    else:
+        hard = hard_negatives(pool)
+        mined.write_text(json.dumps({"pool": mine_ids, "hard": [it["original"] for it in hard]}))
+    train_items += hard
+    select_paths = [RAW / "coco" / "train2017" / images[i]["file_name"] for i in select_ids]
+    del coco_train, images, anns, pool  # the teacher needs the room
 
     before = len(train_items)
     train_items = dedupe(train_items)
@@ -474,13 +571,17 @@ def build() -> None:
             tests[project] = [it for it in items if all(bin(it["hash"] ^ h).count("1") > 6 for h in train_hashes)]
             log(f"test {project}: {len(tests[project])} images, {sum(i['phone'] for i in tests[project])} with a phone")
 
-    train_items = phone_box_guard(train_items)
+    outside = [it for it in train_items if it["source"] != "coco"]
+    train_items = [it for it in train_items if it["source"] == "coco"] + teacher_phones(outside)
     teacher_fill(train_items)
 
     # Split by group (a video, or one photo): 90 % train, 10 % val.
-    groups = sorted({it["group"] for it in train_items})
-    rng.shuffle(groups)
-    val_groups = set(groups[: max(1, len(groups) // 10)])
+    # Validation needs desk-webcam phones to pick checkpoints by: every fifth stretch of the proctoring
+    # video (whole stretches, spread over the recording). Everything else: a random tenth of the groups.
+    desk = sorted({it["group"] for it in train_items if it["source"] in STRETCHED})
+    other = sorted({it["group"] for it in train_items if it["source"] not in STRETCHED})
+    rng.shuffle(other)
+    val_groups = set(desk[2::5]) | set(other[: max(1, len(other) // 10)])
     yolo = DATA / "yolo"
     if yolo.exists():
         shutil.rmtree(yolo)
@@ -499,8 +600,16 @@ def build() -> None:
         shutil.rmtree(test_root)
     for project, items in tests.items():
         write_image_set(test_root / project, [(it["path"], int(it["phone"]), "") for it in items])
+    desk_root = RAW / "roboflow" / "laptop-and-phone-detection"
+    desk_files = {p.stem: p for p in desk_root.glob("*/images/*")}
+    desk_rows = list(csv.DictReader((HERE / "desk-labels.csv").open()))
+    desk_items = unstretch([{"path": desk_files[r["file"]], "source": "laptop-and-phone-detection"} for r in desk_rows])
+    write_image_set(test_root / "desk", [(it["path"], int(r["phone"]), "") for it, r in zip(desk_items, desk_rows)])
     val = coco_json("val2017")
     vimages, vanns = coco_index(val)
+    if (DATA / "select").exists():
+        shutil.rmtree(DATA / "select")
+    write_image_set(DATA / "select" / "coco", [(path, 0, "") for path in select_paths])
     write_image_set(test_root / "coco605", [(RAW / "coco" / "val2017" / vimages[i]["file_name"], phone, kind)
                                             for i, phone, kind in coco_605(val)])
 
@@ -551,6 +660,14 @@ COCO_NAMES = [
 
 
 def main() -> int:
+    if len(sys.argv) == 3 and sys.argv[1] == "slim":
+        write_slim(sys.argv[2])
+        return 0
+    if len(sys.argv) == 2 and sys.argv[1] == "teacher":
+        os.chdir(DATA)
+        items = [it for ws, project, role in ROBOFLOW if role == "train" for it in unstretch(roboflow_items(project))] + oi_items()
+        teacher_boxes([it["path"] for it in dedupe(items)])
+        return 0
     if len(sys.argv) != 2 or sys.argv[1] not in ("fetch", "build"):
         print(__doc__)
         return 2

@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """Score a model the way the app runs it. Run in .venv-train after `dataset.py build`.
 
-  python evaluate.py score NAME model.onnx model.pt   writes data/results/NAME.json
-  python evaluate.py speed BASE base.onnx NEW new.onnx times both in turns (idle machine)
-  python evaluate.py compare BASE NEW                 prints the pass checks as a table
+  python evaluate.py select BASE.pt CANDIDATE.pt ...  picks among runs, on the GPU (selection set only)
+  python evaluate.py score NAME model.onnx model.pt    writes data/results/NAME.json
+  python evaluate.py speed BASE base.onnx NEW new.onnx  times both in turns (idle machine)
+  python evaluate.py compare BASE NEW                  prints the pass checks as a table
 
-Phone scores come from the worker's own detector (detectors.py, ONNX on CPU), and a picture
-counts as "phone" if any phone box clears the threshold, as in RESULTS.md. False alarms are
-judged on the COCO val photos with no phone, which training never sees. Person and phone
-box accuracy on COCO val comes from Ultralytics' validator on the .pt weights.
+Every threshold is set on the selection set, 3,000 COCO training photos of people with no phone
+that nothing trains on: each model raises as many false alarms there as the shipped one does at
+0.15. Validation pictures come from the training sources, so a fine-tuned model is quieter on them
+than anywhere else and they cannot set a fair threshold. Runs are picked with `select`, by
+validation phones caught at that threshold; the test sets are scored once, at the end.
+
+Test scores come from the worker's own detector (detectors.py, ONNX on CPU), and a picture counts
+as "phone" if any phone box clears the threshold, as in RESULTS.md. Person and phone box accuracy
+on COCO val comes from Ultralytics' validator on the .pt weights.
 """
 
 from __future__ import annotations
@@ -30,6 +36,7 @@ from detectors import CELL_PHONE_CLASS, UltralyticsYoloDetector  # noqa: E402
 DATA = HERE / "data"
 RESULTS = DATA / "results"
 SHIPPED_THRESHOLD = 0.15
+DESK = "desk"  # the one test set in the app's own view, relabelled by eye (desk-labels.csv)
 
 
 def phone_scores(detector: UltralyticsYoloDetector, images: list[Path]) -> list[float]:
@@ -57,13 +64,10 @@ def false_alarms(rows: list, threshold: float) -> float:
     return sum(score >= threshold for score in clear) / len(clear)
 
 
-def pick_threshold(val: list, budget: float) -> float:
-    """The threshold with the best validation F1 that raises no more false alarms on validation
-    than the shipped model does at 0.15. The same rule for every model, tuned on validation only."""
+def matched_threshold(select: list, budget: float) -> float:
+    """The lowest threshold that raises no more false alarms on the selection set than the budget."""
     grid = [round(0.05 + 0.01 * i, 2) for i in range(91)]
-    allowed = [t for t in grid if false_alarms(val, t) <= budget] or [grid[-1]]
-    truth, scores = [r[0] for r in val], [r[1] for r in val]
-    return max(allowed, key=lambda t: (counts(truth, scores, t)["f1"], t))
+    return next((t for t in grid if false_alarms(select, t) <= budget), grid[-1])
 
 
 def paired(base_rows: list, new_rows: list, tb: float, tn: float, keep) -> str:
@@ -105,6 +109,8 @@ def score(name: str, onnx: Path, pt: Path) -> dict:
     result: dict = {"name": name, "onnx": str(onnx), "pt": str(pt), "scores": {}}
     images, truth = yolo_set(DATA / "yolo")
     result["scores"]["val"] = [[t, round(sc, 4), ""] for t, sc in zip(truth, phone_scores(detector, images))]
+    images, truth, _ = image_set(DATA / "select" / "coco")
+    result["scores"]["select"] = [[t, round(sc, 4), ""] for t, sc in zip(truth, phone_scores(detector, images))]
     for root in sorted((DATA / "test").iterdir()):
         images, truth, kinds = image_set(root)
         result["scores"][root.name] = [[t, round(sc, 4), k] for t, sc, k in zip(truth, phone_scores(detector, images), kinds)]
@@ -127,6 +133,34 @@ def score(name: str, onnx: Path, pt: Path) -> dict:
     (RESULTS / f"{name}.json").write_text(json.dumps(result))
     print(name, result["coco_val_boxes"])
     return result
+
+
+def select(weights: list[str]) -> None:
+    """Candidate runs side by side on the GPU (Ultralytics, the same one-to-many head as the app's
+    ONNX): each at the threshold matching the first model's false alarms on the selection set at
+    0.15, and the validation phones it then catches, desk-webcam and COCO ones apart: a checkpoint is
+    picked by the sum of those two. Test sets are not touched."""
+    from ultralytics import YOLO
+
+    val_images, val_truth = yolo_set(DATA / "yolo")
+    sel_images, _, _ = image_set(DATA / "select" / "coco")
+    budget = None
+    print("| Model | threshold | selection false alarms | validation phones caught | validation false alarms |\n|---|---|---|---|---|")
+    for w in weights:
+        model, scores = YOLO(w), []
+        images = [str(p) for p in val_images + sel_images]
+        for start in range(0, len(images), 32):
+            for r in model.predict(images[start:start + 32], imgsz=640, conf=0.05, classes=[CELL_PHONE_CLASS], verbose=False):
+                scores.append(float(r.boxes.conf.max()) if len(r.boxes) else 0.0)
+        val = [[t, sc, ""] for t, sc in zip(val_truth, scores[:len(val_images)])]
+        sel = [[0, sc, ""] for sc in scores[len(val_images):]]
+        if budget is None:
+            budget, thr = false_alarms(sel, SHIPPED_THRESHOLD), SHIPPED_THRESHOLD
+        else:
+            thr = matched_threshold(sel, budget)
+        desk = [r for r, p in zip(val, val_images) if p.name.startswith("online-proct")]
+        coco = [r for r, p in zip(val, val_images) if p.name.startswith("coco")]
+        print(f"| {w} | {thr} | {false_alarms(sel, thr):.4f} | {at(val, thr)['recall']} | desk {at(desk, thr)['recall']} ({sum(r[0] for r in desk)}) | coco {at(coco, thr)['recall']} ({sum(r[0] for r in coco)}) | {false_alarms(val, thr):.4f} |")
 
 
 def speed(base_name: str, base_onnx: Path, new_name: str, new_onnx: Path) -> None:
@@ -153,35 +187,39 @@ def speed(base_name: str, base_onnx: Path, new_name: str, new_onnx: Path) -> Non
 def compare(base_name: str, new_name: str) -> None:
     base = json.loads((RESULTS / f"{base_name}.json").read_text())
     new = json.loads((RESULTS / f"{new_name}.json").read_text())
-    budget = false_alarms(base["scores"]["val"], SHIPPED_THRESHOLD)
-    tb, tn = (pick_threshold(m["scores"]["val"], budget) for m in (base, new))
-    tests = sorted(k for k in new["scores"] if k not in ("val", "coco605", "cocoval"))
+    budget = false_alarms(base["scores"]["select"], SHIPPED_THRESHOLD)
+    tb, tn = SHIPPED_THRESHOLD, matched_threshold(new["scores"]["select"], budget)
+    tests = sorted(k for k in new["scores"] if k not in ("val", "select", "coco605", "cocoval", DESK))
     webcam = {n: [r for k in tests for r in m["scores"][k]] for n, m in ((base_name, base), (new_name, new))}
     rows = []
 
     def row(label: str, b, n, ok: bool | None = None) -> None:
         rows.append(f"| {label} | {b} | {n} | {'' if ok is None else 'pass' if ok else 'FAIL'} |")
 
-    # Validation pictures come from the training sources, so a fine-tuned model looks quieter on them
-    # than it is. The 2,900 COCO val photos with no phone are the held-out check: at the chosen
-    # thresholds, and with each model set to raise exactly as many false alarms there as the shipped one.
-    cocob, coconew = base["scores"]["cocoval"], new["scores"]["cocoval"]
-    allowed = sum(1 for r in cocob if not r[0] and r[1] >= tb)
-    same = [sorted((r[1] for r in m if not r[0]), reverse=True)[allowed] + 1e-6 for m in (cocob, coconew)]
+    row("Threshold (same false alarms on the selection set)", tb, tn)
     wb, wn = at(webcam[base_name], tb), at(webcam[new_name], tn)
-    sb, sn = at(webcam[base_name], same[0]), at(webcam[new_name], same[1])
-    row("Threshold (same false-alarm budget on validation)", tb, tn)
-    row("COCO val photos with no phone, false alarms", round(false_alarms(cocob, tb), 4), round(false_alarms(coconew, tn), 4),
-        false_alarms(coconew, tn) <= false_alarms(cocob, tb))
-    row("  false alarms by one model only", "", paired(cocob, coconew, tb, tn, lambda r: r[0] == 0))
-    row(f"Webcam phones caught at {allowed} COCO val false alarms each", sb["recall"], sn["recall"], sn["recall"] > sb["recall"])
-    row("  phones caught by one model only", "", paired(webcam[base_name], webcam[new_name], *same, lambda r: r[0] == 1))
-    row("Webcam tests, phone F1", wb["f1"], wn["f1"], wn["f1"] > wb["f1"])
-    row("Webcam tests, phones caught", wb["recall"], wn["recall"])
+    row("Webcam tests, phones caught", wb["recall"], wn["recall"], wn["recall"] > wb["recall"])
     row("  phones caught by one model only", "", paired(webcam[base_name], webcam[new_name], tb, tn, lambda r: r[0] == 1))
-    row("Webcam tests, reminders that were right", wb["precision"], wn["precision"])
     for k in tests:
         row(f"  {k}, phones caught", at(base["scores"][k], tb)["recall"], at(new["scores"][k], tn)["recall"])
+    db, dn = base["scores"][DESK], new["scores"][DESK]
+    row("Desk webcam test, phones caught", at(db, tb)["recall"], at(dn, tn)["recall"], at(dn, tn)["recall"] >= at(db, tb)["recall"])
+    row("  phones caught by one model only", "", paired(db, dn, tb, tn, lambda r: r[0] == 1))
+    row("Desk webcam test, false alarms", round(false_alarms(db, tb), 4), round(false_alarms(dn, tn), 4))
+    row("  false alarms by one model only", "", paired(db, dn, tb, tn, lambda r: r[0] == 0))
+
+    # The held-out check on false alarms: 2,900 COCO val photos with no phone. Then both models set to
+    # the same number of false alarms there, so a threshold that drifted cannot flatter either one.
+    cocob, coconew = base["scores"]["cocoval"], new["scores"]["cocoval"]
+    fb, fn = false_alarms(cocob, tb), false_alarms(coconew, tn)
+    row("COCO val photos with no phone, false alarms", round(fb, 4), round(fn, 4), fn <= fb * 1.15)
+    row("  false alarms by one model only", "", paired(cocob, coconew, tb, tn, lambda r: r[0] == 0))
+    allowed = sum(1 for r in cocob if not r[0] and r[1] >= tb)
+    same = [sorted((r[1] for r in m if not r[0]), reverse=True)[allowed] + 1e-6 for m in (cocob, coconew)]
+    sb, sn = at(webcam[base_name], same[0]), at(webcam[new_name], same[1])
+    row(f"Webcam phones caught at {allowed} COCO val false alarms each", sb["recall"], sn["recall"], sn["recall"] > sb["recall"])
+    row("  phones caught by one model only", "", paired(webcam[base_name], webcam[new_name], *same, lambda r: r[0] == 1))
+
     cb, cn = at(base["scores"]["coco605"], tb), at(new["scores"]["coco605"], tn)
     row("COCO 605 look-alikes taken for phones", cb["lookalike_false_phones"], cn["lookalike_false_phones"],
         cn["lookalike_false_phones"] <= max(0.04, cb["lookalike_false_phones"]))
@@ -197,11 +235,13 @@ def compare(base_name: str, new_name: str) -> None:
         row("CPU ms a frame, two threads", timing[base_name], timing[new_name], timing[new_name] <= timing[base_name] * 1.1)
     print(f"| Check | {base_name} | {new_name} | |\n|---|---|---|---|")
     print("\n".join(rows))
-    print(f"\nFalse-alarm budget: {budget:.3f} of validation pictures with no phone (shipped model at {SHIPPED_THRESHOLD})")
+    print(f"\nSelection-set false alarms allowed: {budget:.4f} (shipped model at {SHIPPED_THRESHOLD})")
 
 
 def main() -> int:
-    if len(sys.argv) == 5 and sys.argv[1] == "score":
+    if len(sys.argv) >= 3 and sys.argv[1] == "select":
+        select(sys.argv[2:])
+    elif len(sys.argv) == 5 and sys.argv[1] == "score":
         score(sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4]))
     elif len(sys.argv) == 6 and sys.argv[1] == "speed":
         speed(sys.argv[2], Path(sys.argv[3]), sys.argv[4], Path(sys.argv[5]))
