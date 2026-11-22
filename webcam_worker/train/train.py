@@ -50,7 +50,9 @@ def blend(name: str, ckpt: str, share: float) -> None:
     saved = torch.load(RUNS / name / "weights" / f"{ckpt}.pt", weights_only=False)
     model = (saved.get("ema") or saved["model"]).float().cpu()  # mid-run checkpoints keep the weights under "ema", on the GPU
     tuned = model.state_dict()
-    model.load_state_dict({k: stock[k] + share * (v - stock[k]) if v.is_floating_point() else v for k, v in tuned.items()})
+    key = lambda k: k.removeprefix("student_model.")  # a distillation checkpoint wraps the student, and carries the teacher too
+    model.load_state_dict({k: stock[key(k)] + share * (v - stock[key(k)]) if v.is_floating_point() and key(k) in stock else v
+                           for k, v in tuned.items()})
     torch.save({**saved, "model": model.half(), "ema": None, "optimizer": None}, RUNS / name / "weights" / f"{ckpt}-blend-{share}.pt")
 
 
