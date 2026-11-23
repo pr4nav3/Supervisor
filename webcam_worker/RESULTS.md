@@ -14,7 +14,7 @@ CPU times below are one full-frame pass on this laptop (i5-13450HX, 4 threads). 
 | YOLO11s | 38 MB | 0.77 | 0.82 | 4% | 97 |  |
 | YOLO26m | 80 MB | 0.83 | 0.89 | 4% | 242 | 36 |
 
-**Shipped: YOLO26s, full frame only, phone threshold 0.15, person threshold 0.35, 2 frames per second.**
+**Shipped: YOLO26s, full frame only, person threshold 0.35, 2 frames per second.** This bakeoff chose the size; since 2026-11-22 the app ships that model fine-tuned on desk-webcam pictures, at phone threshold 0.36 (`train/README.md`).
 
 A second pass on the lower half of the frame found a few more phones and a lot more look-alikes, and doubled the time. It is off.
 

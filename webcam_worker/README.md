@@ -2,7 +2,7 @@
 
 Shipped inside the app. It reports whether a phone is in frame and whether the user is present.
 
-The model is YOLO26s (`models/yolo26s.onnx`) plus YuNet for faces. See `RESULTS.md`.
+The model is YOLO26s fine-tuned on desk-webcam pictures (`models/yolo26s.onnx`; how, and how it compares with the stock model, in `train/README.md`) plus YuNet for faces. `RESULTS.md` is the bakeoff that chose the size.
 
 ## Dev setup
 
@@ -21,11 +21,9 @@ On macOS the venv path is `.venv-webcam/bin/python`. macOS 14 or newer.
 `models/yolo26s.onnx` (38 MB) is **not in git**: `.gitignore` ignores `webcam_worker/models/`. A fresh checkout must get it before the worker will start. Either:
 
 - copy it from an earlier build, e.g. `~/.cargo-target/supervisor/release/webcam/models/yolo26s.onnx`, or
-- export it with `export_models.py` in `.venv-webcam-tools` (Ultralytics, telemetry off).
+- export it from the fine-tuned checkpoint with `train/train.py export` (the checkpoint is not in git either; see `train/README.md`).
 
-Either way, `download_models.py` must then pass. It accepts the pinned sha256s listed in it: the Windows export that was benchmarked (`ad1008fe…`) and the Mac re-exports of the same weights (`00db196e…` from 2026-10-25, `2d70a7fb…` from 2026-10-31, `a1cdf3f7…` from 2026-11-05; the same ultralytics 8.4.188 / onnx 1.23.2 pins, a different onnxslim). A fresh export with other tool versions gives a new hash and is rejected; add it to `also_sha256` only after the unit tests and both self-tests pass with it.
-
-On a Mac the export is `python3 -m venv .venv-webcam-tools && .venv-webcam-tools/bin/pip install ultralytics onnx onnxslim onnxruntime && (cd webcam_worker && ../.venv-webcam-tools/bin/python export_models.py)`. A python.org Python needs its `Install Certificates.command` run once first, or every download fails with `CERTIFICATE_VERIFY_FAILED`.
+Either way, `download_models.py` must then pass: it pins the one sha256 of the export that was judged and shipped (`d62da80a…`, Windows, 2026-11-22). An export with other tool versions gives different bytes and is rejected; change the pin only after the unit tests and both self-tests pass with the new file. `export_models.py` exports the stock model, which the pin no longer accepts; it stays for the bakeoff in `RESULTS.md`.
 
 ## Freeze it into the installer
 

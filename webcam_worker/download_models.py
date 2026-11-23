@@ -15,27 +15,18 @@ MODELS_DIR = Path(__file__).resolve().parent / "models"
 FACE_MODEL = "face_detection_yunet_2023mar.onnx"
 DETECTOR = "yolo26s.onnx"
 
-# Shipped with the app, but not in git (the root .gitignore ignores it). The YOLO file
-# is exported once with export_models.py and pinned here, so every build ships exactly the model
-# that was benchmarked. See README.md for where to get it.
+# Shipped with the app, but not in git (the root .gitignore ignores it). The YOLO file is
+# the phone detector fine-tuned in train/ (YOLO26s, exported once with `train.py export`)
+# and pinned here, so every build ships exactly the model that was judged. See README.md
+# for where to get it.
 REQUIRED = {
     FACE_MODEL: {
         "url": "https://huggingface.co/opencv/face_detection_yunet/resolve/main/face_detection_yunet_2023mar.onnx",
         "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
     },
     DETECTOR: {
-        # The Windows export that was benchmarked (RESULTS.md).
-        "sha256": "ad1008fe5d198e6a9cbf11233ce50826d2a12aba2b6f5a0987476a120141e77b",
-        # Same weights exported on other machines; the bytes differ with the tool versions.
-        # Any of these ships; each passed the worker's tests and both self-tests.
-        "also_sha256": [
-            # Mac, 2026-10-25: ultralytics 8.4.188 / onnx 1.23.2.
-            "00db196e9bdaa36036abd5ff6621331aee013420e411133fe674f0494bef55f9",
-            # Mac, 2026-10-31: the same ultralytics and onnx pins, current onnxslim.
-            "2d70a7fb62dd66df0961ae7f481a50d571d9b2d6fb3df10db676e46ee6a4c0e3",
-            # Mac, 2026-11-05: ultralytics 8.4.188 / onnx 1.23.2 / onnxslim 0.1.99.
-            "a1cdf3f7d5b24d5e4fb6932d4808aa37297517c1d0c3dde2fb2d5553bb4cd47c",
-        ],
+        # train/runs/distil2-neck round 8, exported 2026-11-22 (train/README.md).
+        "sha256": "d62da80acbdc3b67339a69d93e4b8b2a633b38f352a34f128beb228b5d70b57e",
     },
 }
 
@@ -63,7 +54,7 @@ def verify_models(models_dir: Path = MODELS_DIR) -> Dict[str, Path]:
         path = models_dir / name
         if not path.is_file():
             problems.append(f"{name} is missing")
-        elif sha256_file(path) not in (spec["sha256"], *spec.get("also_sha256", [])):
+        elif sha256_file(path) != spec["sha256"]:
             problems.append(f"{name} does not match its pinned sha256")
     if problems:
         raise RuntimeError(f"webcam models in {models_dir}: " + "; ".join(problems))

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fine-tune the shipped YOLO26s on data/yolo and export it to ONNX like export_models.py.
+"""Fine-tune the stock YOLO26s on data/yolo and export it to ONNX as the worker runs it.
 Run in .venv-train after `dataset.py build`.
 
   python train.py NAME [key=value ...]   trains runs/NAME; e.g. freeze=16 distill_model=yolo26x.pt lr0=0.001 batch=8

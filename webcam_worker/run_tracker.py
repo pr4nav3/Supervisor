@@ -23,9 +23,11 @@ from download_models import DETECTOR, FACE_MODEL, MODELS_DIR, verify_models
 from labels import TrackerState, compose_frame
 
 YUNET_MAX_SIDE = 960
-# Chosen in RESULTS.md: YOLO26s, full frame only, 0.15 (static look-alikes like remotes stay
-# under it; hysteresis cannot filter an object that scores the same on every frame).
-PHONE_SCORE = 0.15
+# Full frame only. The fine-tuned detector scores everything higher than the stock one did;
+# 0.36 is where it raises as many false alarms on desk-webcam frames as the stock model did at
+# 0.15 (train/README.md). Static look-alikes like remotes stay under it; hysteresis cannot
+# filter an object that scores the same on every frame.
+PHONE_SCORE = 0.36
 PERSON_SCORE = 0.35
 FACE_SCORE = 0.55
 # Rate from the first frame that looks like a phone until it clears.

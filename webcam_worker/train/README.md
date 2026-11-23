@@ -87,7 +87,7 @@ A run can be blended with the stock weights (WiSE-FT, Wortsman et al. 2022): `tr
 
 ## Where it stands
 
-No fine-tuned model passes every check above, and the app still ships the stock YOLO26s. One run is better at the app's own job, at a cost elsewhere; whether to ship it is a judgement call, laid out at the end of this section.
+No fine-tuned model passes every check above. One run is better at the app's own job, at a cost elsewhere, and the app ships it since 2026-11-22: run B at round 8, threshold 0.36 (the last table in this section).
 
 Every run raises the phone scores of photos with no phone in them. At the app's threshold the stock model alarms on 45 of the 3,000 selection photos; the distilled heads alarm on 107 to 160, and the new alarms are Wii remotes, TV remotes and other things held up like a phone, on which neither the stock model nor the teacher sees a phone. So each fine-tune has to run at a threshold of 0.3 to 0.45 to be as quiet as the stock model at 0.15, and there it catches fewer COCO phones (62 to 67 % of the validation ones against 69 %) and a few more desk-webcam ones (at best 74 % against 68 % of 121, run C round 8; blends in between). On the 569-frame desk test, at five false alarms each, the fine-tunes catch 65 to 73 % of the phones against the stock model's 70 %, and the order changes with the budget: noise. Four runs on the rebuilt set:
 
@@ -115,9 +115,9 @@ The checks above hold every model to the stock model's false-alarm rate on COCO 
 | COCO val person mAP50-95 | 0.598 | 0.580 | 0.589 |
 | COCO val phone mAP50-95 | 0.417 | 0.388 | 0.406 |
 | COCO 605 phone F1 | 0.798 | 0.712 | 0.747 |
-| CPU ms a frame, two threads | 509 | 513 | 514 |
+| CPU ms a frame in the worker, two threads | 109 | 109 | not timed |
 
-So run B at round 8 catches eight more desk phones in a hundred at the same number of desk false alarms, and the phones it newly catches are ones held right in front of the face that the stock model scores near zero. It pays with 30 % more false alarms on COCO photos of people (Wii remotes and other things held like a phone), 1.8 points of person box accuracy on COCO, and most of the stock model's accuracy on small, distant COCO phones. The blend gives back half of the forgetting and gains on the outdoor webcam sets too, for more COCO false alarms and a smaller desk gain. One five-minute desk video is a thin basis for the main number; frames in it are correlated, so the p-values overstate the certainty. Shipping either means the new ONNX, its hash pinned in `download_models.py`, and `PHONE_SCORE` in `run_tracker.py` raised from 0.15 to the model's threshold.
+So run B at round 8 catches eight more desk phones in a hundred at the same number of desk false alarms, and the phones it newly catches are ones held right in front of the face that the stock model scores near zero. It pays with 30 % more false alarms on COCO photos of people (Wii remotes and other things held like a phone), 1.8 points of person box accuracy on COCO, and most of the stock model's accuracy on small, distant COCO phones. The blend gives back half of the forgetting and gains on the outdoor webcam sets too, for more COCO false alarms and a smaller desk gain. One five-minute desk video is a thin basis for the main number; frames in it are correlated, so the p-values overstate the certainty. Run B at round 8 ships: its ONNX is `../models/yolo26s.onnx`, its hash is pinned in `../download_models.py`, and `PHONE_SCORE` in `../run_tracker.py` is 0.36.
 
 Not tried: a phone share near COCO's (sample the phone pictures down), the teacher's soft scores as targets, and a 16:9 input (832x480) so the desk view is not padded.
 
