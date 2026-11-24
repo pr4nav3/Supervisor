@@ -78,7 +78,7 @@ export function fitQuote(): void {
   };
   const largest = () => {
     let low = 15;
-    let high = 60;
+    let high = 44;
     while (high - low > 1) {
       const mid = Math.floor((low + high) / 2);
       if (fits(mid)) {
@@ -269,12 +269,15 @@ export function renderCalendar(): string {
     // Hovering a day lifts it and swaps its date for its focused time; the parts wrap onto
     // two lines when the day is narrow.
     const time = date > today ? "" : `<b class="cal-time">${formatHours(seconds).split(" ").map((part) => `<span>${part}</span>`).join("")}</b>`;
+    // Read aloud as "Thu 5 Nov: 1h 20m focused"; a day to come is just its date.
+    const when = date.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
+    const label = date > today ? when : `${when}: ${seconds > 0 ? `${formatHours(seconds)} focused` : "no focus"}`;
     days.push(
-      `<span class="${classes.join(" ")}" style="animation-delay: ${index * 12}ms"><span class="cal-num">${date.getDate()}</span>${time}</span>`,
+      `<span class="${classes.join(" ")}" role="img" aria-label="${attr(label)}" style="animation-delay: ${index * 12}ms"><span class="cal-num">${date.getDate()}</span>${time}</span>`,
     );
   }
   return `
-    <div class="cal-grid ${!trendsLoaded ? "is-waiting" : takeAnimation("calendar") ? "is-animated" : ""}" role="img" aria-label="${attr(monthLabel(today))}, days with focus shaded">
+    <div class="cal-grid ${!trendsLoaded ? "is-waiting" : takeAnimation("calendar") ? "is-animated" : ""}" role="group" aria-label="${attr(monthLabel(today))}, days with focus shaded">
       ${letters.map((letter) => `<span class="cal-dow">${letter}</span>`).join("")}
       ${days.join("")}
     </div>

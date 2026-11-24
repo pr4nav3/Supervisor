@@ -37,7 +37,7 @@ function renderAppUpdateCard(): string {
     updateStep === "installing" ? `Downloading ${newVersion}. Supervisor restarts when it's done.`
     : newVersion ? `Version ${newVersion} is out.`
     : updateStep === "current" ? "This is the newest version."
-    : "Installs only once you say so.";
+    : "Checks once a day. Installs only once you say so.";
   const button = newVersion
     ? `<button class="primary" type="button" data-action="install-app-update" ${busy ? "disabled" : ""}>${updateStep === "installing" ? "Updating…" : "Update and restart"}</button>`
     : `<button type="button" data-action="check-app-update" ${busy ? "disabled" : ""}>${updateStep === "checking" ? "Checking…" : "Check for updates"}</button>`;
@@ -74,14 +74,16 @@ async function openProblemForm(): Promise<void> {
   const version = await invoke<string>("app_version").catch(() => "?");
   const system = await invoke<string>("system_line").catch(() => "?");
   const voice = selectedVoice();
+  // Nothing personal goes in the form: the voice's kind, not a recorded person's name, and an
+  // error without its file paths (a path can carry the user's name).
   const details = [
     `Supervisor ${version}`,
     `System: ${system}`,
-    `Voice: ${voice.id === "none" ? "none" : `${voice.name}, ${toneLabel(voiceTone(voice))}`}`,
+    `Voice: ${voice.source === "none" ? "none" : `${voice.source === "starter" ? "starter voice" : "recorded voice"}, ${toneLabel(voiceTone(voice))}`}`,
     `Voice engine: ${voiceBackend ? (voiceBackend.runtime.installed && voiceBackend.model.installed ? "installed" : "not installed") : "not checked"}`,
     `Webcam: ${settings.webcam_enabled ? "on" : "off"}`,
     `Theme: ${theme}`,
-    `Last error shown: ${lastError || "none"}`,
+    `Last error shown: ${lastError.replace(/[A-Za-z]:\\\S+|\/Users\/\S+/g, "<path>") || "none"}`,
   ].join("\n");
   const url = `${PROBLEM_FORM}?usp=pp_url&${PROBLEM_FORM_DETAILS_FIELD}=${encodeURIComponent(details)}`;
   try {
@@ -158,7 +160,7 @@ export function renderSettings(): string {
           <p class="eyebrow">Something broke?</p>
           <div class="voice-summary">
             <strong>Tell us</strong>
-            <span class="explain">A form opens in your browser with the app's details filled in.</span>
+            <span class="explain">A form opens in your browser with the app's details filled in. The app's log is log.txt in its data folder.</span>
             <button type="button" data-action="report-problem">Report a problem</button>
           </div>
         </section>${renderAppUpdateCard()}

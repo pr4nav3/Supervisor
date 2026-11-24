@@ -71,7 +71,6 @@ import { dayCardKey, fitQuote, homeAction, homeTip, renderStreakChip } from "./s
 
 wire({ applySnapshot, bindEvents, editorIsOpen, refreshSnapshotNow, render, runAction });
 
-document.documentElement.dataset.theme = theme;
 window.addEventListener("storage", (event) => {
   if (event.key !== "supervisor-theme") {
     return;
@@ -83,6 +82,12 @@ window.addEventListener("storage", (event) => {
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     closeTopLayer();
+  }
+});
+// A hidden page's timers run as seldom as once a minute; back in view, it catches up at once.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) {
+    void refreshSnapshotNow();
   }
 });
 let historyHydrated = false;
@@ -468,6 +473,11 @@ function closeTopLayer(): void {
     render();
     return;
   }
+  // The distraction card: Escape is Back to my task.
+  if (appView === "overlay" && distractionIsActive()) {
+    void runAction("dismiss-distraction");
+    return;
+  }
   if (appView === "main" && activeTab === "settings" && settingsView !== "home") {
     void runAction("back-settings");
   }
@@ -642,7 +652,7 @@ export function render(): void {
         ${tabButton("history", "History")}
       </nav>
 
-      ${lastError ? `<section class="notice" id="last-error">${escapeHtml(lastError)}</section>` : ""}
+      ${lastError ? `<section class="notice" id="last-error" role="alert">${escapeHtml(lastError)}</section>` : ""}
       ${renderStorageNotice(snapshot?.storage_notice ?? null)}
       ${voiceError && activeTab === "settings" ? `<section class="notice">${escapeHtml(voiceError)}</section>` : ""}
 
@@ -975,7 +985,8 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
 }
 
 function tabButton(tab: Tab, text: string): string {
-  return `<button data-tab="${tab}" class="${activeTab === tab ? "active" : ""}" type="button">${text}</button>`;
+  const active = activeTab === tab;
+  return `<button data-tab="${tab}" class="${active ? "active" : ""}" ${active ? 'aria-current="page"' : ""} type="button">${text}</button>`;
 }
 
 void init();

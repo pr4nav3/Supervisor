@@ -2,7 +2,14 @@ import type {
   SessionSettings, SessionSnapshot, SessionSummary, SettingsView, Strictness, Tab,
 } from "./types";
 
-export let theme: "light" | "dark" = localStorage.getItem("supervisor-theme") === "dark" ? "dark" : "light";
+/** Decided by index.html's first script (the stored choice, else the system's) before anything
+ *  painted; the same rule again here, so a page that script did not reach still gets its theme. */
+export let theme: "light" | "dark" =
+  (document.documentElement.dataset.theme ??
+    localStorage.getItem("supervisor-theme") ??
+    (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark"
+    ? "dark"
+    : "light";
 export function setTheme(value: "light" | "dark"): void {
   theme = value;
 }
