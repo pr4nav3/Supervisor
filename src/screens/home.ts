@@ -70,23 +70,33 @@ export function fitQuote(): void {
   // The grid stretches the card to the side column, so the smallest size shows the real room.
   // The quote takes at most 60% of it: a card full of text reads like a wall. In a short window
   // the eyebrow and the attribution leave less than that, so the card must not overflow either.
-  quote.style.fontSize = "18px";
+  const by = card.querySelector<HTMLElement>(".quote-by");
   const room = card.clientHeight * 0.6;
   const fits = (px: number) => {
     quote.style.fontSize = `${px}px`;
     return quote.offsetHeight <= room && quote.scrollWidth <= quote.clientWidth && card.scrollHeight <= card.clientHeight;
   };
-  let low = 18;
-  let high = 60;
-  while (high - low > 1) {
-    const mid = Math.floor((low + high) / 2);
-    if (fits(mid)) {
-      low = mid;
-    } else {
-      high = mid;
+  const largest = () => {
+    let low = 15;
+    let high = 60;
+    while (high - low > 1) {
+      const mid = Math.floor((low + high) / 2);
+      if (fits(mid)) {
+        low = mid;
+      } else {
+        high = mid;
+      }
     }
+    return fits(low);
+  };
+  // In the smallest window a long quote has no room for its author: the words come first.
+  if (by) {
+    by.hidden = false;
   }
-  quote.style.fontSize = `${low}px`;
+  if (!largest() && by) {
+    by.hidden = true;
+    largest();
+  }
 }
 
 /** Minutes today still needs to count toward the streak (0 once it counts). */

@@ -462,7 +462,8 @@ button.share-card:active {
   .streak-line span { font-size: 1.15rem; }
   .cal-grid { grid-auto-rows: minmax(26px, 1fr); gap: 6px; }
   .cal-day { min-height: 26px; padding: 3px 5px; }
-  .panel.quote-card { min-height: 96px; padding: 12px 16px 14px; }
+  .panel.quote-card { min-height: 96px; padding: 10px 14px 12px; }
+  .quote-by { padding-top: 8px; }
   .panel.last-session-card { gap: 7px; padding: 10px 14px 6px; }
   .share-card { gap: 8px; padding: 10px 12px; }
   .share-head strong { font-size: 1rem; }

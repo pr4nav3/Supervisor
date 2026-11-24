@@ -5,6 +5,7 @@ mod attribution;
 mod focus;
 mod session;
 mod storage;
+mod text_scale;
 mod voice;
 mod voice_runtime;
 #[cfg(target_os = "macos")]
@@ -31,6 +32,10 @@ const MAIN_WINDOW_LABEL: &str = "main";
 const OVERLAY_WINDOW_LABEL: &str = "overlay";
 const OVERLAY_WIDTH: f64 = 312.0;
 const OVERLAY_HEIGHT: f64 = 286.0;
+/// The main window's opening size and its smallest, as the page is laid out (tauri.conf.json
+/// says the same; text_scale grows both when Windows' Text size is above 100%).
+const MAIN_SIZE: (f64, f64) = (920.0, 760.0);
+const MAIN_MIN_SIZE: (f64, f64) = (920.0, 600.0);
 
 /// Session time: a monotonic clock that keeps running while the computer sleeps, so a closed
 /// lid shows up as a gap (lost time, an expired timer) instead of vanishing. `Instant` does
@@ -862,6 +867,7 @@ pub fn run() {
             if let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) {
                 size_page_exactly(&main);
             }
+            text_scale::watch(app.handle(), MAIN_SIZE, MAIN_MIN_SIZE);
             // The Mac install script (an update) sends TERM and waits ten seconds. Nothing
             // in Tauri or tao handles the signal, so the default would kill the process and
             // lose the running session's last seconds; the ticker turns it into a quit.
@@ -1005,13 +1011,14 @@ pub fn run() {
 }
 
 fn setup_status_window(app: &mut tauri::App) -> tauri::Result<()> {
+    let overlay_size = text_scale::scaled(OVERLAY_WIDTH, OVERLAY_HEIGHT);
     let builder = WebviewWindowBuilder::new(
         app,
         OVERLAY_WINDOW_LABEL,
         WebviewUrl::App("index.html?view=overlay".into()),
     )
     .title("Session timer")
-    .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    .inner_size(overlay_size.width, overlay_size.height)
     .resizable(false)
     .maximizable(false)
     // Minimized from its own title bar it would never show a card again.
@@ -1414,10 +1421,11 @@ fn set_status_window_size(
     let Some(window) = app.get_webview_window(OVERLAY_WINDOW_LABEL) else {
         return Ok(());
     };
-    let width = width.clamp(200.0, 800.0);
-    let height = height.clamp(120.0, 960.0) + titlebar_inset(&window);
+    // The page measured itself in its own pixels; the window grows with Windows' Text size.
+    let size = text_scale::scaled(width.clamp(200.0, 800.0), height.clamp(120.0, 960.0));
+    let (width, height) = (size.width, size.height);
     window
-        .set_size(tauri::LogicalSize::new(width, height))
+        .set_size(tauri::LogicalSize::new(width, height + titlebar_inset(&window)))
         .map_err(|error| error.to_string())?;
     // A card (centred) shows whether or not the session timer is on: with the timer off the
     // window is hidden the rest of the time, so it comes out for the card and goes back after.
@@ -1568,9 +1576,10 @@ fn place_status_window(
     let area = monitor.work_area();
     // The target display's scale: the window may still be on another display.
     let scale = monitor.scale_factor();
+    let overlay = text_scale::scaled(OVERLAY_WIDTH, OVERLAY_HEIGHT);
     let fallback_size = tauri::PhysicalSize::new(
-        (OVERLAY_WIDTH * scale).round() as u32,
-        (OVERLAY_HEIGHT * scale).round() as u32,
+        (overlay.width * scale).round() as u32,
+        (overlay.height * scale).round() as u32,
     );
     let size = if let Some((width, height)) = logical {
         tauri::PhysicalSize::new((width * scale).round() as u32, (height * scale).round() as u32)
