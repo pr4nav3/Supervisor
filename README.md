@@ -58,4 +58,6 @@ Found a security or privacy problem? Email karthik.pranav88@gmail.com rather tha
 
 The app is under the [MIT licence](LICENSE).
 
+`THIRD_PARTY.md` lists what the app ships or downloads from others (the voice model, the detection models, the website font) and their licences.
+
 The webcam worker in `webcam_worker/` is a separate program under the [GNU AGPL v3](webcam_worker/LICENSE), because the detection model it runs is an Ultralytics YOLO export and Ultralytics licenses its models under the AGPL. It ships beside the app as its own program, and the app talks to it over a pipe, so the rest of the project stays MIT. If you ship a fork, keep that boundary or swap the model.

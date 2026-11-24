@@ -14,8 +14,11 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Manager};
 
 const MODEL_ID: &str = "chatterbox-nano-minimal";
-const MODEL_REPO: &str = "ResembleAI/chatterbox-nano";
-const MODEL_REVISION: &str = "71ccd1d0081b430592cea481f4307e764e07bc64";
+// The model files come from our own GitHub release, so huggingface.co being blocked (some
+// countries, many office networks) does not stop the download. The release copies are byte
+// for byte the files of https://huggingface.co/ResembleAI/chatterbox-nano at revision
+// 71ccd1d0081b430592cea481f4307e764e07bc64 (MIT); MODEL_FILES holds their hashes.
+const MODEL_RELEASE_URL: &str = "https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime";
 const GIBIBYTE: u64 = 1024 * 1024 * 1024;
 // A nominal 8 GB laptop reports about 7.8 GiB (firmware reserves the rest), so 7 GiB admits it.
 const MIN_REQUIRED_RAM_BYTES: u64 = 7 * GIBIBYTE;
@@ -1535,8 +1538,10 @@ pub(crate) fn ensure_free_space(path: &Path, needed: u64) -> Result<(), String> 
     Ok(())
 }
 
+/// The release holds the model's files flat, each prefixed with the model's name; a path
+/// with directories in it has its slashes turned into "__".
 fn model_file_url(path: &str) -> String {
-    format!("https://huggingface.co/{MODEL_REPO}/resolve/{MODEL_REVISION}/{path}")
+    format!("{MODEL_RELEASE_URL}/chatterbox-nano-{}", path.replace('/', "__"))
 }
 
 fn profile_summaries(root: &Path) -> Vec<VoiceProfileSummary> {
@@ -2672,7 +2677,7 @@ mod tests {
 
     #[test]
     fn matching_model_files_are_never_fetched() {
-        // The path would 404 on the hub, so any attempt to fetch it fails the call: Ok(false)
+        // The path would 404 on the release, so any attempt to fetch it fails the call: Ok(false)
         // proves the matching file was skipped without touching the network.
         let dir = test_dir("skip-valid");
         fs::create_dir_all(&dir).unwrap();
@@ -2705,7 +2710,7 @@ mod tests {
         fs::write(&path, b"short").unwrap();
         let table = [ModelFile { path: "short.bin", bytes: 999, sha256: "00" }];
 
-        // The fetch of a path that does not exist on the hub cannot succeed, online or off.
+        // The fetch of a path that does not exist on the release cannot succeed, online or off.
         let result = download_model_files(&dir, &table, Arc::new(AtomicBool::new(false)), |_| {});
 
         assert!(result.is_err());
