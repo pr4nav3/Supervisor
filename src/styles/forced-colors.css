@@ -1,0 +1,50 @@
+/* Windows contrast themes paint every background Canvas, so a state the app tells apart by
+   colour alone (a focused green, a distracted coral, a day on, a toggle on) would look like its
+   neighbour. System colours survive the forcing: Highlight for on and selected, Mark for a
+   distraction, a dashed inner line for the yellow "not yet" states. Nothing here moves a pixel. */
+@media (forced-colors: active) {
+  .state-focused,
+  .tabs button.active,
+  .cal-day.is-on,
+  .recap-bar.is-on,
+  .status-chip.is-kept,
+  .share-strip .strip-on,
+  .toggle-input:checked + .toggle-track {
+    /* Painted by hand with system colours: left to the browser, it draws a Canvas plate behind
+       the text, a black bar in a dark theme. */
+    forced-color-adjust: none;
+    background: Highlight;
+    color: HighlightText;
+  }
+
+  .state-distracted,
+  .interrupt-alert,
+  .rule-chip-distracting,
+  .share-strip .strip-off,
+  .live-strip .strip-off,
+  :is(.timeline-bar, .mini-timeline, .legend-key):is(.state-suspicious, .state-distracted, .state-phone) {
+    forced-color-adjust: none;
+    background: Mark;
+    color: MarkText;
+  }
+
+  /* The paper grid behind a card makes the browser draw a Canvas plate behind each line of text,
+     which in a dark theme is a black bar over black text. No grid, no plate. */
+  /* The slab's own ink rule for its text is three classes deep; match it, later wins. */
+  .state-slab.state-focused :is(h2, p, .eyebrow) { forced-color-adjust: none; color: HighlightText; }
+  .state-slab:is(.state-distracted, .interrupt-alert) :is(h2, p, .eyebrow),
+  .interrupt-alert :is(h2, p, .interrupt-kicker) { forced-color-adjust: none; color: MarkText; }
+
+  /* Allowed once: the strike-through already says it; only the coral had to go. */
+  .rule-chip.is-allowed { background: Canvas; color: CanvasText; }
+
+  .state-paused, .state-suspicious, .state-break, .cal-day.is-today, .status-chip.is-short {
+    outline: 2px dashed CanvasText;
+    outline-offset: -5px;
+  }
+
+  /* Fills that were ink or grey on cream: the progress bars, the knob, work and away in the strips. */
+  .progress span, .live-strip .strip-on, .toggle-knob, .timeline-bar .state-focused { background: CanvasText; }
+  .toggle-input:checked + .toggle-track .toggle-knob { background: HighlightText; }
+  .live-strip .strip-away, :is(.timeline-bar, .mini-timeline, .legend-key):is(.state-idle, .state-unknown) { background: GrayText; }
+}

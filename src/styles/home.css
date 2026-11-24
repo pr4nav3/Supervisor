@@ -11,6 +11,9 @@
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
+  /* A tall window stops the grid here (calendar rows about 72px, the quote a card, not a poster);
+     the start button follows it. Below 760px the grid never gets this far. */
+  max-height: 640px;
   grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
   align-items: stretch;
   gap: 14px;

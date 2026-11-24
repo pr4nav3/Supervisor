@@ -20,9 +20,10 @@ for s in states:
     shell = s["sizes"].get(".overlay-shell")
     if shell and shell[1] > h:
         problems.append(f"{name}: overlay card {shell[1]}px taller than the {h}px window")
-    # Home fits the window at every size down to the 920x600 minimum; any scroll is a layout bug.
-    if name.startswith("home") and s["docH"] > h:
-        problems.append(f"{name}: Home scrolls ({s['docH']}px in {h}px)")
+    # Home and the live session fit the window at every size down to the 920x600 minimum, the
+    # live session even with a long distraction list; any scroll is a layout bug.
+    if name.startswith(("home", "live")) and s["docH"] > h:
+        problems.append(f"{name}: page scrolls ({s['docH']}px in {h}px)")
     for clip in s.get("clipped", []):
         problems.append(f"{name}: text cut off: {clip}")
     for row in s.get("misaligned", []):
@@ -33,4 +34,4 @@ print(f"{len(states)} states laid out in WebKit at {states[0]['viewport'][0]}x{s
 if problems:
     print("\n".join(problems))
     sys.exit(1)
-print("ok: no overflow, cut-off text or row out of line, every modal and overlay card fits, Start is reachable, Home does not scroll")
+print("ok: no overflow, cut-off text or row out of line, every modal and overlay card fits, Start is reachable, Home and the live session do not scroll")

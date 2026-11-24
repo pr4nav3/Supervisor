@@ -221,3 +221,28 @@
   box-shadow: none;
 }
 
+/* A short window (down to the 600px minimum): the chips, tiles and buttons give up a little
+   height, so Pause, Mute and End session stay in view under a long distraction list. */
+@media (max-height: 659px) {
+  .active-session-page,
+  .session-side {
+    gap: 10px;
+  }
+
+  .session-rules-card,
+  .session-rules-card .chips {
+    gap: 6px;
+  }
+
+  .session-rule-chips .rule-chip {
+    min-height: 30px;
+  }
+
+  .sofar-tile {
+    padding: 4px 8px;
+  }
+
+  .active-session-controls button {
+    min-height: 52px;
+  }
+}

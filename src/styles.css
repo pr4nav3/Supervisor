@@ -21,3 +21,4 @@
 @import "./styles/review.css"; /* After a session: the review. */
 @import "./styles/pomodoro.css"; /* Pomodoro: mode tabs, rounds, round-over cards. */
 @import "./styles/chips-notices.css"; /* The streak chip, live chips and the storage notice. */
+@import "./styles/forced-colors.css"; /* Windows contrast themes: the states colour told apart, told apart again. Last, so it wins. */

@@ -14,7 +14,8 @@ export default defineConfig({
     // Not the app: watching the Python environments (tens of thousands of files) and the
     // worker builds held the server up for minutes before it answered.
     watch: {
-      ignored: ["**/src-tauri/**", "**/.venv*/**", "**/build/**", "**/notes/**"],
+      // The training set under webcam_worker/train is 100k+ files; watching it pins a CPU core.
+      ignored: ["**/src-tauri/**", "**/.venv*/**", "**/build/**", "**/notes/**", "**/webcam_worker/train/**", "**/vendor/**"],
     },
   },
 });
