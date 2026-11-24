@@ -818,6 +818,32 @@ fn database_path(app: &tauri::App) -> Result<PathBuf, String> {
         .map(|dir| dir.join("sessions.db"))
 }
 
+/// A release build has no console, so every `eprintln!` (and the workers' stderr, which they
+/// inherit) would be lost. Points stderr at `path` instead, starting over when it passes 1 MB.
+/// A development build keeps its console.
+fn log_stderr_to_file(path: &std::path::Path) {
+    if cfg!(debug_assertions) {
+        return;
+    }
+    if std::fs::metadata(path).is_ok_and(|meta| meta.len() > 1 << 20) {
+        let _ = std::fs::remove_file(path);
+    }
+    let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else { return };
+    #[cfg(windows)]
+    {
+        use std::os::windows::io::IntoRawHandle;
+        use windows::Win32::Foundation::HANDLE;
+        use windows::Win32::System::Console::{SetStdHandle, STD_ERROR_HANDLE};
+        // The handle lives as long as the process; std reads STD_ERROR_HANDLE on every write.
+        let _ = unsafe { SetStdHandle(STD_ERROR_HANDLE, HANDLE(file.into_raw_handle())) };
+    }
+    #[cfg(target_os = "macos")]
+    {
+        use std::os::fd::AsRawFd;
+        unsafe { libc::dup2(file.as_raw_fd(), 2) };
+    }
+}
+
 pub fn run() {
     #[cfg(all(debug_assertions, target_os = "macos"))]
     if let Ok(path) = std::env::var("SUPERVISOR_PROBE") {
@@ -840,6 +866,9 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
+            if let Ok(dir) = app.path().app_data_dir() {
+                log_stderr_to_file(&dir.join("log.txt"));
+            }
             app.manage(AppState {
                 sessions: Mutex::new(SessionManager::open(database_path(app))),
                 voice_download: Arc::new(Mutex::new(voice::VoiceDownloadState::default())),

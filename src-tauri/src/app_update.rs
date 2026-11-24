@@ -45,7 +45,15 @@ pub async fn install_app_update(app: AppHandle) -> Result<(), String> {
         .await
         .map_err(check_failed)?
         .ok_or_else(|| "Supervisor is up to date.".to_string())?;
-    update.download_and_install(|_, _| {}, || {}).await.map_err(|error| {
+    let bytes = update.download(|_, _| {}, || {}).await.map_err(|error| {
+        eprintln!("update download: {error}");
+        "The update could not be downloaded. Try again later.".to_string()
+    })?;
+    // A session begun during the download: on Windows the installer would kill it.
+    if in_session(&app) {
+        return Err("End the session first, then update.".to_string());
+    }
+    update.install(bytes).map_err(|error| {
         eprintln!("update install: {error}");
         "The update could not be installed. Try again later.".to_string()
     })?;

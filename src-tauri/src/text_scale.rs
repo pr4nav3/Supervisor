@@ -23,13 +23,14 @@ pub fn scaled(width: f64, height: f64) -> LogicalSize<f64> {
     LogicalSize::new(width * factor, height * factor)
 }
 
-/// Sizes the main window for the factor now, and keeps both windows in step when the slider moves
-/// while the app runs (WebView2 rescales the page the moment it does).
+/// Caps the main window's minimum to the screen (a small laptop at 150% has less room than the
+/// page's minimum), sizes the window for the factor now, and keeps both windows in step when the
+/// slider moves while the app runs (WebView2 rescales the page the moment it does).
 pub fn watch(app: &AppHandle, main: (f64, f64), main_min: (f64, f64)) {
     let now = factor();
-    if now != 1.0 {
-        if let Some(window) = app.get_webview_window(crate::MAIN_WINDOW_LABEL) {
-            set_main_min(&window, main_min, now);
+    if let Some(window) = app.get_webview_window(crate::MAIN_WINDOW_LABEL) {
+        set_main_min(&window, main_min, now);
+        if now != 1.0 {
             let _ = window.set_size(on_screen(&window, LogicalSize::new(main.0 * now, main.1 * now)));
             let _ = window.center();
         }

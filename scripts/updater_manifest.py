@@ -8,11 +8,14 @@ build wrote copied beside it under the same name. The version is tauri.conf.json
 is the latest release's asset of that name (releases/latest/download/...), the same place the app
 reads latest.json from, so the installer and latest.json must go on the same release, the one
 GitHub marks Latest. Windows and Mac are built on different machines: download the release's
-latest.json into the same folder first, so the second platform joins the first.
+latest.json into the same folder first, so the second platform joins the first. On Windows the
+installer's own version (its file properties) must match, or the script stops.
 """
 import argparse
 import json
 import pathlib
+import platform
+import subprocess
 from datetime import datetime, timezone
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -27,7 +30,15 @@ def main() -> int:
     args = parser.parse_args()
 
     version = json.loads((ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8"))["version"]
-    base = args.base_url or f"https://github.com/{REPO}/releases/latest/download"
+    if args.platform == "windows-x86_64":
+        if platform.system() == "Windows":
+            command = f"(Get-Item '{args.installer.resolve()}').VersionInfo.ProductVersion"
+            built = subprocess.run(["powershell", "-NoProfile", "-Command", command], capture_output=True, text=True, check=True).stdout.strip()
+            if built != version:
+                raise SystemExit(f"{args.installer} is version {built}; tauri.conf.json says {version}. Wrong build?")
+        else:
+            print("note: not on Windows, so the installer's version was not checked against tauri.conf.json")
+    base =args.base_url or f"https://github.com/{REPO}/releases/latest/download"
     manifest_path = args.installer.parent / "latest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     if manifest.get("version") != version:

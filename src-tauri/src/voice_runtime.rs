@@ -24,6 +24,7 @@ pub(crate) const DOWNLOAD_CANCELLED: &str = "download cancelled";
 const DOWNLOAD_CONNECT_TIMEOUT: Duration = Duration::from_secs(30);
 const DOWNLOAD_READ_TIMEOUT: Duration = Duration::from_secs(60);
 const SERVER_UNREACHABLE: &str = "Couldn't reach the download server. Check your connection.";
+const SERVER_REFUSED: &str = "The download server refused the request. Try again later.";
 const DOWNLOAD_UNAVAILABLE: &str =
     "The voice engine couldn't be downloaded right now. Check your connection and try again.";
 /// The manifest is a few KB: offline, the user should see "could not reach" in seconds.
@@ -254,13 +255,14 @@ fn fetch_manifest() -> Result<VoicePackManifest, String> {
     serde_json::from_str::<VoicePackManifest>(&body).map_err(|_| DOWNLOAD_UNAVAILABLE.to_string())
 }
 
-/// What the user reads when a fetch fails: a server answer (404, 5xx) means the files are not
-/// there right now; anything else means the server was not reached. Never reqwest's own text.
+/// What the user reads when a fetch fails: a 4xx means the server turned the request down (a
+/// proxy, a rate limit, a missing file), a 5xx that the files are not there right now; anything
+/// else means the server was not reached. Never reqwest's own text.
 fn plain_fetch_error(error: &reqwest::Error) -> String {
-    if error.is_status() {
-        DOWNLOAD_UNAVAILABLE.to_string()
-    } else {
-        SERVER_UNREACHABLE.to_string()
+    match error.status() {
+        Some(status) if status.is_client_error() => SERVER_REFUSED.to_string(),
+        Some(_) => DOWNLOAD_UNAVAILABLE.to_string(),
+        None => SERVER_UNREACHABLE.to_string(),
     }
 }
 
@@ -846,6 +848,19 @@ mod tests {
         let error = fetch_file(&download_client().unwrap(), "http://127.0.0.1:9/x", &path, 10, &AtomicBool::new(false), |_| {})
             .unwrap_err();
         assert_eq!(error, SERVER_UNREACHABLE);
+        // A server that answers 403 refused the request; the connection was fine.
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/x", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            // Read the request first: a socket closed under an unsent request reads as no reply.
+            let _ = std::io::Read::read(&mut stream, &mut [0u8; 4096]);
+            stream.write_all(b"HTTP/1.1 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").unwrap();
+            let _ = stream.flush();
+        });
+        let error = fetch_file(&download_client().unwrap(), &url, &path, 10, &AtomicBool::new(false), |_| {}).unwrap_err();
+        assert_eq!(error, SERVER_REFUSED);
+        server.join().unwrap();
         let _ = fs::remove_dir_all(root);
     }
 
