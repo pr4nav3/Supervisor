@@ -13,7 +13,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-cpal = "0.15"
+cpal = "0.18"
 hound = "3.5"
 psl = "2"
 # system-proxy: without it, default-features = false drops the OS proxy settings and corporate networks fail.
