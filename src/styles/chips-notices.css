@@ -36,6 +36,7 @@
 }
 
 .recording-prompt {
+  max-width: 60ch;
   margin: 10px 0 0;
   padding: 10px 12px;
   border: var(--border);
@@ -45,4 +46,11 @@
   font-size: var(--sv-type-3);
   line-height: 1.45;
   text-align: left;
+}
+
+.recording-prompt small {
+  display: block;
+  margin-top: 6px;
+  color: var(--sv-muted);
+  font-size: var(--sv-type-4);
 }

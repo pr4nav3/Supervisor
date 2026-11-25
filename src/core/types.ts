@@ -400,7 +400,6 @@ export interface PhraseLibraryState {
 
 export interface RecordedVoice {
   path: string;
-  url: string;
   bytes: number;
   seconds: number;
   name: string;

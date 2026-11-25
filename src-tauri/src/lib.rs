@@ -923,6 +923,7 @@ pub fn run() {
             if let Ok(dir) = app.path().app_data_dir() {
                 log_stderr_to_file(&dir.join("log.txt"));
             }
+            voice::adopt_roaming_voice_folder(app.handle());
             app.manage(AppState {
                 sessions: Mutex::new(SessionManager::open(database_path(app))),
                 voice_download: Arc::new(Mutex::new(voice::VoiceDownloadState::default())),

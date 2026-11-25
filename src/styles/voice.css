@@ -832,8 +832,9 @@ button.is-playing .mini-orb {
   display: flex;
 }
 
-button.is-playing svg,
-button.is-playing .voice-preview-icon {
+/* A button with a mini orb shows it while playing; the transport's button becomes a pause. */
+button.is-playing:has(.mini-orb) svg,
+button.is-playing:has(.mini-orb) .voice-preview-icon {
   display: none;
 }
 
@@ -879,10 +880,14 @@ audio {
   width: min(820px, 100%);
 }
 
+/* The mic and the passage alone until there is a recording; then the review beside them. */
 .recording-grid {
   display: grid;
-  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr);
   gap: 12px;
+}
+
+.recording-grid.has-review {
+  grid-template-columns: minmax(220px, 0.72fr) minmax(0, 1fr);
 }
 
 .recording-stage,

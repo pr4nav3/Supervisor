@@ -4,7 +4,7 @@ The focus app that talks back. Start a session, and when you open a distraction 
 
 Everything runs on your computer. No account, no servers, nothing uploaded. Download it at [supervisorfocus.com](https://supervisorfocus.com). Free, for macOS and Windows.
 
-The Windows installer is not signed, so Windows shows "Windows protected your PC" when you open it; click "More info", then "Run anyway". Uninstalling leaves your data (sessions, voices and the voice engine, about 4 GB with the engine) in `%APPDATA%\app.supervisor.desktop` on Windows and `~/Library/Application Support/app.supervisor.desktop` on the Mac, unless you tick "Delete the application data" in the uninstaller.
+The Windows installer is not signed, so Windows shows "Windows protected your PC" when you open it; click "More info", then "Run anyway". Uninstalling leaves your data: on Windows, sessions in `%APPDATA%\app.supervisor.desktop` and voices with the voice engine (about 4 GB) in `%LOCALAPPDATA%\app.supervisor.desktop`; on the Mac, all of it in `~/Library/Application Support/app.supervisor.desktop`; unless you tick "Delete the application data" in the uninstaller.
 
 ## How it works
 

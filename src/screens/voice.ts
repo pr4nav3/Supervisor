@@ -401,9 +401,11 @@ export function renderVoiceDialogs(): string {
   `;
 }
 
-/** About twenty-five seconds at a normal pace, in the plain register the lines use. */
+/** About twenty-five seconds read aloud. Jerome K. Jerome on work, Three Men in a Boat (1889),
+ *  public domain: funny enough to read with some life in the voice, which the clone picks up. */
 const RECORDING_PROMPT =
-  "Most days start the same way: coffee, a look at the list, and the one thing I keep putting off. Today that thing goes first, before anything else gets a say. If I drift, say so. I'd rather hear it now than find out at six o'clock that the whole afternoon went somewhere else.";
+  "I like work: it fascinates me. I can sit and look at it for hours. I love to keep it by me: the idea of getting rid of it nearly breaks my heart. You cannot give me too much work; to accumulate work has almost become a passion with me: my study is so full of it now, that there is hardly an inch of room for any more. I shall have to throw out a wing soon.";
+const RECORDING_PROMPT_SOURCE = "Jerome K. Jerome, Three Men in a Boat, 1889";
 
 function renderRecordingModal(): string {
   const isRecording = recordingState === "recording";
@@ -418,7 +420,7 @@ function renderRecordingModal(): string {
           <button class="small-button" type="button" data-action="close-recording">Close</button>
         </div>
 
-        <div class="recording-grid">
+        <div class="recording-grid ${recordedVoice ? "has-review" : ""}">
           <section class="recording-stage">
             <button class="mic-button ${isRecording ? "recording" : ""}" type="button" data-action="${isRecording ? "stop-recording" : "start-recording"}" ${recordedVoice && !isRecording ? "disabled" : ""} aria-label="${isRecording ? "Stop recording" : "Start recording"}">
               <span></span>
@@ -426,27 +428,27 @@ function renderRecordingModal(): string {
             <strong>${isRecording ? "Recording" : recordedVoice ? "Recorded" : "Ready"}</strong>
             <p id="recording-elapsed">${isRecording ? formatDuration(recordingDurationSeconds()) : recordedVoice ? `${formatDuration(recordedVoice.seconds)} captured` : "Read aloud for 20 to 30 seconds somewhere quiet."}</p>
             ${recordingError ? `<p class="recording-error">${escapeHtml(recordingError)}</p>` : ""}
-            ${recordedVoice ? "" : `<p class="recording-prompt">${escapeHtml(RECORDING_PROMPT)}</p>`}
+            ${recordedVoice ? "" : `<p class="recording-prompt">${escapeHtml(RECORDING_PROMPT)}<small>${RECORDING_PROMPT_SOURCE}</small></p>`}
           </section>
 
-          <section class="recording-review">
-            ${
-              recordedVoice
-                ? `
+          ${
+            recordedVoice
+              ? `
+                <section class="recording-review">
                   <label>
                     <span>Voice name</span>
                     <input id="voice-name" maxlength="80" value="${attr(recordedVoice.name)}" placeholder="Mom voice" />
                   </label>
-                  <audio controls preload="metadata" src="${attr(recordedVoice.url)}"></audio>
+                  ${renderTransport(recordedVoice.path)}
                   <div class="modal-actions">
                     <button type="button" data-action="rerecord-voice">Re-record</button>
                     <button class="primary" type="button" data-action="save-recorded-voice" ${canSave ? "" : "disabled"}>Save voice</button>
                   </div>
                   <p class="quiet">Saving is instant. You pick which lines to generate next.</p>
-                `
-                : `<p class="empty">Your recording shows up here so you can listen before saving it.</p>`
-            }
-          </section>
+                </section>
+              `
+              : ""
+          }
         </div>
       `);
 }
@@ -481,19 +483,7 @@ function renderVoiceInfoModal(): string {
         </form>
         <div>
           <p class="eyebrow">${profileId ? "Recording" : "Hello"}</p>
-          <div class="voice-info-transport">
-            <button class="voice-preview-play" type="button" data-action="toggle-voice-preview" ${clip ? "" : "disabled"} aria-label="Play">
-              <span class="voice-preview-icon" aria-hidden="true"></span>
-            </button>
-            <div class="voice-info-wave">
-              <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip ?? "")}" data-wave-bars="40"></canvas>
-              <input id="voice-preview-bar" type="range" min="0" max="1" value="0" step="0.01" ${clip ? "" : "disabled"} aria-label="Playback" />
-              <div class="voice-info-times">
-                <span id="voice-preview-elapsed">0:00</span>
-                <span id="voice-preview-total">0:00</span>
-              </div>
-            </div>
-          </div>
+          ${renderTransport(clip)}
         </div>
         <div class="voice-info-foot">
           ${
@@ -505,6 +495,26 @@ function renderVoiceInfoModal(): string {
         </div>
       `);
 }
+/** Play button, waveform and scrubber for one file: a voice's recording or hello, or the
+ *  recording just made. One on the page at a time; `bindVoicePreview` wires it after a paint. */
+function renderTransport(clip: string | null): string {
+  return `
+    <div class="voice-info-transport">
+      <button class="voice-preview-play" type="button" data-action="toggle-voice-preview" ${clip ? "" : "disabled"} aria-label="Play">
+        <span class="voice-preview-icon" aria-hidden="true"></span>
+      </button>
+      <div class="voice-info-wave">
+        <canvas id="voice-preview-wave" width="320" height="56" data-wave-path="${attr(clip ?? "")}" data-wave-bars="40"></canvas>
+        <input id="voice-preview-bar" type="range" min="0" max="1" value="0" step="0.01" ${clip ? "" : "disabled"} aria-label="Playback" />
+        <div class="voice-info-times">
+          <span id="voice-preview-elapsed">0:00</span>
+          <span id="voice-preview-total">0:00</span>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
 function renderDeleteVoiceModal(): string {
   const profile = voiceDeleteTargetId ? profileById(voiceDeleteTargetId) : null;
   if (!profile) {
@@ -1000,15 +1010,21 @@ async function deleteVoiceFilesOnly(): Promise<void> {
 }
 
 function resetRecordedVoice(): void {
-  if (recordedVoice?.url) {
-    URL.revokeObjectURL(recordedVoice.url);
-  }
+  releaseRecording();
   recordedVoice = null;
+}
+
+/** The transport lets go of the recording before the backend deletes or replaces it. */
+function releaseRecording(): void {
+  if (recordedVoice && voicePreviewPath === recordedVoice.path) {
+    stopVoicePreview();
+  }
 }
 
 async function clearVoiceRecording(): Promise<void> {
   clearRecordingTick();
   recordingStartedAtMs = null;
+  releaseRecording();
   await invoke<VoiceRecordingSnapshot>("clear_voice_recording").catch(() => null);
 }
 
@@ -1024,7 +1040,6 @@ function applyRecordingSnapshot(recording: VoiceRecordingSnapshot): void {
   if (recording.phase === "recorded" && recording.path) {
     recordedVoice = {
       path: recording.path,
-      url: clipAssetUrl(recording.path),
       bytes: recording.bytes,
       seconds: recording.duration_seconds,
       name: recordedVoice?.name || defaultVoiceName(),
@@ -1273,6 +1288,9 @@ function ensureVoicePreviewAudio(path: string): HTMLAudioElement {
 }
 
 function transportPreviewPath(): string | null {
+  if (recordingOpen) {
+    return recordedVoice?.path ?? null;
+  }
   const voice = availableVoices().find((item) => item.id === voiceInfoId);
   return voice ? previewPathForVoice(voice) : null;
 }

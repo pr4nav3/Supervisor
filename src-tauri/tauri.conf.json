@@ -30,7 +30,7 @@
       "csp": "default-src 'self'; connect-src ipc: http://ipc.localhost asset: http://asset.localhost https://asset.localhost; img-src 'self' data: blob:; media-src 'self' asset: http://asset.localhost blob:; style-src 'self' 'unsafe-inline'; base-uri 'self'; form-action 'self'; object-src 'none'; frame-src 'none'",
       "assetProtocol": {
         "enable": true,
-        "scope": ["$APPDATA/voice/**"]
+        "scope": ["$APPLOCALDATA/voice/**"]
       }
     }
   },

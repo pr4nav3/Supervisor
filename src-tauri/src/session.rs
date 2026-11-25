@@ -1474,7 +1474,10 @@ impl Session {
         // Frames and ticks take the lock in either order; never step back in time.
         let now = now.max(self.last_accounted_at);
         self.camera.last_frame_at = Some(now);
-        self.camera.present = present || phone;
+        // A phone counts only with someone in view: a phone on the desk of an empty chair is
+        // nobody's distraction, and there is nobody to remind.
+        let phone = phone && present;
+        self.camera.present = present;
         if self.camera.present {
             self.camera.absent_since = None;
             self.seen_at = self.seen_at.max(now);
@@ -2314,6 +2317,20 @@ mod tests {
         assert!(current.camera.phone_distracted);
         assert_eq!(current.metrics.nudges, 1);
         assert_eq!(current.metrics.phone_seconds, 5);
+    }
+
+    #[test]
+    fn a_phone_with_nobody_in_view_is_neither_a_phone_nor_a_person() {
+        let mut manager = webcam_manager();
+        manager.start(input("Phone", Strictness::Strict), seconds(0));
+        record(&mut manager, sample("Code", "plan.md", 0.0), seconds(0));
+        for t in 1..=6 {
+            manager.record_webcam(true, false, seconds(t));
+        }
+        let current = manager.snapshot(seconds(6)).current.unwrap();
+        assert!(!current.camera.phone && !current.camera.phone_distracted);
+        assert_eq!(current.metrics.nudges, 0);
+        assert_eq!(current.metrics.phone_seconds, 0);
     }
 
     #[test]

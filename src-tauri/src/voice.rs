@@ -2308,12 +2308,35 @@ fn available_ram_bytes() -> Option<u64> {
     None
 }
 
+/// Voices, their lines and the engine, under Local AppData on Windows: the engine is 2 GB,
+/// and Roaming AppData follows a domain account from machine to machine. On the Mac both
+/// folders are one.
 fn voice_root(app: &AppHandle) -> Result<PathBuf, String> {
     Ok(app
         .path()
-        .app_data_dir()
+        .app_local_data_dir()
         .map_err(|error| error.to_string())?
         .join("voice"))
+}
+
+/// The first release kept the voice folder under Roaming AppData. One rename at launch brings
+/// it over; a rename that fails (a redirected profile on another drive) is logged and the app
+/// starts afresh, with the old folder still there.
+pub fn adopt_roaming_voice_folder(app: &AppHandle) {
+    let (Ok(old), Ok(new)) = (app.path().app_data_dir(), voice_root(app)) else {
+        return;
+    };
+    let old = old.join("voice");
+    if old == new || !old.is_dir() || new.exists() {
+        return;
+    }
+    let moved = new
+        .parent()
+        .map_or(Ok(()), fs::create_dir_all)
+        .and_then(|()| fs::rename(&old, &new));
+    if let Err(error) = moved {
+        eprintln!("voice folder stays at {}: could not move it to {}: {error}", old.display(), new.display());
+    }
 }
 
 /// The file at `value` if it sits under the voice folder. Both sides are resolved for the
