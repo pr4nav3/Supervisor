@@ -34,6 +34,8 @@ pub const BROWSERS: &[&str] = &[
     "firefox nightly",
     "safari technology preview",
     "opera gx",
+    // Zen is Firefox underneath: zen.exe on Windows, "Zen Browser" on macOS.
+    "zen",
     "zen browser",
     "orion",
     "duckduckgo",
@@ -295,7 +297,9 @@ mod tests {
         assert_eq!(classify_address("localhost:3000"), site(LOCAL_NETWORK));
         assert!(is_browser("google chrome canary"));
         assert!(is_browser("safari technology preview"));
-        assert!(!is_browser("zen"));
+        // Zen's exe stem on Windows; without it every site opened in Zen counts as work.
+        assert!(is_browser("zen"));
+        assert!(!is_browser("thorium"));
     }
 
     #[test]

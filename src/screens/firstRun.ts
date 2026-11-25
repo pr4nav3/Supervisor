@@ -270,9 +270,11 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
       `;
     }
     if (!practice.caught) {
+      // The poll rebuilds the layer when the browser in front changes, so the notice tracks it.
       return `
         <p class="first-run-copy">Open <b>${escapeHtml(target)}</b> and leave it open. Supervisor notices after about 30 seconds.</p>
         ${renderPracticeLive(snapshot?.current ?? null, target)}
+        ${renderUnreadableBrowserNotice(snapshot?.current?.unreadable_browser ?? null)}
         <div class="first-run-actions"><span></span><button type="button" data-action="first-run-end-practice">End practice</button></div>
       `;
     }

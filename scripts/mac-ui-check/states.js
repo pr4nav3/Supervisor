@@ -79,6 +79,7 @@ const STATES = [
   // Getting started, every step through the practice.
   ["first-run-catch", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } }],
   ["first-run-practising", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } await sleep(300); click(d, '[data-action="first-run-practice"]'); await sleep(1000); }],
+  ["first-run-practising-unreadable", M + "?empty=1&unreadable=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } await sleep(300); click(d, '[data-action="first-run-practice"]'); await sleep(1000); if (!d.querySelector(".first-run-panel .notice-access")) throw new Error("no unreadable browser notice in the practice"); }],
   ["first-run-caught", M + "?empty=1", async (d) => { click(d, '[data-action="onboard-show"]'); for (let i = 0; i < 6 && !d.querySelector('[data-action="first-run-practice"]'); i++) { await sleep(300); click(d, '[data-action="first-run-next"]'); } await sleep(300); click(d, '[data-action="first-run-practice"]'); await sleep(8000); }],
 ];
 // mock.html?dark=1 as the outer page runs every state in the dark theme.

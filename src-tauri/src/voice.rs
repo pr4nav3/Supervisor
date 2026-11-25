@@ -1698,14 +1698,17 @@ fn run_recording_thread(
     ready: mpsc::Sender<Result<(), String>>,
 ) {
     let host = cpal::default_host();
+    // The user sees plain words; the device's own account goes to stderr for a problem report.
     let Some(device) = host.default_input_device() else {
-        let _ = ready.send(Err("No microphone input device is available.".to_string()));
+        eprintln!("Supervisor voice recording: no default input device");
+        let _ = ready.send(Err(NO_MICROPHONE.to_string()));
         return;
     };
     let supported_config = match device.default_input_config() {
         Ok(config) => config,
         Err(error) => {
-            let _ = ready.send(Err(format!("Could not open microphone input: {error}")));
+            eprintln!("Supervisor voice recording: default input config: {error}");
+            let _ = ready.send(Err(microphone_start_failed()));
             return;
         }
     };
@@ -1746,20 +1749,22 @@ fn run_recording_thread(
             None,
         ),
         format => {
-            let _ = ready.send(Err(format!(
-                "Unsupported microphone sample format: {format:?}"
-            )));
+            eprintln!("Supervisor voice recording: unsupported sample format {format:?}");
+            let _ = ready.send(Err(microphone_start_failed()));
             return;
         }
     };
-    let Ok(stream) = stream else {
-        let _ = ready.send(Err("Could not create microphone input stream.".to_string()));
-        return;
+    let stream = match stream {
+        Ok(stream) => stream,
+        Err(error) => {
+            eprintln!("Supervisor voice recording: build input stream: {error}");
+            let _ = ready.send(Err(microphone_start_failed()));
+            return;
+        }
     };
     if let Err(error) = stream.play() {
-        let _ = ready.send(Err(format!(
-            "Could not start microphone recording: {error}"
-        )));
+        eprintln!("Supervisor voice recording: start stream: {error}");
+        let _ = ready.send(Err(microphone_start_failed()));
         return;
     }
     let _ = ready.send(Ok(()));
@@ -1798,17 +1803,36 @@ fn run_recording_thread(
     }
 }
 
-/// A blocked microphone records digital silence on macOS (and on Windows with the privacy
-/// switch off) instead of failing; a voice made from that would be a voice of nothing.
-fn silent_recording_message() -> String {
-    let settings = if cfg!(target_os = "macos") {
+const NO_MICROPHONE: &str =
+    "No microphone was found. Plug one in or pick one in your system's sound settings, then try again.";
+
+/// Where the OS keeps the microphone switch, for messages that ask the user to check it.
+fn microphone_settings_hint() -> &'static str {
+    if cfg!(target_os = "macos") {
         " (System Settings > Privacy & Security > Microphone)"
     } else if cfg!(target_os = "windows") {
         " (Settings > Privacy & security > Microphone)"
     } else {
         ""
-    };
-    format!("The recording is silent. Check that Supervisor can use the microphone{settings} and that the right input is selected, then record again.")
+    }
+}
+
+/// Any failure between finding the microphone and hearing from it: the causes a user can fix
+/// are another app holding it or the OS not allowing Supervisor to use it.
+fn microphone_start_failed() -> String {
+    format!(
+        "The microphone couldn't be started. Check that nothing else is using it and that Supervisor is allowed to use it{}, then try again.",
+        microphone_settings_hint()
+    )
+}
+
+/// A blocked microphone records digital silence on macOS (and on Windows with the privacy
+/// switch off) instead of failing; a voice made from that would be a voice of nothing.
+fn silent_recording_message() -> String {
+    format!(
+        "The recording is silent. Check that Supervisor can use the microphone{} and that the right input is selected, then record again.",
+        microphone_settings_hint()
+    )
 }
 
 const RECORDING_TOO_SHORT: &str = "That recording is too short. Read for 20 to 30 seconds.";
@@ -2913,5 +2937,28 @@ mod tests {
             std::process::id(),
             unix_millis()
         ))
+    }
+
+    #[test]
+    fn a_failed_check_for_updates_is_flagged_and_a_quiet_one_leaves_no_error_behind() {
+        let root = test_dir("check-failed");
+        let state = Arc::new(Mutex::new(VoiceDownloadState {
+            phase: VoiceDownloadPhase::Error,
+            error: Some(UPDATE_CHECK_FAILED.to_string()),
+            ..VoiceDownloadState::default()
+        }));
+        let snapshot = download_snapshot(&state.lock().unwrap(), &root);
+        assert!(snapshot.check_failed, "the Voice page skips this error; the popup shows it");
+        assert_eq!(snapshot.message, UPDATE_CHECK_FAILED);
+
+        assert_eq!(settle_quiet_check(&state), Some(false));
+        let snapshot = download_snapshot(&state.lock().unwrap(), &root);
+        assert_eq!(snapshot.phase, VoiceDownloadPhase::Idle);
+        assert!(!snapshot.check_failed);
+
+        // A download that really failed is an error the page should show.
+        state.lock().unwrap().phase = VoiceDownloadPhase::Error;
+        state.lock().unwrap().error = Some("The voice engine download was damaged. Try again.".to_string());
+        assert!(!download_snapshot(&state.lock().unwrap(), &root).check_failed);
     }
 }

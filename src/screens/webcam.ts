@@ -241,8 +241,9 @@ export function applyWebcamFrame(frame: WebcamFrame): void {
       } else if (snapshot?.current && webcamError !== lastWebcamToast && !frame.error.includes("stopped") && !frame.error.includes("GPU mode")) {
         // A session wanted the camera and it isn't working: say so once, wherever the user is.
         // A stopped worker restarts by itself and a GPU failure has its own toast.
+        // The worker's message already names the camera; the toast stays as long as it takes to read.
         lastWebcamToast = webcamError;
-        showFeedback(`Webcam: ${webcamError}`, 6000);
+        showFeedback(/camera|webcam/i.test(webcamError) ? webcamError : `Webcam: ${webcamError}`);
       }
       return;
     }

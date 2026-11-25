@@ -146,8 +146,10 @@ export async function refreshVoiceDownload(shouldRender = true): Promise<void> {
     if (download.phase === "downloading" || download.phase === "cancelling") {
       voiceBusy = "download-model";
       startDownloadPolling();
-    } else if (download.phase === "error" && !voiceError) {
+    } else if (download.phase === "error" && !download.check_failed && !voiceError) {
       // A download that failed before this page loaded; the modal is gone, so the notice says it.
+      // A check for updates that never reached the server is not that: the installed engine is
+      // fine, and the popup already says the check failed.
       voiceError = download.message;
     }
   } catch {

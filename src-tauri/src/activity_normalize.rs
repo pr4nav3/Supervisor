@@ -20,6 +20,7 @@ const BROWSER_EXE_SUFFIXES: &[(&str, &[&str])] = &[
         ],
     ),
     ("firefox", &[" — Mozilla Firefox", " - Mozilla Firefox"]),
+    ("zen", &[" — Zen Browser", " - Zen Browser"]),
     ("brave", &[" - Brave", " — Brave"]),
     ("opera", &[" - Opera", " — Opera", " - Opera GX", " — Opera GX"]),
     ("arc", &[" - Arc", " — Arc"]),
