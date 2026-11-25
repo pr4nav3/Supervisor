@@ -90,7 +90,7 @@ pub fn open_or_reset(
         Ok(path) => path,
         Err(reason) => return (None, Some(StorageNotice::Off { reason })),
     };
-    let reason = match SessionStorage::open(&path) {
+    let reason = match open_with_retries(&path) {
         Ok(opened) => return (Some(opened), None),
         Err(reason) if path.exists() && (matches!(reason.as_str(),
             "file is not a database" | "database disk image is malformed")
@@ -114,6 +114,28 @@ pub fn open_or_reset(
         ),
         Err(reason) => (None, Some(StorageNotice::Off { reason })),
     }
+}
+
+/// An antivirus scan, an indexer or a sync tool can hold the file for a moment at launch; one
+/// failed open would turn history off for the whole run. Up to five tries, a second apart.
+fn open_with_retries(path: &Path) -> Result<(SessionStorage, StoredState), String> {
+    let mut tries = 0;
+    loop {
+        tries += 1;
+        match SessionStorage::open(path) {
+            Err(reason) if tries < 5 && should_retry(&reason) => {
+                eprintln!("supervisor storage: open try {tries} failed: {reason}");
+                std::thread::sleep(std::time::Duration::from_secs(1));
+            }
+            result => return result,
+        }
+    }
+}
+
+/// Whether an open error is the file being held by another program rather than damage.
+fn should_retry(reason: &str) -> bool {
+    let reason = reason.to_ascii_lowercase();
+    ["locked", "busy", "unable to open"].iter().any(|word| reason.contains(word))
 }
 
 fn plain_failure(what: &str, error: &str) -> &'static str {
@@ -317,6 +339,9 @@ impl SessionStorage {
             std::fs::create_dir_all(parent).map_err(|error| error.to_string())?;
         }
         let conn = Connection::open(path).map_err(|error| error.to_string())?;
+        // Waits out a short hold by another program before the first PRAGMA fails on it.
+        conn.busy_timeout(std::time::Duration::from_secs(5))
+            .map_err(|error| error.to_string())?;
         let storage = Self::from_connection(conn)?;
         storage.recover_orphans()?;
         let state = StoredState {
@@ -607,7 +632,6 @@ impl SessionStorage {
                 PRAGMA foreign_keys = ON;
                 PRAGMA journal_mode = WAL;
                 PRAGMA synchronous = FULL;
-                PRAGMA busy_timeout = 2000;
                 PRAGMA secure_delete = ON;
                 ",
             )
@@ -1048,7 +1072,18 @@ impl SessionStorage {
                 .map_err(|error| error.to_string())?
         };
         for id in ids {
-            let ended_at = utc_now();
+            // The session's own record of where it got to, not the time of this launch.
+            let (started_at, last_span_end): (String, Option<i64>) = self
+                .conn
+                .query_row(
+                    "SELECT started_at,
+                        (SELECT MAX(started_offset_seconds + seconds) FROM span WHERE session_id = ?1)
+                     FROM session WHERE id = ?1",
+                    [id],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .map_err(|error| error.to_string())?;
+            let ended_at = recovered_end(&started_at, last_span_end).unwrap_or_else(utc_now);
             self.conn
                 .execute(
                     "UPDATE session SET ended_at = ?1, ended_reason = 'abandoned' WHERE id = ?2",
@@ -1527,16 +1562,33 @@ impl SessionStorage {
         self.conn
             .execute("DELETE FROM setting WHERE key = ?1", [KNOWN_WORK_KEY])
             .map_err(|error| error.to_string())?;
+        // So do the names of every app and site seen, except those a rule still points at:
+        // a rule's key must keep naming the same app.
+        self.conn
+            .execute_batch(
+                "DELETE FROM app_name WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app');
+                 DELETE FROM app_identity WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app');
+                 DELETE FROM site_name WHERE key NOT IN (SELECT value FROM rule WHERE target = 'website');",
+            )
+            .map_err(|error| error.to_string())?;
+        self.load_site_names()?;
+        self.load_app_names()?;
+        self.load_app_identities()?;
         // The settings page says deleting frees space, so the file has to shrink.
         self.conn
             .execute_batch("VACUUM")
             .map_err(|error| error.to_string())?;
         // In WAL mode VACUUM's pages land in the -wal file, which keeps the deleted text and
         // never shrinks until checkpointed and truncated.
+        self.checkpoint()
+    }
+
+    /// Moves everything in the -wal file into the database itself and empties the -wal. Run at
+    /// exit, so a backup or sync of sessions.db alone is not days behind.
+    pub fn checkpoint(&self) -> Result<(), String> {
         self.conn
             .execute_batch("PRAGMA wal_checkpoint(TRUNCATE)")
-            .map_err(|error| error.to_string())?;
-        Ok(())
+            .map_err(|error| error.to_string())
     }
 
     /// Spans with `rated_state` applied. Pass no rules when only the offsets matter.
@@ -1807,6 +1859,16 @@ fn this_monday() -> time::Date {
 
 fn calendar_day(instant: time::OffsetDateTime, offset: time::UtcOffset) -> String {
     format_day(instant.to_offset(offset).date())
+}
+
+/// When a crashed session was last seen: its start plus the end of its last span. `None` when
+/// nothing was recorded or the start does not parse; the caller falls back to now.
+fn recovered_end(started_at: &str, last_span_end: Option<i64>) -> Option<String> {
+    let seconds = last_span_end.filter(|seconds| *seconds >= 0)?;
+    let rfc3339 = time::format_description::well_known::Rfc3339;
+    let started = time::OffsetDateTime::parse(started_at, &rfc3339).ok()?;
+    let ended = started.checked_add(time::Duration::seconds(seconds))?;
+    ended.format(&rfc3339).ok()
 }
 
 fn local_day(started_at: &str) -> String {
@@ -2314,6 +2376,24 @@ mod tests {
         assert_eq!(report.longest_stretch_seconds, 300);
         assert_eq!(report.median_stretch_seconds, 240);
         assert_eq!(report.focus_percent, 80);
+    }
+
+    #[test]
+    fn delete_all_history_forgets_names_a_rule_does_not_use() {
+        let storage = SessionStorage::open_in_memory().expect("open db");
+        storage.set_site_name("nytimes.com", "NYT").expect("name");
+        storage.set_site_name("youtube.com", "Videos").expect("name");
+        storage.set_app_name("code", "Editor").expect("name");
+        let key = storage.app_key("path:c:/apps/zed/zed.exe", "zed", "Zed");
+        storage
+            .replace_rules(&[AppRule { target: RuleTarget::Website, value: "youtube.com".to_string() }])
+            .expect("rules");
+        storage.delete_all_history().expect("delete");
+        assert_eq!(storage.site_names().get("youtube.com").map(String::as_str), Some("Videos"));
+        assert!(storage.site_names().get("nytimes.com").is_none());
+        assert_eq!(storage.app_label("code", "code"), "code");
+        // A forgotten identity is assigned afresh on its next sighting.
+        assert_eq!(storage.app_key("path:c:/apps/zed/zed.exe", "zed", "Zed"), key);
     }
 
     #[test]
@@ -2869,14 +2949,63 @@ mod tests {
         storage
             .insert_span(id, &app("Code"), "focused", 0, 90)
             .expect("insert span");
+        storage
+            .insert_span(id, &app("Code"), "focused", 90, 30)
+            .expect("insert span");
+        // A second crashed session with nothing recorded can only end "now".
+        let empty = storage
+            .insert_session("Crash too", Strictness::Strict, "2026-09-22T09:00:00Z", 1500)
+            .expect("insert session");
 
         storage.recover_orphans().expect("recover");
 
         let report = storage.get_session_report(id).expect("report");
         assert_eq!(report.ended_reason.as_deref(), Some("abandoned"));
         // Ended: finished sessions are the only ones History lists.
-        assert_eq!(storage.list_history(10).expect("history").len(), 1);
-        assert_eq!(report.focused_seconds, 90);
+        assert_eq!(storage.list_history(10).expect("history").len(), 2);
+        assert_eq!(report.focused_seconds, 120);
+        // It ended where its last span did, not when the next launch found it.
+        let ended_at = |id: u64| -> String {
+            storage
+                .conn
+                .query_row("SELECT ended_at FROM session WHERE id = ?1", [id], |row| row.get(0))
+                .expect("ended_at")
+        };
+        assert_eq!(ended_at(id), "2026-09-22T08:02:00Z");
+        assert!(ended_at(empty).starts_with(&utc_now()[..10]));
+        assert_eq!(recovered_end("not a date", Some(5)), None);
+        assert_eq!(recovered_end("2026-09-22T08:00:00Z", None), None);
+    }
+
+    #[test]
+    fn a_checkpoint_empties_the_wal_file() {
+        let dir = std::env::temp_dir().join(format!("supervisor-storage-wal-{}", std::process::id()));
+        let path = dir.join("sessions.db");
+        let _ = std::fs::remove_dir_all(&dir);
+        let (storage, _) = SessionStorage::open(&path).expect("open db");
+        storage
+            .insert_session("Checkpoint", Strictness::Normal, "2026-09-22T08:00:00Z", 600)
+            .expect("insert session");
+        let wal = path.with_file_name("sessions.db-wal");
+        assert!(std::fs::metadata(&wal).is_ok_and(|meta| meta.len() > 0), "the write lands in the -wal first");
+
+        storage.checkpoint().expect("checkpoint");
+
+        assert_eq!(std::fs::metadata(&wal).map(|meta| meta.len()).unwrap_or(0), 0);
+        drop(storage);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_held_file_is_retried_and_a_damaged_one_is_not() {
+        assert!(should_retry("database is locked"));
+        assert!(should_retry("database table is locked"));
+        assert!(should_retry("database is busy"));
+        assert!(should_retry("unable to open database file"));
+        assert!(!should_retry("file is not a database"));
+        assert!(!should_retry("database disk image is malformed"));
+        assert!(!should_retry("database is damaged: row 3 missing"));
+        assert!(!should_retry("unsupported database schema version 999"));
     }
 
     #[test]

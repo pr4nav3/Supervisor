@@ -811,6 +811,19 @@ fn sessions(state: &AppState) -> std::sync::MutexGuard<'_, SessionManager> {
     state.sessions.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
+/// One turn of a background loop. A panic inside is logged and swallowed, so the thread goes on
+/// to its next turn instead of dying with the UI still showing a session nothing tracks.
+pub(crate) fn guarded(name: &str, body: impl FnOnce()) {
+    if let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
+        let message = payload
+            .downcast_ref::<&str>()
+            .map(|text| text.to_string())
+            .or_else(|| payload.downcast_ref::<String>().cloned())
+            .unwrap_or_else(|| "unknown panic".to_string());
+        eprintln!("supervisor: {name} panicked: {message}");
+    }
+}
+
 fn database_path(app: &tauri::App) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
@@ -819,16 +832,26 @@ fn database_path(app: &tauri::App) -> Result<PathBuf, String> {
 }
 
 /// A release build has no console, so every `eprintln!` (and the workers' stderr, which they
-/// inherit) would be lost. Points stderr at `path` instead, starting over when it passes 1 MB.
-/// A development build keeps its console.
+/// inherit) would be lost. Points stderr at `path` instead. A thread checks the file once a
+/// minute and empties it when it passes 1 MB, so a line repeated every few seconds for weeks
+/// cannot fill the disk. A development build keeps its console.
 fn log_stderr_to_file(path: &std::path::Path) {
     if cfg!(debug_assertions) {
         return;
     }
-    if std::fs::metadata(path).is_ok_and(|meta| meta.len() > 1 << 20) {
-        let _ = std::fs::remove_file(path);
+    // On a first run nothing has made the data folder yet.
+    if let Some(dir) = path.parent() {
+        let _ = std::fs::create_dir_all(dir);
     }
     let Ok(file) = std::fs::OpenOptions::new().create(true).append(true).open(path) else { return };
+    let capped = path.to_path_buf();
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(60));
+        if std::fs::metadata(&capped).is_ok_and(|meta| meta.len() > 1 << 20) {
+            // The appending stderr handle writes at the end, wherever that now is.
+            let _ = std::fs::OpenOptions::new().write(true).truncate(true).open(&capped);
+        }
+    });
     #[cfg(windows)]
     {
         use std::os::windows::io::IntoRawHandle;
@@ -1029,6 +1052,8 @@ pub fn run() {
                 let mut sessions = sessions(&state);
                 let now = state.started_at.elapsed();
                 sessions.stop(now);
+                // Folds the -wal into sessions.db, so a backup of that file alone is current.
+                let _ = sessions.checkpoint();
                 drop(sessions);
                 // Cancel first: a release alone waits for a running clip to finish.
                 voice::cancel_generation(&state.voice_worker);
@@ -1685,38 +1710,42 @@ fn visible_frame(window: &tauri::WebviewWindow) -> Option<FrameEdges> {
 fn start_voice_update_check(app: AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(120));
-        let state = app.state::<AppState>();
-        let in_session = sessions(&state).should_poll_activity();
-        if in_session
-            || state.voice_worker.is_busy()
-            || voice::download_active(&state.voice_download)
-            || !voice::engine_installed(&app)
-            || !voice::update_check_due(&app)
-        {
-            continue;
-        }
-        voice::mark_update_checked(&app);
-        voice::release_worker(&state.voice_worker);
-        if voice::start_model_download(app.clone(), Arc::clone(&state.voice_download)).is_err() {
-            continue;
-        }
-        let fetched = loop {
-            std::thread::sleep(Duration::from_secs(2));
-            if let Some(fetched) = voice::settle_quiet_check(&state.voice_download) {
-                break fetched;
+        guarded("voice update check", || {
+            let state = app.state::<AppState>();
+            let in_session = sessions(&state).should_poll_activity();
+            if in_session
+                || state.voice_worker.is_busy()
+                || voice::download_active(&state.voice_download)
+                || !voice::engine_installed(&app)
+                || !voice::update_check_due(&app)
+            {
+                return;
             }
-        };
-        if fetched {
-            let _ = app.emit("voice-engine-updated", ());
-        }
+            voice::mark_update_checked(&app);
+            voice::release_worker(&state.voice_worker);
+            if voice::start_model_download(app.clone(), Arc::clone(&state.voice_download)).is_err() {
+                return;
+            }
+            let fetched = loop {
+                std::thread::sleep(Duration::from_secs(2));
+                if let Some(fetched) = voice::settle_quiet_check(&state.voice_download) {
+                    break fetched;
+                }
+            };
+            if fetched {
+                let _ = app.emit("voice-engine-updated", ());
+            }
+        });
     });
 }
 
 fn start_voice_worker_ticker(app: AppHandle) {
     std::thread::spawn(move || loop {
         std::thread::sleep(Duration::from_secs(5));
-        let state = app.state::<AppState>();
-        voice::tick_worker(&state.voice_worker);
+        guarded("voice worker ticker", || {
+            let state = app.state::<AppState>();
+            voice::tick_worker(&state.voice_worker);
+        });
     });
 }
 
@@ -1832,76 +1861,78 @@ fn start_session_ticker(app: AppHandle) {
             app.exit(0);
             return;
         }
-
-        let (ended_after_tick, should_poll, pause_label) = {
-            let state = app.state::<AppState>();
-            // The lock first, then the clock: a command holding the lock for long (a VACUUM)
-            // must not read as the machine having slept.
-            let mut sessions = sessions(&state);
-            let now = state.started_at.elapsed();
-            // This loop runs every second; a long silence means the machine slept or froze.
-            if now.saturating_sub(last_loop) > session::LOST_TIME_AFTER {
-                sessions.record_lost_time(last_loop, now);
-            }
-            last_loop = now;
-            let had_current = sessions.has_current();
-            // A new session starts its counts over, whatever its id (0 with history off).
-            if had_current && !was_running {
-                nudges_seen = (0, 0);
-                moments_seen = (0, 0);
-            }
-            was_running = had_current;
-            let snapshot = sessions.tick(now);
-            // A phone nudge can come from a webcam frame or this tick; both show up here.
-            announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
-            (
-                had_current && matches!(snapshot.status, session::SessionStatus::Idle),
-                sessions.should_poll_activity(),
-                tray_pause_label(&snapshot),
-            )
-        };
-        set_tray_pause_label(&app, &mut tray_label, pause_label);
-        if ended_after_tick {
-            session_ended(&app);
-        }
-        sync_session_webcam(&app);
-        if !should_poll {
-            continue;
-        }
-
-        let Ok(sample) = activity::current_activity_sample() else {
-            let ended = {
+        // One tick; a panic in it is logged and the next second's tick runs anyway.
+        guarded("session ticker", || {
+            let (ended_after_tick, should_poll, pause_label) = {
                 let state = app.state::<AppState>();
+                // The lock first, then the clock: a command holding the lock for long (a VACUUM)
+                // must not read as the machine having slept.
                 let mut sessions = sessions(&state);
                 let now = state.started_at.elapsed();
+                // This loop runs every second; a long silence means the machine slept or froze.
+                if now.saturating_sub(last_loop) > session::LOST_TIME_AFTER {
+                    sessions.record_lost_time(last_loop, now);
+                }
                 last_loop = now;
-                sessions.record_capture_gap(now);
                 let had_current = sessions.has_current();
+                // A new session starts its counts over, whatever its id (0 with history off).
+                if had_current && !was_running {
+                    nudges_seen = (0, 0);
+                    moments_seen = (0, 0);
+                }
+                was_running = had_current;
                 let snapshot = sessions.tick(now);
-                had_current && matches!(snapshot.status, session::SessionStatus::Idle)
+                // A phone nudge can come from a webcam frame or this tick; both show up here.
+                announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
+                (
+                    had_current && matches!(snapshot.status, session::SessionStatus::Idle),
+                    sessions.should_poll_activity(),
+                    tray_pause_label(&snapshot),
+                )
             };
+            set_tray_pause_label(&app, &mut tray_label, pause_label);
+            if ended_after_tick {
+                session_ended(&app);
+            }
+            sync_session_webcam(&app);
+            if !should_poll {
+                return;
+            }
+
+            let Ok(sample) = activity::current_activity_sample() else {
+                let ended = {
+                    let state = app.state::<AppState>();
+                    let mut sessions = sessions(&state);
+                    let now = state.started_at.elapsed();
+                    last_loop = now;
+                    sessions.record_capture_gap(now);
+                    let had_current = sessions.has_current();
+                    let snapshot = sessions.tick(now);
+                    had_current && matches!(snapshot.status, session::SessionStatus::Idle)
+                };
+                if ended {
+                    session_ended(&app);
+                }
+                return;
+            };
+
+            let ended = {
+                let state = app.state::<AppState>();
+                let identity = state.identity.clone();
+                let mut sessions = sessions(&state);
+                let now = state.started_at.elapsed();
+                let was_polling = sessions.should_poll_activity();
+                let snapshot = sessions.record_sample(sample, now, &identity);
+                // A slow capture (a hung Accessibility read) is not the machine sleeping.
+                last_loop = now;
+                announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
+                was_polling && matches!(snapshot.status, session::SessionStatus::Idle)
+            };
+
             if ended {
                 session_ended(&app);
             }
-            continue;
-        };
-
-        let ended = {
-            let state = app.state::<AppState>();
-            let identity = state.identity.clone();
-            let mut sessions = sessions(&state);
-            let now = state.started_at.elapsed();
-            let was_polling = sessions.should_poll_activity();
-            let snapshot = sessions.record_sample(sample, now, &identity);
-            // A slow capture (a hung Accessibility read) is not the machine sleeping.
-            last_loop = now;
-            announce(&app, &snapshot, &mut nudges_seen, &mut moments_seen);
-            was_polling && matches!(snapshot.status, session::SessionStatus::Idle)
-        };
-
-        if ended {
-            session_ended(&app);
-        }
+        });
     });
 }
 

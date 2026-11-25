@@ -93,6 +93,11 @@ impl SessionManager {
         Ok(())
     }
 
+    /// Folds the -wal file into sessions.db; run at exit.
+    pub fn checkpoint(&self) -> Result<(), String> {
+        self.storage()?.checkpoint()
+    }
+
     /// Clears the "started a fresh database" card and a failed save; a later failure shows
     /// again. History being off stays: nothing the user dismisses fixes it.
     pub fn dismiss_storage_notice(&mut self, now: Duration) -> SessionSnapshot {

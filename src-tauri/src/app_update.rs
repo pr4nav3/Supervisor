@@ -1,9 +1,10 @@
 //! Supervisor's own updates. The GitHub release's latest.json names the newest version and its
 //! installer, signed with the release key whose public half is in tauri.conf.json; the updater
 //! refuses anything that key did not sign. A check runs two minutes after launch and then once a
-//! day, and the Settings button runs the same check. Installing waits for the user.
+//! day by the clock on the wall (a laptop that sleeps every night still checks daily), and the
+//! Settings button runs the same check. Installing waits for the user.
 
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_updater::{Error, UpdaterExt};
 
@@ -67,19 +68,48 @@ pub fn start_check(app: AppHandle) {
     }
     std::thread::spawn(move || {
         std::thread::sleep(Duration::from_secs(120));
+        let mut last_check = None;
         loop {
-            if in_session(&app) {
-                std::thread::sleep(Duration::from_secs(600));
-                continue;
+            if check_due(last_check, SystemTime::now()) && !in_session(&app) {
+                crate::guarded("app update check", || {
+                    if let Ok(Some(version)) = tauri::async_runtime::block_on(check_app_update(app.clone())) {
+                        let _ = app.emit("app-update-available", version);
+                    }
+                });
+                last_check = Some(SystemTime::now());
             }
-            if let Ok(Some(version)) = tauri::async_runtime::block_on(check_app_update(app.clone())) {
-                let _ = app.emit("app-update-available", version);
-            }
-            std::thread::sleep(Duration::from_secs(24 * 60 * 60));
+            std::thread::sleep(Duration::from_secs(600));
         }
     });
 }
 
+/// A day since the last check by the wall clock, which keeps counting while the machine sleeps;
+/// a clock set back counts as due, one early check being harmless.
+fn check_due(last_check: Option<SystemTime>, now: SystemTime) -> bool {
+    last_check.is_none_or(|last| {
+        now.duration_since(last).is_ok_and(|since| since >= Duration::from_secs(24 * 60 * 60))
+            || now < last
+    })
+}
+
 fn in_session(app: &AppHandle) -> bool {
     crate::sessions(&app.state::<crate::AppState>()).has_current()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_daily_check_goes_by_the_wall_clock() {
+        let day = Duration::from_secs(24 * 60 * 60);
+        let start = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+        assert!(check_due(None, start));
+        assert!(!check_due(Some(start), start + Duration::from_secs(600)));
+        assert!(!check_due(Some(start), start + day - Duration::from_secs(1)));
+        assert!(check_due(Some(start), start + day));
+        // Slept through two nights: still due, since the clock ran while the machine did not.
+        assert!(check_due(Some(start), start + 3 * day));
+        assert!(check_due(Some(start), start - Duration::from_secs(1)));
+    }
 }
