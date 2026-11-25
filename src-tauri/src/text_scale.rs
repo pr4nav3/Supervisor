@@ -6,7 +6,7 @@
 use tauri::{AppHandle, LogicalSize, Manager};
 
 /// What Windows multiplies text by (1 to 2.25); 1 where there is no such setting.
-pub fn factor() -> f64 {
+fn factor() -> f64 {
     #[cfg(windows)]
     {
         use windows::UI::ViewManagement::UISettings;

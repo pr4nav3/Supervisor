@@ -122,7 +122,7 @@ async fn start_session(
     let should_show_status = sessions.status_window_enabled();
     let snapshot = sessions.snapshot(now);
     drop(sessions);
-    voice::release_worker(&state.voice_worker);
+    state.voice_worker.release();
     sync_session_webcam(&app);
 
     if should_show_status {
@@ -381,13 +381,39 @@ async fn system_line() -> String {
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     let version: Option<std::process::Output> = None;
     let version = version.map(|out| String::from_utf8_lossy(&out.stdout).into_owned()).unwrap_or_default();
-    system_line_from(std::env::consts::OS, &version, std::env::consts::ARCH)
+    // Windows tells an x64 program on an ARM64 machine (emulated) what the machine really is.
+    let machine = if cfg!(windows) {
+        std::env::var("PROCESSOR_ARCHITEW6432").or_else(|_| std::env::var("PROCESSOR_ARCHITECTURE")).unwrap_or_default()
+    } else {
+        String::new()
+    };
+    system_line_from(std::env::consts::OS, &version, &arch_line(std::env::consts::ARCH, &machine))
 }
 
 fn system_line_from(os: &str, version: &str, arch: &str) -> String {
     // The last word works in any language: "[Version 10.0...]", "[version 10.0...]", "15.1".
     let version = version.trim().trim_end_matches(']').split_whitespace().last().unwrap_or("");
     [os, version, arch].into_iter().filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" ")
+}
+
+/// The build's architecture, or the machine's when Windows says it differs (an x64 build under
+/// emulation). Windows names them AMD64, ARM64, x86; Rust x86_64, aarch64, x86.
+fn arch_line(build: &str, machine: &str) -> String {
+    let machine = machine.to_ascii_lowercase();
+    let build_as_windows = match build {
+        "x86_64" => "amd64",
+        "aarch64" => "arm64",
+        other => other,
+    };
+    if machine.is_empty() || machine == build_as_windows {
+        return build.to_string();
+    }
+    let build = match build {
+        "x86_64" => "x64",
+        "aarch64" => "arm64",
+        other => other,
+    };
+    format!("{machine} (running the {build} build)")
 }
 
 #[tauri::command]
@@ -602,7 +628,7 @@ async fn start_voice_model_download(
     if state.voice_worker.is_busy() {
         return Err("A line is generating. Wait for it or cancel it first.".to_string());
     }
-    voice::release_worker(&state.voice_worker);
+    state.voice_worker.release();
     voice::start_model_download(app, Arc::clone(&state.voice_download))
 }
 
@@ -634,7 +660,7 @@ async fn delete_voice_cloning_model(
     if voice::download_active(&state.voice_download) {
         return Err("A download is running. Cancel it first.".to_string());
     }
-    voice::release_worker(&state.voice_worker);
+    state.voice_worker.release();
     voice::delete_model(&app)
 }
 
@@ -688,19 +714,24 @@ async fn generate_voice_clips(
 
 #[tauri::command]
 fn release_voice_worker(state: State<'_, AppState>) {
-    voice::release_worker(&state.voice_worker);
+    state.voice_worker.release();
 }
 
 #[tauri::command]
 fn cancel_voice_generation(state: State<'_, AppState>) {
-    voice::cancel_generation(&state.voice_worker);
+    state.voice_worker.cancel();
 }
 
 #[tauri::command]
 fn delete_voice_profile(
     app: AppHandle,
     profile_id: String,
+    state: State<'_, AppState>,
 ) -> Result<Vec<voice::VoiceProfileSummary>, String> {
+    // A line finishing after the delete would put the voice's folder back, as a ghost.
+    if state.voice_worker.is_busy() {
+        return Err("Wait for the line being generated to finish, then delete the voice.".to_string());
+    }
     voice::delete_profile(&app, profile_id)
 }
 
@@ -817,9 +848,9 @@ pub(crate) fn guarded(name: &str, body: impl FnOnce()) {
     if let Err(payload) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body)) {
         let message = payload
             .downcast_ref::<&str>()
-            .map(|text| text.to_string())
-            .or_else(|| payload.downcast_ref::<String>().cloned())
-            .unwrap_or_else(|| "unknown panic".to_string());
+            .copied()
+            .or_else(|| payload.downcast_ref::<String>().map(String::as_str))
+            .unwrap_or("unknown panic");
         eprintln!("supervisor: {name} panicked: {message}");
     }
 }
@@ -831,8 +862,8 @@ fn database_path(app: &tauri::App) -> Result<PathBuf, String> {
         .map(|dir| dir.join("sessions.db"))
 }
 
-/// A release build has no console, so every `eprintln!` (and the workers' stderr, which they
-/// inherit) would be lost. Points stderr at `path` instead. A thread checks the file once a
+/// A release build has no console, so every `eprintln!` (and the webcam worker's stderr, which
+/// it inherits; the voice worker's is piped and logged by hand) would be lost. Points stderr at `path` instead. A thread checks the file once a
 /// minute and empties it when it passes 1 MB, so a line repeated every few seconds for weeks
 /// cannot fill the disk. A development build keeps its console.
 fn log_stderr_to_file(path: &std::path::Path) {
@@ -1056,8 +1087,8 @@ pub fn run() {
                 let _ = sessions.checkpoint();
                 drop(sessions);
                 // Cancel first: a release alone waits for a running clip to finish.
-                voice::cancel_generation(&state.voice_worker);
-                voice::release_worker(&state.voice_worker);
+                state.voice_worker.cancel();
+                state.voice_worker.release();
                 webcam::stop_preview(&state.webcam);
             }
             _ => {}
@@ -1722,7 +1753,7 @@ fn start_voice_update_check(app: AppHandle) {
                 return;
             }
             voice::mark_update_checked(&app);
-            voice::release_worker(&state.voice_worker);
+            state.voice_worker.release();
             if voice::start_model_download(app.clone(), Arc::clone(&state.voice_download)).is_err() {
                 return;
             }
@@ -1744,7 +1775,7 @@ fn start_voice_worker_ticker(app: AppHandle) {
         std::thread::sleep(Duration::from_secs(5));
         guarded("voice worker ticker", || {
             let state = app.state::<AppState>();
-            voice::tick_worker(&state.voice_worker);
+            state.voice_worker.tick();
         });
     });
 }
@@ -1753,8 +1784,6 @@ fn start_voice_worker_ticker(app: AppHandle) {
 /// OS throttles while the window is minimized or hidden (up to a minute late); this thread isn't.
 const NUDGE_EVENT: &str = "session-nudge";
 
-/// Whether the snapshot has a nudge the main window hasn't been told about. `seen` is the last
-/// announced (session id, nudge count).
 /// Tells the windows about a reminder or a Pomodoro moment that `snapshot` is the first to show.
 fn announce(app: &AppHandle, snapshot: &SessionSnapshot, nudges_seen: &mut (u64, u64), moments_seen: &mut (u64, u64)) {
     if new_nudge(nudges_seen, snapshot) {
@@ -1959,7 +1988,7 @@ fn with_sessions(
 
 #[cfg(test)]
 mod tests {
-    use super::{counted_new_nudge, system_line_from};
+    use super::{arch_line, counted_new_nudge, guarded, system_line_from};
 
     #[test]
     fn the_system_line_names_the_real_os_version() {
@@ -1973,7 +2002,23 @@ mod tests {
             "windows 10.0.19045.4529 x86_64"
         );
         assert_eq!(system_line_from("linux", "", "x86_64"), "linux x86_64");
-        assert!(tauri::async_runtime::block_on(super::system_line()).starts_with(std::env::consts::OS));
+    }
+
+    #[test]
+    fn the_machine_is_named_when_the_build_runs_under_emulation() {
+        assert_eq!(arch_line("x86_64", "AMD64"), "x86_64");
+        assert_eq!(arch_line("x86_64", ""), "x86_64");
+        assert_eq!(arch_line("aarch64", "ARM64"), "aarch64");
+        assert_eq!(arch_line("x86_64", "ARM64"), "arm64 (running the x64 build)");
+    }
+
+    #[test]
+    fn a_guarded_turn_survives_a_panic() {
+        let mut after = false;
+        guarded("test", || panic!("boom"));
+        guarded("test", || panic!("{}", String::from("boom")));
+        guarded("test", || after = true);
+        assert!(after);
     }
 
     #[test]

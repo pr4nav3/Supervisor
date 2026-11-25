@@ -5,10 +5,10 @@ use std::net::IpAddr;
 use url::{Host, Url};
 
 /// One row for localhost, private IPs, and intranet names.
-pub const LOCAL_NETWORK: &str = "local-network";
+const LOCAL_NETWORK: &str = "local-network";
 
 /// Windows exe stems and macOS app names, lowercased. Thorium is a book app, not a browser.
-pub const BROWSERS: &[&str] = &[
+const BROWSERS: &[&str] = &[
     "chrome",
     "chromium",
     "msedge",

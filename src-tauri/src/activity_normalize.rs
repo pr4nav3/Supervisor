@@ -15,8 +15,8 @@ const BROWSER_EXE_SUFFIXES: &[(&str, &[&str])] = &[
         &[
             " - Microsoft Edge",
             " — Microsoft Edge",
-            " - Microsoft​ Edge",
-            " — Microsoft​ Edge",
+            " - Microsoft\u{200B} Edge",
+            " — Microsoft\u{200B} Edge",
         ],
     ),
     ("firefox", &[" — Mozilla Firefox", " - Mozilla Firefox"]),
@@ -151,7 +151,7 @@ pub fn normalize_title_for_browser(exe_name: &str, raw_title: &str) -> Option<St
     normalize_title_text(&strip_browser_profile_segment(&without_suffix)).or(Some(base))
 }
 
-pub fn strip_browser_suffix_for_exe(exe_name: &str, title: &str) -> String {
+fn strip_browser_suffix_for_exe(exe_name: &str, title: &str) -> String {
     let exe_key = exe_stem_lower(exe_name);
     let normalized_title = strip_zero_width(title);
 
@@ -193,8 +193,8 @@ fn strip_profile_browser_suffix(title: &str, browser_key: &str) -> Option<String
     let edge_markers = [
         " - Microsoft Edge",
         " — Microsoft Edge",
-        " - Microsoft​ Edge",
-        " — Microsoft​ Edge",
+        " - Microsoft\u{200B} Edge",
+        " — Microsoft\u{200B} Edge",
     ];
     let chrome_markers = [" - Google Chrome", " — Google Chrome"];
 
@@ -299,7 +299,7 @@ mod tests {
             Some("Plan.md".to_string())
         );
         assert_eq!(
-            normalize_title_for_browser("msedge.exe", "Docs — Microsoft​ Edge"),
+            normalize_title_for_browser("msedge.exe", "Docs — Microsoft\u{200B} Edge"),
             Some("Docs".to_string())
         );
         assert_eq!(

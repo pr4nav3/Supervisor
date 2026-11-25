@@ -340,7 +340,7 @@ impl AppRule {
 
     /// A typed rule: an address or verified site name becomes a website rule, a plain name an
     /// app rule. Anything else (a page title, a path) is refused rather than guessed at.
-    pub fn from_input(text: &str) -> Option<Self> {
+    fn from_input(text: &str) -> Option<Self> {
         let text = text.trim();
         if text.is_empty() {
             return None;
@@ -426,7 +426,7 @@ pub fn is_markable(activity: &Activity) -> bool {
 }
 
 /// Website rules first: a site rule beats a rule on the browser showing it.
-pub fn matching_rule<'a>(rules: &'a [AppRule], activity: &Activity) -> Option<&'a AppRule> {
+fn matching_rule<'a>(rules: &'a [AppRule], activity: &Activity) -> Option<&'a AppRule> {
     rules
         .iter()
         .find(|rule| rule.target == RuleTarget::Website && rule.matches(activity))
@@ -460,7 +460,7 @@ fn known_app(
     }
 }
 
-pub fn is_plain_name(text: &str) -> bool {
+fn is_plain_name(text: &str) -> bool {
     const SEPARATORS: &[&str] = &[" - ", " — ", " – ", " | ", "/", "\\", ":"];
     text.chars().count() <= 40 && !SEPARATORS.iter().any(|sep| text.contains(sep))
 }

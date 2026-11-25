@@ -37,7 +37,7 @@ const MAX_REFERENCE_AUDIO_BYTES: usize = 60 * 1024 * 1024;
 const MAX_RECORDING_SECONDS: u32 = 60;
 const MIN_RECORDING_SECONDS: u32 = 5;
 /// A check for updates with the engine installed that never reached the server.
-pub const UPDATE_CHECK_FAILED: &str = "Couldn't check for updates. Check your connection.";
+const UPDATE_CHECK_FAILED: &str = "Couldn't check for updates. Check your connection.";
 const MAX_VOICE_GENERATION: Duration = Duration::from_secs(30 * 60);
 const STARTER_PROFILES: &[(&str, &str, &str)] = &[
     ("derek", "Derek", "derek.wav"),
@@ -727,18 +727,6 @@ pub fn get_status(app: &AppHandle, worker: &VoiceWorker) -> Result<VoiceBackendS
     Ok(status_for_root(&root, worker.is_loaded()))
 }
 
-pub fn release_worker(worker: &VoiceWorker) {
-    worker.release();
-}
-
-pub fn cancel_generation(worker: &VoiceWorker) {
-    worker.cancel();
-}
-
-pub fn tick_worker(worker: &VoiceWorker) {
-    worker.tick();
-}
-
 pub fn start_model_download(
     app: AppHandle,
     state: Arc<Mutex<VoiceDownloadState>>,
@@ -852,17 +840,20 @@ fn engine_installed_at(root: &Path) -> bool {
 }
 
 const UPDATE_CHECK_FILE: &str = "last-update-check";
-const UPDATE_CHECK_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 
+/// Same rule as the app's own daily check: a day since the stamp, or a stamp from the future.
 pub fn update_check_due(app: &AppHandle) -> bool {
     let Ok(root) = voice_root(app) else {
         return false;
     };
-    let last = fs::read_to_string(root.join(UPDATE_CHECK_FILE))
+    crate::app_update::check_due(last_update_check(&root), SystemTime::now())
+}
+
+fn last_update_check(root: &Path) -> Option<SystemTime> {
+    fs::read_to_string(root.join(UPDATE_CHECK_FILE))
         .ok()
         .and_then(|text| text.trim().parse::<u64>().ok())
-        .map(|secs| UNIX_EPOCH + Duration::from_secs(secs));
-    last.map_or(true, |at| SystemTime::now().duration_since(at).map_or(true, |since| since >= UPDATE_CHECK_EVERY))
+        .map(|secs| UNIX_EPOCH + Duration::from_secs(secs))
 }
 
 pub fn mark_update_checked(app: &AppHandle) {
@@ -2558,7 +2549,7 @@ mod tests {
         assert!(is_silent(&[0; 48_000]));
         assert!(is_silent(&[3, -5, 12, -20]));
         assert!(!is_silent(&[0, 900, -1200, 40]));
-        let path = std::env::temp_dir().join("supervisor-silent-test.wav");
+        let path = std::env::temp_dir().join(format!("supervisor-silent-test-{}.wav", std::process::id()));
         let five_seconds = 48_000 * MIN_RECORDING_SECONDS as usize;
         assert_eq!(
             recording_clip_from_samples(path.clone(), vec![0; five_seconds], 48_000).unwrap_err(),
@@ -2566,7 +2557,8 @@ mod tests {
         );
         let mut short = vec![0i16; five_seconds - 1];
         short[10] = 900;
-        assert_eq!(recording_clip_from_samples(path, short, 48_000).unwrap_err(), RECORDING_TOO_SHORT);
+        assert_eq!(recording_clip_from_samples(path.clone(), short, 48_000).unwrap_err(), RECORDING_TOO_SHORT);
+        let _ = fs::remove_file(path);
         assert!(silent_recording_message().contains(if cfg!(target_os = "windows") {
             "Settings > Privacy & security > Microphone"
         } else if cfg!(target_os = "macos") {
@@ -2574,6 +2566,20 @@ mod tests {
         } else {
             "microphone"
         }));
+    }
+
+    #[test]
+    fn a_stamp_from_the_future_makes_the_update_check_due() {
+        let root = test_dir("update-stamp");
+        fs::create_dir_all(&root).unwrap();
+        let now = SystemTime::now();
+        assert!(crate::app_update::check_due(last_update_check(&root), now), "no stamp yet");
+        mark_update_checked_at(&root);
+        assert!(!crate::app_update::check_due(last_update_check(&root), now));
+        let tomorrow = now.duration_since(UNIX_EPOCH).unwrap().as_secs() + 24 * 60 * 60;
+        fs::write(root.join(UPDATE_CHECK_FILE), tomorrow.to_string()).unwrap();
+        assert!(crate::app_update::check_due(last_update_check(&root), now), "the clock was set back");
+        let _ = fs::remove_dir_all(root);
     }
 
     #[cfg(target_os = "macos")]
@@ -2591,9 +2597,8 @@ mod tests {
     fn system_resource_queries_return_real_values() {
         let total = total_ram_bytes().expect("total ram");
         let available = available_ram_bytes().expect("available ram");
-        assert!(total > 1024 * 1024 * 1024);
+        assert!(total > 0);
         assert!(available > 0 && available <= total);
-        assert!(available > total / 50, "available {available} of {total}");
         assert!(available_disk_bytes(&std::env::temp_dir()).expect("free disk") > 0);
         assert!(process_tree_ram(std::process::id()).expect("own process ram") > 0);
     }

@@ -20,7 +20,7 @@ const PHONE_CLEAR_AFTER: Duration = Duration::from_secs(2);
 /// No frame for this long means the camera is not watching (worker stopped or camera lost).
 const CAMERA_STALE_AFTER: Duration = Duration::from_secs(3);
 /// Nobody in view, and no input, for this long is Away (dated back to when they left).
-pub const CAMERA_AWAY_AFTER: Duration = Duration::from_secs(60);
+const CAMERA_AWAY_AFTER: Duration = Duration::from_secs(60);
 /// A span state of its own, apart from the focus states: the phone outranks the window.
 const PHONE_STATE: &str = "phone";
 /// A browser whose address can't be read is named to the user after this long in front, and
@@ -195,7 +195,7 @@ impl SessionManager {
             .filter(|app| !known.contains(&app.key))
             .filter(|app| !rules.iter().any(|rule| rule.value.eq_ignore_ascii_case(&app.key)))
             .collect();
-        apps.sort_by(|a, b| b.seconds.cmp(&a.seconds));
+        apps.sort_by_key(|app| std::cmp::Reverse(app.seconds));
         apps.truncate(4);
         Ok(apps)
     }

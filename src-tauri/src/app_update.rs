@@ -85,7 +85,7 @@ pub fn start_check(app: AppHandle) {
 
 /// A day since the last check by the wall clock, which keeps counting while the machine sleeps;
 /// a clock set back counts as due, one early check being harmless.
-fn check_due(last_check: Option<SystemTime>, now: SystemTime) -> bool {
+pub(crate) fn check_due(last_check: Option<SystemTime>, now: SystemTime) -> bool {
     last_check.is_none_or(|last| {
         now.duration_since(last).is_ok_and(|since| since >= Duration::from_secs(24 * 60 * 60))
             || now < last

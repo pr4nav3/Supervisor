@@ -96,7 +96,7 @@ pub fn fallback_identity(path: &str, stem: &str) -> String {
 
 /// Lowercase, one separator, and version folders (`app-1.0.9028`, `17.0.2`) as `*`, so an
 /// update that installs into a new folder stays the same program.
-pub fn normalize_path(path: &str) -> String {
+fn normalize_path(path: &str) -> String {
     let path = path.trim().trim_matches('"');
     let path = path.strip_prefix(r"\\?\").unwrap_or(path);
     path.replace('/', "\\")

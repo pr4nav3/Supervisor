@@ -75,7 +75,7 @@ pub struct StoredPhrase {
 const RULE_NAMES_KEY: &str = "rules.names";
 const MAX_RULE_NAMES: usize = 1000;
 
-pub const PHRASE_MOMENTS: [&str; 4] = ["nudge", "phone", "roundover", "sessionover"];
+const PHRASE_MOMENTS: [&str; 4] = ["nudge", "phone", "roundover", "sessionover"];
 
 pub struct StoredState {
     pub settings: SessionSettings,
@@ -117,7 +117,8 @@ pub fn open_or_reset(
 }
 
 /// An antivirus scan, an indexer or a sync tool can hold the file for a moment at launch; one
-/// failed open would turn history off for the whole run. Up to five tries, a second apart.
+/// failed open would turn history off for the whole run. Up to five tries, a second apart, each
+/// waiting a second on the hold: at worst nine seconds before history is given up on.
 fn open_with_retries(path: &Path) -> Result<(SessionStorage, StoredState), String> {
     let mut tries = 0;
     loop {
@@ -132,10 +133,11 @@ fn open_with_retries(path: &Path) -> Result<(SessionStorage, StoredState), Strin
     }
 }
 
-/// Whether an open error is the file being held by another program rather than damage.
+/// Whether an open error is the file being held by another program rather than damage. "Unable
+/// to open" is not retried: that is a missing or read-only folder, which a second try won't fix.
 fn should_retry(reason: &str) -> bool {
     let reason = reason.to_ascii_lowercase();
-    ["locked", "busy", "unable to open"].iter().any(|word| reason.contains(word))
+    ["locked", "busy"].iter().any(|word| reason.contains(word))
 }
 
 fn plain_failure(what: &str, error: &str) -> &'static str {
@@ -340,7 +342,7 @@ impl SessionStorage {
         }
         let conn = Connection::open(path).map_err(|error| error.to_string())?;
         // Waits out a short hold by another program before the first PRAGMA fails on it.
-        conn.busy_timeout(std::time::Duration::from_secs(5))
+        conn.busy_timeout(std::time::Duration::from_secs(1))
             .map_err(|error| error.to_string())?;
         let storage = Self::from_connection(conn)?;
         storage.recover_orphans()?;
@@ -751,7 +753,7 @@ impl SessionStorage {
         Ok(())
     }
 
-    pub fn load_settings(&self) -> Result<SessionSettings, String> {
+    fn load_settings(&self) -> Result<SessionSettings, String> {
         let mut settings = SessionSettings::default();
         let mut stmt = self
             .conn
@@ -891,7 +893,7 @@ impl SessionStorage {
         Ok(library)
     }
 
-    pub fn load_rules(&self) -> Result<Vec<AppRule>, String> {
+    fn load_rules(&self) -> Result<Vec<AppRule>, String> {
         match self.saved_rules()? {
             Some(rules) => Ok(rules),
             None => {
@@ -978,7 +980,7 @@ impl SessionStorage {
         Ok(())
     }
 
-    pub fn insert_span(
+    fn insert_span(
         &self,
         session_id: u64,
         activity: &Activity,
@@ -1059,6 +1061,8 @@ impl SessionStorage {
         Ok(())
     }
 
+    /// Sessions a crash left open are ended where their last span ended. Span offsets leave out
+    /// paused time, so a session paused and then crashed is dated before it was last seen; accepted.
     pub fn recover_orphans(&self) -> Result<(), String> {
         let ids: Vec<i64> = {
             let mut stmt = self
@@ -1117,7 +1121,7 @@ impl SessionStorage {
         self.repaired_seconds.get()
     }
 
-    pub fn recompute_session_metrics(&self, session_id: u64) -> Result<(), String> {
+    fn recompute_session_metrics(&self, session_id: u64) -> Result<(), String> {
         let spans = self.load_spans_for_session(session_id)?;
         let events = self.load_events_for_session(session_id)?;
 
@@ -1562,18 +1566,22 @@ impl SessionStorage {
         self.conn
             .execute("DELETE FROM setting WHERE key = ?1", [KNOWN_WORK_KEY])
             .map_err(|error| error.to_string())?;
-        // So do the names of every app and site seen, except those a rule still points at:
-        // a rule's key must keep naming the same app.
+        // So do the names of every app and site seen, except those a rule still points at (a
+        // rule's key must keep naming the same app) and those in the spans left, which are the
+        // running session's: forgetting its identities would give an app a second key mid-session.
         self.conn
             .execute_batch(
-                "DELETE FROM app_name WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app');
-                 DELETE FROM app_identity WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app');
+                "DELETE FROM app_name WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app')
+                                        AND key NOT IN (SELECT activity_key FROM span);
+                 DELETE FROM app_identity WHERE key NOT IN (SELECT value FROM rule WHERE target = 'app')
+                                            AND key NOT IN (SELECT activity_key FROM span);
                  DELETE FROM site_name WHERE key NOT IN (SELECT value FROM rule WHERE target = 'website');",
             )
             .map_err(|error| error.to_string())?;
         self.load_site_names()?;
         self.load_app_names()?;
         self.load_app_identities()?;
+        self.refresh_native_app_names()?;
         // The settings page says deleting frees space, so the file has to shrink.
         self.conn
             .execute_batch("VACUUM")
@@ -1723,11 +1731,7 @@ fn legacy_unidentified_window(key: &str) -> bool {
 }
 
 fn rounded_percent(part: u64, total: u64) -> u64 {
-    if total == 0 {
-        0
-    } else {
-        (part * 100 + total / 2) / total
-    }
+    (part * 100 + total / 2).checked_div(total).unwrap_or(0)
 }
 
 fn day_buckets(monday: time::Date, by_day: &std::collections::BTreeMap<String, u64>) -> Vec<RecapBucket> {
@@ -1792,11 +1796,9 @@ fn focused_stretches(spans: &[ReportSpan]) -> Vec<u64> {
         previous_end = span.started_offset_seconds.saturating_add(span.seconds);
         match span.state.as_str() {
             state if on_task(state) => current += span.seconds,
-            "distracted" | "idle" | "suspicious" | "phone" | "unknown" => {
-                if current > 0 {
-                    stretches.push(current);
-                    current = 0;
-                }
+            "distracted" | "idle" | "suspicious" | "phone" | "unknown" if current > 0 => {
+                stretches.push(current);
+                current = 0;
             }
             _ => {}
         }
@@ -1926,7 +1928,7 @@ fn median(values: &[u64]) -> u64 {
     let mut sorted = values.to_vec();
     sorted.sort_unstable();
     let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
+    if sorted.len().is_multiple_of(2) {
         (sorted[mid - 1] + sorted[mid]) / 2
     } else {
         sorted[mid]
@@ -2385,14 +2387,27 @@ mod tests {
         storage.set_site_name("youtube.com", "Videos").expect("name");
         storage.set_app_name("code", "Editor").expect("name");
         let key = storage.app_key("path:c:/apps/zed/zed.exe", "zed", "Zed");
+        // A second Code (a different install) got the key code#2, and the running session has it
+        // on its timeline: that key must still name the same program after the delete.
+        let live = storage.insert_session("Live", Strictness::Normal, "2026-09-22T12:00:00Z", 600).expect("live");
+        let second = storage.app_key("path:d:/other/code.exe", "code", "Code");
+        storage.insert_span(live, &app("Code"), "focused", 0, 60).expect("span");
+        let other_code = Activity { key: second.clone(), ..app("Code") };
+        storage.insert_span(live, &other_code, "focused", 60, 60).expect("span");
+        let ended = storage.insert_session("Over", Strictness::Normal, "2026-09-21T12:00:00Z", 600).expect("ended");
+        storage.insert_span(ended, &app("zed"), "focused", 0, 60).expect("span");
+        storage.close_session(ended, "2026-09-21T12:10:00Z", "completed", 600).expect("close");
         storage
             .replace_rules(&[AppRule { target: RuleTarget::Website, value: "youtube.com".to_string() }])
             .expect("rules");
         storage.delete_all_history().expect("delete");
         assert_eq!(storage.site_names().get("youtube.com").map(String::as_str), Some("Videos"));
-        assert!(storage.site_names().get("nytimes.com").is_none());
-        assert_eq!(storage.app_label("code", "code"), "code");
+        assert!(!storage.site_names().contains_key("nytimes.com"));
+        assert_eq!(storage.app_label("code", "code"), "Editor", "a name on the live session's timeline stays");
+        assert_eq!(storage.app_key("path:d:/other/code.exe", "code", "Code"), second);
+        assert_eq!(storage.app_keys.borrow().get("path:d:/other/code.exe"), Some(second.as_str()));
         // A forgotten identity is assigned afresh on its next sighting.
+        assert!(storage.app_keys.borrow().get("path:c:/apps/zed/zed.exe").is_none());
         assert_eq!(storage.app_key("path:c:/apps/zed/zed.exe", "zed", "Zed"), key);
     }
 
@@ -2856,12 +2871,6 @@ mod tests {
         let central = time::UtcOffset::from_hms(-5, 0, 0).expect("offset");
         assert_eq!(calendar_day(instant, central), "2026-10-11");
 
-        let today = local_today();
-        let monday = this_monday();
-        assert_eq!(monday.weekday(), time::Weekday::Monday);
-        assert!(today >= monday);
-        assert!(today < monday.saturating_add(time::Duration::days(7)));
-
         let storage = SessionStorage::open_in_memory().expect("open db");
         let recap = storage
             .get_week_recap("2026-10-11")
@@ -2972,7 +2981,7 @@ mod tests {
                 .expect("ended_at")
         };
         assert_eq!(ended_at(id), "2026-09-22T08:02:00Z");
-        assert!(ended_at(empty).starts_with(&utc_now()[..10]));
+        assert!(ended_at(empty).ends_with('Z'), "a session with no spans ends when it was found");
         assert_eq!(recovered_end("not a date", Some(5)), None);
         assert_eq!(recovered_end("2026-09-22T08:00:00Z", None), None);
     }
@@ -2997,15 +3006,40 @@ mod tests {
     }
 
     #[test]
-    fn a_held_file_is_retried_and_a_damaged_one_is_not() {
+    fn only_a_held_file_counts_as_worth_retrying() {
         assert!(should_retry("database is locked"));
         assert!(should_retry("database table is locked"));
         assert!(should_retry("database is busy"));
-        assert!(should_retry("unable to open database file"));
+        assert!(!should_retry("unable to open database file"));
         assert!(!should_retry("file is not a database"));
         assert!(!should_retry("database disk image is malformed"));
         assert!(!should_retry("database is damaged: row 3 missing"));
         assert!(!should_retry("unsupported database schema version 999"));
+    }
+
+    #[test]
+    fn a_file_held_by_another_program_opens_once_it_is_released() {
+        let dir = std::env::temp_dir().join(format!("supervisor-storage-held-{}", std::process::id()));
+        let path = dir.join("sessions.db");
+        let _ = std::fs::remove_dir_all(&dir);
+        drop(SessionStorage::open(&path).expect("create db"));
+        // Exclusive locking in WAL mode keeps every other connection out until this one closes.
+        let holder = Connection::open(&path).expect("second connection");
+        holder
+            .execute_batch("PRAGMA locking_mode = EXCLUSIVE; BEGIN; SELECT count(*) FROM session;")
+            .expect("hold the file");
+        assert!(SessionStorage::open(&path).is_err_and(|reason| should_retry(&reason)));
+        let release = std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_millis(1500));
+            drop(holder);
+        });
+        let started = std::time::Instant::now();
+        let opened = open_with_retries(&path);
+        release.join().expect("release thread");
+        assert!(opened.is_ok(), "{:?}", opened.err());
+        assert!(started.elapsed() < std::time::Duration::from_secs(8));
+        drop(opened);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

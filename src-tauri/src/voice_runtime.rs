@@ -11,7 +11,7 @@ use std::sync::{
 use std::time::Duration;
 use zip::ZipArchive;
 
-pub const WORKER_API_VERSION: u32 = 1;
+const WORKER_API_VERSION: u32 = 1;
 
 const RUNTIME_DIR: &str = "runtime";
 const CURRENT_DIR: &str = "current";
@@ -227,7 +227,7 @@ pub fn delete_runtime(root: &Path) -> Result<(), String> {
     Ok(())
 }
 
-pub fn runtime_target() -> String {
+fn runtime_target() -> String {
     let os = std::env::consts::OS;
     let arch = match std::env::consts::ARCH {
         "aarch64" if os == "macos" => "arm64",
@@ -1027,6 +1027,25 @@ new bytes!"
 
         assert!(error.contains("missing its program"));
         assert_eq!(fs::read(current.join("keep.txt")).unwrap(), b"keep");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn a_damaged_archive_is_refused_and_removed() {
+        let root = test_dir("archive-damaged");
+        let archive = root.join("runtime.zip");
+        fs::create_dir_all(&root).unwrap();
+        write_test_archive(&archive, &default_executable());
+        let mut asset = asset_for_archive(&archive);
+        asset.sha256 = "0".repeat(64);
+
+        let error = install_archive(&root, &archive, "test-version", &runtime_target(), &asset, &AtomicBool::new(false))
+            .unwrap_err();
+
+        assert_eq!(error, "The voice engine download was damaged. Try again.");
+        assert!(!archive.exists(), "a download that failed its checksum is not kept");
+        assert!(!current_runtime_dir(&root).exists());
 
         let _ = fs::remove_dir_all(root);
     }
