@@ -6,6 +6,7 @@ build/
 node_modules/
 dist/
 src-tauri/target/
+src-tauri/gen/schemas/
 vendor/ponytail/
 webcam_worker/models/*
 webcam_worker/train/data/
@@ -21,9 +22,11 @@ p12-password.txt
 supervisor-signing/
 *.keychain-db
 *.pem
+*.key
 
 # the private notes repo, cloned here
 notes/
 
 # Claude Code per-machine permission rules
 .claude/settings.local.json
+.claude/scheduled_tasks.lock

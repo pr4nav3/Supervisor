@@ -11,10 +11,15 @@ What the app ships or downloads that other people made, and the terms it comes u
 
 - **YOLO26s**, Ultralytics. The phone detector is Ultralytics' YOLO26s fine-tuned in `webcam_worker/train/` and exported to ONNX. Ultralytics licenses its models and code under the [AGPL-3.0](https://github.com/ultralytics/ultralytics/blob/main/LICENSE), which is why the worker is a separate AGPL program. Training data and their licences are listed in `webcam_worker/train/README.md`.
 - **YuNet** face detector, OpenCV Zoo. `face_detection_yunet_2023mar.onnx` from [opencv/face_detection_yunet](https://huggingface.co/opencv/face_detection_yunet), [MIT](https://github.com/opencv/opencv_zoo/blob/main/models/face_detection_yunet/LICENSE) (Shiqi Yu).
-- **Python packages** frozen into the worker: numpy ([BSD-3-Clause](https://github.com/numpy/numpy/blob/main/LICENSE.txt)), opencv-python-headless ([MIT](https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt) wrapper around OpenCV, [Apache-2.0](https://github.com/opencv/opencv/blob/4.x/LICENSE)), onnxruntime ([MIT](https://pypi.org/project/onnxruntime/)). Exact versions in `webcam_worker/requirements.txt`.
+- **Python packages** frozen into the worker: numpy ([BSD-3-Clause](https://github.com/numpy/numpy/blob/main/LICENSE.txt)), opencv-python-headless ([MIT](https://github.com/opencv/opencv-python/blob/4.x/LICENSE.txt) wrapper around OpenCV, [Apache-2.0](https://github.com/opencv/opencv/blob/4.x/LICENSE)), onnxruntime, on Windows onnxruntime-directml ([MIT](https://pypi.org/project/onnxruntime/)). Exact versions in `webcam_worker/requirements.txt`.
 
-## Website
+## Compiled into the app
 
-- **Inter** typeface, Rasmus Andersson. `website/assets/fonts/inter-variable.woff2`, [SIL Open Font License 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt).
+- **Public Suffix List**, Mozilla. The list of registrable domains the app uses to turn a browser's address into a site name, compiled into the [`psl`](https://crates.io/crates/psl) crate from [publicsuffix.org](https://publicsuffix.org/list/), [Mozilla Public License 2.0](https://github.com/publicsuffix/list/blob/main/LICENSE).
+- **SQLite**, D. Richard Hipp and contributors. The session database, built in through rusqlite's `bundled` feature; [public domain](https://sqlite.org/copyright.html).
 
-The Rust and npm libraries the app is built from are pinned in `src-tauri/Cargo.lock` and `package-lock.json`, each under its own licence.
+## App and website
+
+- **Inter** typeface, Rasmus Andersson. The font of the app (`src/styles/base.css`) and the website: `website/assets/fonts/inter-variable.woff2`, [SIL Open Font License 1.1](https://github.com/rsms/inter/blob/master/LICENSE.txt).
+
+The other Rust and npm libraries the app is built from are pinned in `src-tauri/Cargo.lock` and `package-lock.json`, each under its own licence.

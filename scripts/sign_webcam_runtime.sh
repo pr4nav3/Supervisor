@@ -70,8 +70,7 @@ while read -r framework; do
   done
   sign "$framework/Versions/$version"
 done < "$TMPDIR_SIGN/frameworks"
-codesign --force --options runtime --timestamp --entitlements "$ENTITLEMENTS" \
-  --sign "$IDENTITY" "$WORKER_DIR/supervisor-webcam-worker"
+sign --entitlements "$ENTITLEMENTS" "$WORKER_DIR/supervisor-webcam-worker"
 
 codesign --verify --deep --strict "$WORKER_DIR/supervisor-webcam-worker"
 # Nothing in the tree may be left ad hoc or unsigned: notarization and the hardened runtime

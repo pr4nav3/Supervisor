@@ -4,13 +4,15 @@
     python scripts/updater_manifest.py darwin-aarch64 build/release/Supervisor-macos-aarch64.app.tar.gz
 
 Run it on the file under its release name (Supervisor-windows-x64-setup.exe), with the .sig the
-build wrote copied beside it under the same name. The version is tauri.conf.json's. The address
-is the latest release's asset of that name (releases/latest/download/...), the same place the app
-reads latest.json from, so the installer and latest.json must go on the same release, the one
-GitHub marks Latest. Windows and Mac are built on different machines: download the release's
-latest.json into the same folder first, so the second platform joins the first. On Windows the
-installer's own version (its file properties) must match, or the script stops; so must the
-version inside the .sig, which the app checks against latest.json's.
+build wrote copied beside it under the same name. The version is tauri.conf.json's. The app reads
+latest.json from the release GitHub marks Latest (releases/latest/download/latest.json), but the
+installer address written here is the versioned one (releases/download/v<version>/...), so a copy
+that read latest.json before the next release never downloads the next release's bytes with this
+one's signature. The release must therefore be tagged v<version>, e.g. v1.0.1 (--tag overrides).
+Windows and Mac are built on different machines: download the release's latest.json into the same
+folder first, so the second platform joins the first. On Windows the installer's own version (its
+file properties) must match, or the script stops; so must the version inside the .sig, which the
+app checks against latest.json's.
 """
 import argparse
 import base64
@@ -26,11 +28,18 @@ REPO = "pr4nav3/Supervisor"
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("platform", choices=["windows-x86_64", "darwin-aarch64", "darwin-x86_64"])
+    parser.add_argument("platform", choices=["windows-x86_64", "darwin-aarch64"])
     parser.add_argument("installer", type=pathlib.Path)
-    parser.add_argument("--base-url", help="where the installer is served; default: the latest GitHub release")
+    parser.add_argument("--tag", help="the release's git tag; default: v<version> from tauri.conf.json")
+    parser.add_argument("--base-url", help="where the installer is served; default: that tag's GitHub release")
     args = parser.parse_args()
+    try:
+        return run(args)
+    except (OSError, ValueError, subprocess.CalledProcessError, KeyError) as e:
+        raise SystemExit(f"error: {e}")
 
+
+def run(args: argparse.Namespace) -> int:
     version = json.loads((ROOT / "src-tauri" / "tauri.conf.json").read_text(encoding="utf-8"))["version"]
     if args.platform == "windows-x86_64":
         if platform.system() == "Windows":
@@ -40,10 +49,13 @@ def main() -> int:
                 raise SystemExit(f"{args.installer} is version {built}; tauri.conf.json says {version}. Wrong build?")
         else:
             print("note: not on Windows, so the installer's version was not checked against tauri.conf.json")
-    base =args.base_url or f"https://github.com/{REPO}/releases/latest/download"
+    tag = args.tag or f"v{version}"
+    base = args.base_url or f"https://github.com/{REPO}/releases/download/{tag}"
     manifest_path = args.installer.parent / "latest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     if manifest.get("version") != version:
+        if manifest:
+            print(f"note: latest.json was {manifest.get('version')}; starting over")
         manifest = {"version": version, "pub_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "platforms": {}}
     signature = pathlib.Path(f"{args.installer}.sig").read_text(encoding="utf-8").strip()
     # The app refuses a signature that does not name the version it was made for

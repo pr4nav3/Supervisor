@@ -28,8 +28,11 @@ def create_session(onnx_path: Path, device: str, threads: int) -> ort.InferenceS
     opts = ort.SessionOptions()
     opts.intra_op_num_threads = threads
     opts.inter_op_num_threads = 1
+    # From bytes, not the path: onnxruntime's Windows loader (1.24.4) narrows the path through
+    # the ANSI code page, so a user name outside it (Chinese, Arabic...) fails to open the file.
+    model = Path(onnx_path).read_bytes()
     if device == "cpu":
-        return ort.InferenceSession(str(onnx_path), sess_options=opts, providers=["CPUExecutionProvider"])
+        return ort.InferenceSession(model, sess_options=opts, providers=["CPUExecutionProvider"])
 
     if sys.platform not in GPU_PROVIDERS:
         raise RuntimeError(f"GPU mode is not supported on {sys.platform}")
@@ -40,7 +43,7 @@ def create_session(onnx_path: Path, device: str, threads: int) -> ort.InferenceS
     opts.enable_mem_pattern = False
     opts.execution_mode = ort.ExecutionMode.ORT_SEQUENTIAL
     session = ort.InferenceSession(
-        str(onnx_path), sess_options=opts, providers=[(name, options), "CPUExecutionProvider"]
+        model, sess_options=opts, providers=[(name, options), "CPUExecutionProvider"]
     )
     if session.get_providers()[0] != name:
         raise RuntimeError(f"GPU mode: {name} could not start on this computer (no usable GPU?)")

@@ -24,17 +24,24 @@ def main() -> int:
         print("usage: bump_version.py MAJOR.MINOR.PATCH", file=sys.stderr)
         return 2
     new = sys.argv[1]
-    for path, pattern in TARGETS:
-        # newline="" both ways: the files keep their own line endings.
-        with path.open(encoding="utf-8", newline="") as f:
-            text = f.read()
-        match = re.search(pattern, text, re.MULTILINE)
-        if not match:
-            print(f"{path}: no version found", file=sys.stderr)
-            return 1
-        start, end = match.span(1)
-        path.write_text(text[:start] + new + text[end:], encoding="utf-8", newline="")
-        print(f"{path.relative_to(ROOT)}: {match.group(1)} -> {new}")
+    # Read and match every file before writing any, so a miss leaves the tree untouched.
+    edits = []
+    try:
+        for path, pattern in TARGETS:
+            # newline="" both ways: the files keep their own line endings.
+            with path.open(encoding="utf-8", newline="") as f:
+                text = f.read()
+            match = re.search(pattern, text, re.MULTILINE)
+            if not match:
+                print(f"{path}: no version found", file=sys.stderr)
+                return 1
+            edits.append((path, text, match))
+        for path, text, match in edits:
+            start, end = match.span(1)
+            path.write_text(text[:start] + new + text[end:], encoding="utf-8", newline="")
+            print(f"{path.relative_to(ROOT)}: {match.group(1)} -> {new}")
+    except OSError as e:
+        raise SystemExit(str(e))
     return 0
 
 

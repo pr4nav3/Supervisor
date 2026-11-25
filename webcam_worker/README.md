@@ -20,10 +20,10 @@ On macOS the venv path is `.venv-webcam/bin/python`. macOS 14 or newer.
 
 `models/yolo26s.onnx` (38 MB) is **not in git**: `.gitignore` ignores `webcam_worker/models/`. A fresh checkout must get it before the worker will start. Either:
 
-- copy it from an earlier build, e.g. `~/.cargo-target/supervisor/release/webcam/models/yolo26s.onnx`, or
+- copy it from the `models/` folder of an installed Supervisor (next to the frozen webcam worker), or
 - export it from the fine-tuned checkpoint with `train/train.py export` (the checkpoint is not in git either; see `train/README.md`).
 
-Either way, `download_models.py` must then pass: it pins the one sha256 of the export that was judged and shipped (`d62da80a…`, Windows, 2026-11-22). An export with other tool versions gives different bytes and is rejected; change the pin only after the unit tests and both self-tests pass with the new file. `export_models.py` exports the stock model, which the pin no longer accepts; it stays for the bakeoff in `RESULTS.md`.
+Either way, `download_models.py` must then pass: it pins the one sha256 of the export that was judged and shipped (`d62da80a…`, Windows, 2026-11-22). An export with other tool versions gives different bytes and is rejected; change the pin only after the unit tests and both self-tests pass with the new file.
 
 ## Freeze it into the installer
 

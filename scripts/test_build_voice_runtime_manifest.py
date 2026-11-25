@@ -1,15 +1,11 @@
 import json
-import importlib.util
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-MODULE_PATH = Path(__file__).with_name("build_voice_runtime_manifest.py")
-SPEC = importlib.util.spec_from_file_location("build_voice_runtime_manifest", MODULE_PATH)
-assert SPEC is not None and SPEC.loader is not None
-MODULE = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(MODULE)
-build_manifest = MODULE.build_manifest
+sys.path.insert(0, str(Path(__file__).parent))
+from build_voice_runtime_manifest import build_manifest  # noqa: E402
 
 
 class VoiceRuntimeManifestTests(unittest.TestCase):

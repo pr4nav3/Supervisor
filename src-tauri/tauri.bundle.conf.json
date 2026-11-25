@@ -5,7 +5,9 @@
     "targets": ["nsis", "app", "dmg"],
     "resources": {
       "../build/webcam/": "webcam/",
-      "voices/": "voices/"
+      "voices/": "voices/",
+      "../THIRD_PARTY.md": "THIRD_PARTY.md",
+      "../webcam_worker/LICENSE": "webcam/LICENSE"
     },
     "macOS": {
       "minimumSystemVersion": "14.0",

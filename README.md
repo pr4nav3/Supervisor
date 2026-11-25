@@ -4,6 +4,8 @@ The focus app that talks back. Start a session, and when you open a distraction 
 
 Everything runs on your computer. No account, no servers, nothing uploaded. Download it at [supervisorfocus.com](https://supervisorfocus.com). Free, for macOS and Windows.
 
+The Windows installer is not signed, so Windows shows "Windows protected your PC" when you open it; click "More info", then "Run anyway". Uninstalling leaves your data (sessions, voices and the voice engine, about 4 GB with the engine) in `%APPDATA%\app.supervisor.desktop` on Windows and `~/Library/Application Support/app.supervisor.desktop` on the Mac, unless you tick "Delete the application data" in the uninstaller.
+
 ## How it works
 
 - Supervisor watches which app and window is in front and, in a browser, which site is open. It takes no screenshots and reads nothing on screen. You keep a list of distractions.
@@ -25,11 +27,11 @@ Nothing leaves your computer. There is no account, no analytics, no crash report
 | `webcam_worker/` | The webcam worker: phone and presence detection, also out of process |
 | `scripts/` | Build, release and install scripts; `starter_lines.json` is the set of built-in lines |
 | `website/` | The website at supervisorfocus.com, deployed to GitHub Pages by `.github/workflows/pages.yml` |
-| `.claude/`, `AGENTS.md` | Conventions and skills for coding agents working in this repo |
+| `AGENTS.md` | Conventions for anyone, person or coding agent, working in this repo; `.claude/` holds only `launch.json`, the browser-pane preview for the dev server |
 
 ## Developing
 
-You need Node 22, Rust stable and Python 3.11.
+You need Node 22, Rust stable and Python (3.11 for the voice engine, 3.12 for the webcam worker).
 
 ```bash
 npm ci
@@ -38,12 +40,12 @@ npm run dev
 
 On a Mac, `npm run dev` hands the Accessibility and Camera grants to the terminal, not the app. Run `sh scripts/make_mac_dev_cert.sh` once, then `npm run bundle:mac-dev` and `open src-tauri/target/debug/bundle/macos/Supervisor.app`.
 
-`npm run check` type-checks and builds the UI. `cargo test` in `src-tauri/` runs the Rust tests. CI runs both on macOS and Windows on every push.
+`npm run check` type-checks and builds the UI and runs the UI tests in `scripts/ui.test.mjs`. `cargo test` in `src-tauri/` runs the Rust tests. CI runs both on macOS and Windows on every push, plus the Python tests of the two workers' scripts; on macOS it also bundles the app and lays out every screen in WebKit with `scripts/mac-ui-check/check.sh`.
 
 The two workers need their own Python environments and model files, which are not in git. Without them the app still runs; it just can't generate lines or watch the webcam.
 
-- Voice: `voice_worker/requirements.txt` into a Python 3.11 environment, plus a voice model pack. `scripts/build_voice_runtime.py` builds the runtime zip the app downloads.
-- Webcam: `webcam_worker/README.md` has the five commands, including fetching the model. `scripts/build_webcam_runtime.py` builds it into `build/webcam/`, which the installer bundles.
+- Voice: `voice_worker/requirements.txt` into a Python 3.11 environment, plus the voice engine's model files. `scripts/build_voice_runtime.py` builds the runtime zip the app downloads.
+- Webcam (Python 3.12): `webcam_worker/README.md` has the five commands, including fetching the model. `scripts/build_webcam_runtime.py` builds it into `build/webcam/`, which the installer bundles.
 
 ## Contributing
 
@@ -58,6 +60,6 @@ Found a security or privacy problem? Email karthik.pranav88@gmail.com rather tha
 
 The app is under the [MIT licence](LICENSE).
 
-`THIRD_PARTY.md` lists what the app ships or downloads from others (the voice model, the detection models, the website font) and their licences.
+`THIRD_PARTY.md` lists what the app ships or downloads from others (the voice model, the detection models, the app and website font) and their licences.
 
 The webcam worker in `webcam_worker/` is a separate program under the [GNU AGPL v3](webcam_worker/LICENSE), because the detection model it runs is an Ultralytics YOLO export and Ultralytics licenses its models under the AGPL. It ships beside the app as its own program, and the app talks to it over a pipe, so the rest of the project stays MIT. If you ship a fork, keep that boundary or swap the model.

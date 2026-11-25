@@ -6,8 +6,8 @@
 #     sh scripts/release-mac.sh ["Signing identity"]
 # Output in build/release/: Supervisor-macos-<arch>.zip and .sha256 (the install line),
 # Supervisor-macos-<arch>.app.tar.gz and .sig, and latest.json (the updater). Upload the zip, its
-# .sha256, the .app.tar.gz and latest.json to the release GitHub marks Latest; if Windows uploaded
-# a latest.json first, download it into build/release/ before running, so both platforms stay in it.
+# .sha256, the .app.tar.gz and latest.json to the release tagged v<version>, the one GitHub marks
+# Latest; the script fetches that release's latest.json first, so both platforms stay in it.
 #
 # The identity defaults to "Supervisor Dev" (scripts/make_mac_dev_cert.sh). Every release must
 # use the SAME certificate, or macOS treats the update as a different app and silently drops
@@ -20,9 +20,10 @@ cd "$REPO"
 
 case "$(uname -m)" in
   arm64) arch=aarch64 ;;
-  x86_64) arch=x86_64 ;;
-  *) echo "unsupported processor $(uname -m)" >&2; exit 1 ;;
+  *) echo "unsupported processor $(uname -m); install-mac.sh only installs on Apple Silicon" >&2; exit 1 ;;
 esac
+VERSION=$(python3 -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')
+TAG="v$VERSION"
 # The certificate every release must carry; anything else silently drops users' permissions.
 REQUIREMENT='identifier "app.supervisor.desktop" and certificate leaf = H"71098375bde8e53f630830c240148afff64e7500"'
 out="build/release"
@@ -49,6 +50,9 @@ ditto -c -k --keepParent "$app" "$zip"
 tar="$out/Supervisor-macos-$arch.app.tar.gz"
 cp "$app.tar.gz" "$tar"
 cp "$app.tar.gz.sig" "$tar.sig"
+# Start from the release's latest.json, if Windows already uploaded one: otherwise the file
+# written here has only the Mac entry, and uploading it would break every Windows copy's check.
+gh release download "$TAG" -p latest.json -D "$out" --clobber 2>/dev/null || true
 python3 scripts/updater_manifest.py "darwin-$arch" "$tar"
 
 echo "release ready: $zip ($(du -h "$zip" | cut -f1)), $tar and $out/latest.json"

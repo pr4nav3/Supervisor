@@ -117,7 +117,6 @@
         flag_current_distracting: () => handlers.get_session_snapshot(),
         set_session_exception: a => { if (a.allowed) q.set("allowed", "1"); else q.delete("allowed"); return handlers.get_session_snapshot(); },
         allow_current_for_session: () => handlers.get_session_snapshot(),
-        allow_current_always: () => handlers.get_session_snapshot(),
         get_phrase_library: () => JSON.parse(JSON.stringify(library)),
         update_phrase_library: a => { library = JSON.parse(JSON.stringify(a.library)); return JSON.parse(JSON.stringify(library)); },
         rename_voice_profile: a => { const p = profiles.find(x => x.profile_id === a.profileId); if (!p) throw "voice profile not found"; p.display_name = a.displayName; return summary(p); },

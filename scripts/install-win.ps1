@@ -20,6 +20,15 @@ function Fail($message) { throw "Supervisor: $message" }
 
 if (-not (Get-Command curl.exe -ErrorAction SilentlyContinue)) { Fail "curl.exe is missing; it comes with Windows 10 1803 and later." }
 if (-not [Environment]::Is64BitOperatingSystem) { Fail "Supervisor needs 64-bit Windows." }
+# The build is x64. Windows 11 on ARM runs it emulated; Windows 10 on ARM cannot run it at all.
+if ($env:PROCESSOR_ARCHITEW6432 -eq "ARM64" -or $env:PROCESSOR_ARCHITECTURE -eq "ARM64") {
+  if ([Environment]::OSVersion.Version.Build -lt 22000) { Fail "this is an ARM computer running Windows 10, which cannot run Supervisor's x64 build. Windows 11 can." }
+  Write-Host "This is an ARM computer. Supervisor is built for x64, so Windows 11 will run it emulated and slower than usual."
+}
+
+# The installed app, found by name because the install folder holds the uninstaller too.
+function Find-App { Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA "Supervisor") -Filter "*.exe" -ErrorAction SilentlyContinue |
+  Where-Object { $_.Name -notlike "uninstall*" } | Select-Object -First 1 }
 
 $tmp = Join-Path $env:TEMP "supervisor-install"
 New-Item -ItemType Directory -Force -Path $tmp | Out-Null
@@ -43,8 +52,7 @@ if ($env:SUPERVISOR_INSTALL_NO_RUN) {
   # running session is ended and saved; only a copy that does not answer is killed.
   $running = Get-Process -Name "supervisor" -ErrorAction SilentlyContinue
   if ($running) {
-    $installed = Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA "Supervisor") -Filter "*.exe" -ErrorAction SilentlyContinue |
-      Where-Object { $_.Name -notlike "uninstall*" } | Select-Object -First 1
+    $installed = Find-App
     if ($installed) {
       Start-Process -FilePath $installed.FullName -ArgumentList "--quit" -ErrorAction SilentlyContinue
       $waited = 0
@@ -56,8 +64,7 @@ if ($env:SUPERVISOR_INSTALL_NO_RUN) {
   # Silent, per-user install, then open the app.
   $install = Start-Process -FilePath $exe -ArgumentList "/S" -Wait -PassThru
   if ($install.ExitCode -ne 0) { Fail "the installer exited with code $($install.ExitCode)." }
-  $app = Get-ChildItem -Path (Join-Path $env:LOCALAPPDATA "Supervisor") -Filter "*.exe" -ErrorAction SilentlyContinue |
-    Where-Object { $_.Name -notlike "uninstall*" } | Select-Object -First 1
+  $app = Find-App
   if (-not $app) { Fail "installed, but the app was not found under $env:LOCALAPPDATA\Supervisor." }
   Start-Process -FilePath $app.FullName
   Write-Host "Supervisor is installed and open. Run this line again any time to update."
