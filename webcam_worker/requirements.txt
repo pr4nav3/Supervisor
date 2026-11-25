@@ -1,6 +1,6 @@
 # Webcam worker runtime, frozen into the app by scripts/build_webcam_runtime.py.
 # Exact pins: every build ships what was tested. macOS 14+ (the numpy/OpenCV wheels need it).
-numpy==2.4.6
+numpy==2.5.5
 opencv-python-headless==4.14.0.94
 # Windows: DirectML build (CPU plus any DirectX 12 GPU). Its newest release is 1.24.4.
 onnxruntime-directml==1.24.4; sys_platform == "win32"
