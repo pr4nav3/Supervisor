@@ -1,6 +1,6 @@
 {
   "name": "supervisor",
-  "version": "1.0.1",
+  "version": "1.0.0",
   "description": "The focus app that talks back: a voice you recorded tells you to get back to work.",
   "license": "MIT",
   "repository": {
