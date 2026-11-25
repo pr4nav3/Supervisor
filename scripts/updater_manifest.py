@@ -9,9 +9,11 @@ is the latest release's asset of that name (releases/latest/download/...), the s
 reads latest.json from, so the installer and latest.json must go on the same release, the one
 GitHub marks Latest. Windows and Mac are built on different machines: download the release's
 latest.json into the same folder first, so the second platform joins the first. On Windows the
-installer's own version (its file properties) must match, or the script stops.
+installer's own version (its file properties) must match, or the script stops; so must the
+version inside the .sig, which the app checks against latest.json's.
 """
 import argparse
+import base64
 import json
 import pathlib
 import platform
@@ -43,8 +45,13 @@ def main() -> int:
     manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {}
     if manifest.get("version") != version:
         manifest = {"version": version, "pub_date": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"), "platforms": {}}
+    signature = pathlib.Path(f"{args.installer}.sig").read_text(encoding="utf-8").strip()
+    # The app refuses a signature that does not name the version it was made for
+    # (requireSignedVersion), which the Tauri CLI records from 2.12 on.
+    if f"version:{version}" not in base64.b64decode(signature).decode("utf-8"):
+        raise SystemExit(f"{args.installer}.sig does not say it signs version {version}. Signed with an old Tauri CLI, or the wrong build?")
     manifest["platforms"][args.platform] = {
-        "signature": pathlib.Path(f"{args.installer}.sig").read_text(encoding="utf-8").strip(),
+        "signature": signature,
         "url": f"{base}/{args.installer.name}",
     }
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

@@ -419,12 +419,17 @@ fn select_runtime_asset(
 /// `voice-runtime`, marked pre-release so it never becomes "latest" for the app installer)
 /// holds this manifest and the zips it lists; publishing a new runtime replaces those assets,
 /// and no app build has to change. See notes/plans/distribution.md.
+///
+/// `SUPERVISOR_VOICE_PACK_MANIFEST_URL` at build time bakes in another address; at run time it
+/// is read only by debug builds, so nobody who can set a variable on the machine can point an
+/// installed copy at their own manifest.
 const DEFAULT_MANIFEST_URL: &str =
     "https://github.com/pr4nav3/Supervisor/releases/download/voice-runtime/voice-runtime-manifest.json";
 
 fn manifest_url() -> String {
-    std::env::var("SUPERVISOR_VOICE_PACK_MANIFEST_URL")
-        .ok()
+    cfg!(debug_assertions)
+        .then(|| std::env::var("SUPERVISOR_VOICE_PACK_MANIFEST_URL").ok())
+        .flatten()
         .filter(|url| !url.trim().is_empty())
         .or_else(|| {
             option_env!("SUPERVISOR_VOICE_PACK_MANIFEST_URL")
