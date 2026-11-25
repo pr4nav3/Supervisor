@@ -101,7 +101,7 @@
 .round-dots i {
   width: 17px;
   height: 17px;
-  border: 2px solid #141410;
+  border: 2px solid var(--sv-colored-ink);
   border-radius: 50%;
   background: #fff7df;
 }
@@ -115,7 +115,7 @@
 }
 
 .round-dots i.now {
-  background: #141410;
+  background: var(--sv-colored-ink);
 }
 
 /* The round-over and break-over cards: the distraction card's shape, yellow and green. */

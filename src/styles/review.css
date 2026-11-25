@@ -42,7 +42,7 @@
 }
 
 .review-chip.is-distraction :is(button, small) {
-  color: #141410;
+  color: var(--sv-colored-ink);
 }
 
 .review-chip button {
@@ -77,9 +77,9 @@
   letter-spacing: 0;
 }
 
-.review-rename {
+.review-chip .review-rename {
   padding: 0 9px;
-  border-left: var(--border) !important;
+  border-left: var(--border);
   font-family: var(--font-mono);
   font-size: 0.66rem;
   letter-spacing: 0.05em;

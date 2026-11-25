@@ -97,7 +97,23 @@ export function paintSlot(id: string, html: string): HTMLElement | null {
   slot.innerHTML = html;
   bindEvents(slot);
   restoreUiState(ui);
+  focusNewDialog();
   return slot;
+}
+
+/** The dialogs on the page at the last paint, by their classes. */
+let openDialogs = new Set<string>();
+
+/** A dialog that just opened takes focus, so keys go to it: its `autofocus` field, else its first
+ *  field or button. A dialog already up (a repaint after a click) keeps the focus where it was. */
+export function focusNewDialog(): void {
+  const panels = [...document.querySelectorAll<HTMLElement>(".modal-panel")];
+  const fresh = panels.filter((panel) => !openDialogs.has(panel.className));
+  openDialogs = new Set(panels.map((panel) => panel.className));
+  const panel = fresh[fresh.length - 1];
+  if (panel && !panel.contains(document.activeElement)) {
+    (panel.querySelector<HTMLElement>("[autofocus]") ?? panel.querySelector<HTMLElement>("input, textarea, select, button, [data-action]"))?.focus();
+  }
 }
 
 export async function invokeSnapshot(command: string, args?: Record<string, unknown>, paint = true): Promise<boolean> {

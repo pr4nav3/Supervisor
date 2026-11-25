@@ -10,8 +10,8 @@ import {
 } from "../core/format";
 import { attr, confirmModal, errorText, escapeHtml, modal, showFeedback } from "../core/dom";
 import {
-  appNames, clearLastError, history, knownHistoryIds, setActiveTab, setAppNames,
-  setLastError, setSettingsView, setSiteNames, setSnapshot, settingsView, siteNames,
+  clearLastError, displayName, history, knownHistoryIds, setActiveTab, setAppNames,
+  setLastError, setSettingsView, setSiteNames, setSnapshot, settingsView,
 } from "../core/state";
 import { paintSlot, reconcilePolling, refreshSnapshotNow, render } from "../core/shell";
 import { copyCanvas, drawMonthCard, drawWeekCard } from "../core/cards";
@@ -687,7 +687,7 @@ const APP_EDIT_HINT = "Click a row to rename it or change how it counts.";
 
 /** One line per app or site: its name and its time. A real app or site is a quiet button that
  *  opens its popup (see AppEdit); `sessionId` is the report's session, or null for the week. */
-function renderAppRows(items: RecapApp[], sessionId: number | null = null, allowed = new Set<string>()): string {
+function renderAppRows(items: RecapApp[], sessionId: number | null, allowed = new Set<string>()): string {
   return items
     .map((app) => {
       const tone = app.group === "Distractions" ? "is-distraction" : "";
@@ -741,7 +741,7 @@ function renderAppEdit(): string {
         </div>
         <label class="app-edit-field">
           <span>Name</span>
-          <input id="app-edit-name" maxlength="60" value="${attr(edit.name)}" placeholder="${attr(site ? edit.key : edit.label)}" spellcheck="false" />
+          <input id="app-edit-name" maxlength="60" value="${attr(edit.name)}" placeholder="${attr(site ? edit.key : edit.label)}" spellcheck="false" autofocus />
         </label>
         ${site ? `<label class="app-edit-field"><span>Address</span><input id="app-edit-address" maxlength="300" value="${attr(edit.address)}" spellcheck="false" /></label>` : ""}
         ${counts}
@@ -753,10 +753,6 @@ export function appEditTitle(edit: AppEdit): string {
   return edit.name.trim() || (edit.kind === "website" ? edit.address.trim() || edit.key : edit.label);
 }
 
-/** The name the user has given it, or nothing when it shows its own. */
-function givenName(kind: "app" | "website", key: string): string {
-  return kind === "website" ? siteNames[key] ?? "" : appNames[key] ?? appNames[key.toLowerCase()] ?? "";
-}
 
 async function openAppEdit(source: HTMLElement): Promise<void> {
   const kind = source.dataset.kind === "website" ? "website" : "app";
@@ -768,7 +764,7 @@ async function openAppEdit(source: HTMLElement): Promise<void> {
     kind,
     key,
     label,
-    name: givenName(kind, key) || label,
+    name: displayName(kind, key, label),
     address: key,
     distraction: source.dataset.distraction === "true",
     wasDistraction: source.dataset.distraction === "true",
@@ -779,7 +775,6 @@ async function openAppEdit(source: HTMLElement): Promise<void> {
   };
   appEdit = edit;
   paintModalLayer();
-  document.querySelector<HTMLInputElement>("#app-edit-name")?.focus();
   // An app the list can't hold (a browser) loses the choice; the resolver says which.
   if (kind === "app") {
     try {
@@ -824,8 +819,8 @@ export async function saveAppEdit(): Promise<void> {
     }
   }
   try {
-    const name = edit.name.trim() === edit.label && !givenName(edit.kind, edit.key) ? "" : edit.name.trim();
-    if (name !== givenName(edit.kind, edit.key)) {
+    const name = edit.name.trim() === edit.label && !displayName(edit.kind, edit.key, "") ? "" : edit.name.trim();
+    if (name !== displayName(edit.kind, edit.key, "")) {
       if (site) {
         setSiteNames(await invoke<Record<string, string>>("set_site_name", { key: edit.key, name }));
       } else {

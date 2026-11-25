@@ -44,7 +44,7 @@ export function renderPreflightModal(): string {
         <div class="preflight-main">
           <label class="preflight-goal">
             <span>What are you working on?</span>
-            <input id="preflight-goal" maxlength="120" value="${attr(draft.goal)}" placeholder="Finish the Supervisor UI overhaul" />
+            <input id="preflight-goal" maxlength="120" value="${attr(draft.goal)}" placeholder="Finish the Supervisor UI overhaul" autofocus />
           </label>
 
           <div class="mode-tabs" role="group" aria-label="Session kind">
@@ -120,7 +120,7 @@ function renderPomodoroField(): string {
           <button type="button" data-action="pomodoro-rounds" data-step="1" aria-label="One round more" ${draft.rounds >= 8 ? "disabled" : ""}>+</button>
         </span>
       </div>
-      <p class="pomodoro-done">Done around ${escapeHtml(done)}</p>
+      <p class="pomodoro-done">Done around ${escapeHtml(done)} if each round starts as its break ends</p>
     </section>
   `;
 }
@@ -188,12 +188,7 @@ export function bindPreflight(root: ParentNode): void {
 }
 
 export function paintPreflightLayer(): void {
-  // The name field takes focus when the start screen opens, not on every rebuild after a click.
-  const opening = !document.querySelector("#preflight-layer #preflight-goal");
-  const layer = paintSlot("preflight-layer", preflightOpen ? renderPreflightModal() : "");
-  if (layer && preflightOpen && opening) {
-    layer.querySelector<HTMLTextAreaElement>("#preflight-goal")?.focus();
-  }
+  paintSlot("preflight-layer", preflightOpen ? renderPreflightModal() : "");
 }
 
 /** How the next start was asked for; the backend keeps it as the session's first event. */

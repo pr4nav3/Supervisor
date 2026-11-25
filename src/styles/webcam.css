@@ -39,10 +39,6 @@
   min-height: 258px;
 }
 
-.webcam-side .quiet {
-  font-size: var(--sv-type-3);
-}
-
 .webcam-metrics div {
   display: flex;
   justify-content: space-between;

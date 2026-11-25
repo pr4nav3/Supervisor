@@ -3,7 +3,7 @@ import { emit } from "@tauri-apps/api/event";
 import type { AppRule, CurrentSession, NudgeVoice, PomodoroStatus } from "../core/types";
 import { formatDuration, formatHours } from "../core/format";
 import { appView, attr, errorText, escapeHtml, showFeedback, toggle } from "../core/dom";
-import { appNames, setLastError, settings, siteNames, snapshot } from "../core/state";
+import { displayName, setLastError, settings, snapshot } from "../core/state";
 import { bindEvents, invokeSnapshot, render } from "../core/shell";
 import { CAMERA_DOWN_COPY, cameraDown } from "./webcam";
 import {
@@ -231,7 +231,7 @@ export function renderVoiceRow(voice: NudgeVoice): string {
  *  watching something. A break judges nothing, so these stay out of it. */
 function renderOverlayWatchControls(current: CurrentSession, held: boolean, nudgesMuted: boolean): string {
   const focus = current.focus;
-  const name = focus ? (focus.activity.kind === "website" ? siteNames[focus.activity.key] : appNames[focus.activity.key]) ?? focus.activity.label : "";
+  const name = focus ? displayName(focus.activity.kind, focus.activity.key, focus.activity.label) : "";
   const addable = Boolean(focus && focus.markable && !focus.distracting) && !held;
   const why = held
     ? "Paused: nothing is being watched."
@@ -409,7 +409,7 @@ function renderOverlayProgress(current: CurrentSession): string {
   `;
 }
 
-export async function overlayAction(action: string, source?: HTMLElement): Promise<void> {
+export async function overlayAction(action: string): Promise<void> {
   if (action === "nudge-stop" || action === "nudge-replay") {
     void emit("nudge-control", action === "nudge-stop" ? "stop" : "replay");
     return;

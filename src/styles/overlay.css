@@ -72,8 +72,8 @@
   padding: 0 8px;
 }
 
-.overlay-icon {
-  padding: 0 !important;
+.overlay-actions .overlay-icon {
+  padding: 0;
 }
 
 .overlay-icon svg {
@@ -209,7 +209,7 @@ button.overlay-more.is-open::before {
    theme the panel grey, with the play button a shade lighter, as on the Session done card. */
 .interrupt-voice,
 .interrupt-task {
-  background: #fff4cf;
+  background: var(--sv-panel);
   color: var(--sv-colored-ink);
 }
 
@@ -218,11 +218,6 @@ button.overlay-more.is-open::before {
 [data-theme="dark"] .interrupt-actions button:not(.primary) {
   background: var(--sv-panel);
   color: var(--sv-ink);
-}
-
-/* Scoped to the slab so the slab's own ink rule (`.state-slab :is(p, ...)`) doesn't win. */
-[data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-who {
-  color: var(--sv-muted);
 }
 
 [data-theme="dark"] .state-slab.interrupt-alert .interrupt-voice-line,
@@ -253,7 +248,7 @@ button.overlay-more.is-open::before {
 /* `p.` so the slab's later ink rule (`.state-slab :is(...)`, same weight without it) doesn't win. */
 .state-slab.interrupt-alert p.interrupt-voice-who {
   margin: 0;
-  color: #5d564a;
+  color: var(--sv-muted);
   font-size: 0.72rem;
 }
 

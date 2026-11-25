@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type { AppRule, RuleEditor, RulesSaved } from "../core/types";
-import { attr, errorText, escapeHtml } from "../core/dom";
-import { appNames, setLastError, siteNames } from "../core/state";
+import { attr, errorText, escapeHtml, showFeedback } from "../core/dom";
+import { appNames, displayName, setLastError, siteNames } from "../core/state";
 import { render } from "../core/shell";
 import { firstRunOpen, paintFirstRun } from "./firstRun";
 import { paintPreflightLayer, preflightOpen } from "./preflight";
@@ -12,7 +12,7 @@ export function setPermanentRules(value: AppRule[]): void {
   permanentRules = value;
 }
 /** What each rule's chip says, by `ruleKey`. A website and an app with the same name are one chip. */
-export let ruleNames: Record<string, string> = {};
+let ruleNames: Record<string, string> = {};
 export function setRuleNames(value: Record<string, string>): void {
   ruleNames = value;
 }
@@ -29,10 +29,7 @@ export function sameRule(a: AppRule, b: AppRule): boolean {
 const ruleKey = (rule: AppRule) => `${rule.target}:${rule.value.toLowerCase()}`;
 
 export function ruleName(rule: AppRule): string {
-  return (
-    ruleNames[ruleKey(rule)] ??
-    (rule.target === "website" ? siteNames[rule.value] ?? rule.value : appNames[rule.value.toLowerCase()] ?? rule.value)
-  );
+  return ruleNames[ruleKey(rule)] ?? displayName(rule.target, rule.value, rule.value);
 }
 
 /** One chip: the rules that share a name, newest first. Behind it, each rule still works alone. */
@@ -147,10 +144,10 @@ function renderRuleParts(editor: RuleEditor): string {
     </div>`;
   return `
     ${part("site", editor.siteOn, GLOBE_ICON, "Website", `
-      <input id="rule-site" maxlength="300" spellcheck="false" aria-label="Website address" value="${attr(editor.siteOn ? editor.site : "")}" placeholder="${editor.siteOn ? "Its address, like netflix.com" : "Click Website to block its site too"}" ${editor.siteOn ? "" : "disabled"} />
-      ${editor.siteOn ? `<small class="rule-part-hint">Type the address exactly. One wrong letter and nothing gets blocked.</small>` : ""}`)}
+      <input id="rule-site" maxlength="300" spellcheck="false" aria-label="Website address" value="${attr(editor.siteOn ? editor.site : "")}" placeholder="${editor.siteOn ? "Its address, like netflix.com" : "Click Website to catch its site too"}" ${editor.siteOn ? "" : "disabled"} />
+      ${editor.siteOn ? `<small class="rule-part-hint">Type the address exactly. One wrong letter and nothing gets caught.</small>` : ""}`)}
     ${part("app", editor.appOn, APP_ICON, "App", `
-      <input id="rule-app" maxlength="60" spellcheck="false" aria-label="App name" value="${attr(editor.appOn ? editor.app : "")}" placeholder="${editor.appOn ? "The app's name, like Spotify" : "Click App to block an app too"}" ${editor.appOn ? "" : "disabled"} />
+      <input id="rule-app" maxlength="60" spellcheck="false" aria-label="App name" value="${attr(editor.appOn ? editor.app : "")}" placeholder="${editor.appOn ? "The app's name, like Spotify" : "Click App to catch an app too"}" ${editor.appOn ? "" : "disabled"} />
       ${editor.appOn ? `<small class="rule-part-hint" id="rule-app-hint">${escapeHtml(appHint(editor))}</small>` : ""}`)}
     ${editor.error ? `<p class="rule-editor-error" role="alert">${escapeHtml(editor.error)}</p>` : ""}
   `;
@@ -183,7 +180,7 @@ export function renderRuleEditor(editor: RuleEditor): string {
 }
 
 /** Repaints the Website and App rows only, so the Name box keeps its cursor. */
-export function paintRuleEditorLive(): void {
+function paintRuleEditorLive(): void {
   const parts = document.getElementById("rule-parts");
   if (ruleEditor && parts) {
     parts.innerHTML = renderRuleParts(ruleEditor);
@@ -392,17 +389,23 @@ export async function saveRuleForm(): Promise<void> {
   const firstReplaced = permanentRules.findIndex((rule) => replaced.has(ruleKey(rule)));
   const at = firstReplaced < 0 ? 0 : permanentRules.slice(0, firstReplaced).filter((rule) => !replaced.has(ruleKey(rule)) && !addedKeys.has(ruleKey(rule))).length;
   const rules = [...kept.slice(0, at), ...added, ...kept.slice(at)];
+  // A website or app another chip had moves to this one, and that chip may vanish: say so.
+  const moved = permanentRules
+    .filter((rule) => addedKeys.has(ruleKey(rule)) && !replaced.has(ruleKey(rule)) && ruleName(rule).toLowerCase() !== name.toLowerCase())
+    .map((rule) => `${rule.value} moved from ${ruleName(rule)} to ${name}`);
   ruleEditor = null;
-  await saveRules(rules, Object.fromEntries(added.map((rule) => [ruleKey(rule), name])));
+  if (await saveRules(rules, Object.fromEntries(added.map((rule) => [ruleKey(rule), name]))) && moved.length) {
+    showFeedback(moved.join("; "));
+  }
 }
 
 /** Saves the list, then the chip names: `named` sets names for those rules, and a name whose rule
  *  is gone is dropped. */
-async function saveRules(next: AppRule[], named: Record<string, string>): Promise<void> {
+async function saveRules(next: AppRule[], named: Record<string, string>): Promise<boolean> {
   const previous = cloneRules(permanentRules);
   permanentRules = next;
   if (!(await persistPermanentRuleChanges(previous))) {
-    return;
+    return false;
   }
   const kept = new Set(permanentRules.map(ruleKey));
   const names = Object.fromEntries(
@@ -414,6 +417,7 @@ async function saveRules(next: AppRule[], named: Record<string, string>): Promis
     setLastError(errorText(error));
   }
   render();
+  return true;
 }
 
 /** Whether the list saved. On a failure the old list is back and the error is showing. */

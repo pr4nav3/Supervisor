@@ -1,4 +1,5 @@
 import type { AppView } from "./types";
+import { feedbackDuration } from "./format";
 
 export const app = document.querySelector<HTMLDivElement>("#app")!;
 export const appView: AppView = new URLSearchParams(window.location.search).get("view") === "overlay" ? "overlay" : "main";
@@ -60,16 +61,6 @@ export function afterPointer(paint: () => void): void {
   };
   window.addEventListener("pointerup", release);
   window.addEventListener("pointercancel", release);
-}
-
-/**
- * How long a toast stays unless the caller says: 1.4 s for a glance-length line, then 60 ms a
- * character (about reading speed) past 16 characters, at most 7 s. Worked: "Line saved" (10)
- * → 1400 ms; a 60-character error → 1400 + 44 × 60 = 4040 ms; a 150-character camera error →
- * 7000 ms (capped). Pure; dom.ts needs a document to load, so the UI test runner can't import it.
- */
-export function feedbackDuration(message: string): number {
-  return Math.min(7000, 1400 + Math.max(0, message.length - 16) * 60);
 }
 
 export function showFeedback(message: string, durationMs = feedbackDuration(message)): void {

@@ -220,7 +220,7 @@ export function dailyNote(): { date: string; text: string; by: string } {
   const start = new Date(now.getFullYear(), 0, 0);
   const day = Math.floor((now.getTime() - start.getTime()) / 86400000);
   const note = notes[day % notes.length];
-  const date = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }).toUpperCase();
+  const date = now.toLocaleDateString(undefined, { day: "2-digit", month: "short" }).toUpperCase();
   return { date, text: note.text, by: note.by };
 }
 

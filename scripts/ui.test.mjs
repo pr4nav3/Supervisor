@@ -16,6 +16,12 @@ test("day keys survive month and year ends and daylight-saving days", () => {
   assert.equal(f.addDaysKey("2026-01-01", -1), "2025-12-31");
 });
 
+test("a toast stays about as long as it takes to read", () => {
+  assert.equal(f.feedbackDuration("Line saved"), 1400); // 10 characters
+  assert.equal(f.feedbackDuration("x".repeat(60)), 4040);
+  assert.equal(f.feedbackDuration("x".repeat(150)), 7000);
+});
+
 test("a week starts on Monday", () => {
   assert.equal(f.mondayKey("2026-11-12"), "2026-11-09"); // Thursday
   assert.equal(f.mondayKey("2026-11-09"), "2026-11-09"); // Monday

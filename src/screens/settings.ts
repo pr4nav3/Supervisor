@@ -137,7 +137,7 @@ export function renderSettings(): string {
           <p class="eyebrow">Webcam</p>
           <div class="voice-summary">
             <strong>Live camera check</strong>
-            <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
+            <span class="explain">Vision models spot a phone in view. They run only on this computer.</span>
             <button type="button" data-action="open-webcam-settings">Open</button>
           </div>
         </section>
@@ -189,8 +189,8 @@ export async function updateStatusWindowEnabled(enabled: boolean): Promise<void>
 }
 
 /** Mirrors `Strictness::focus_config` in the backend: the seconds a distraction may stay open
- * before Supervisor speaks up. */
-export const STRICTNESS_HELP = "How long a distraction can stay open before a reminder.";
+ * before Supervisor speaks up, and the shorter wait (`distracted_after_seconds`) a phone gets. */
+export const STRICTNESS_HELP = "How long a distraction can stay open before a reminder; a phone in view gets one sooner, after 15, 8 or 5 s.";
 const STRICTNESS_SECONDS: Record<Strictness, number> = { gentle: 90, normal: 60, strict: 30 };
 
 export function strictnessOptions(selected: Strictness): string {
@@ -199,7 +199,7 @@ export function strictnessOptions(selected: Strictness): string {
     .join("");
 }
 
-export async function settingsAction(action: string, source?: HTMLElement): Promise<void> {
+export async function settingsAction(action: string): Promise<void> {
   if (action === "report-problem") {
     await openProblemForm();
     return;

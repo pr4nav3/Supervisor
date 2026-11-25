@@ -64,6 +64,12 @@ export let appNames: Record<string, string> = {};
 export function setAppNames(value: Record<string, string>): void {
   appNames = value;
 }
+/** What a site or app is called: the name the user gave it (tried as typed, then in lower case,
+ *  the way rules match), else `fallback`, its own label. */
+export function displayName(kind: string, key: string, fallback: string): string {
+  const names = kind === "website" ? siteNames : appNames;
+  return names[key] ?? names[key.toLowerCase()] ?? fallback;
+}
 export let lastError = "";
 export function setLastError(value: string): void {
   lastError = value;

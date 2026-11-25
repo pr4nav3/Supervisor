@@ -107,11 +107,11 @@ export function cardCanvas(height: number, framed = false): { canvas: HTMLCanvas
 
 /** One stat tile in the app's card language: border, hard shadow, slightly rounded. A smaller
  *  value sits on the same baseline as a full-size one; `sub` is a small line under it. */
-export function drawCardTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string, sub = ""): void {
+export function drawCardTile(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, label: string, value: string): void {
   const palette = cardPalette();
-  const valueMax = sub ? 26 : 34;
+  const valueMax = 34;
   drawCardPanel(ctx, x, y, w, h, 6);
-  const inset = sub ? 12 : 16;
+  const inset = 16;
   const inner = w - inset * 2;
   ctx.textAlign = "left";
   ctx.fillStyle = palette.muted;
@@ -120,11 +120,6 @@ export function drawCardTile(ctx: CanvasRenderingContext2D, x: number, y: number
   ctx.fillStyle = palette.ink;
   const valueSize = fitCanvasText(ctx, value, 800, CARD_SANS, valueMax, 16, inner);
   ctx.fillText(value, x + inset, y + 36 + (valueMax - valueSize));
-  if (sub) {
-    ctx.fillStyle = palette.muted;
-    fitCanvasText(ctx, sub, 500, CARD_MONO, 10, 8, inner);
-    ctx.fillText(sub, x + inset, y + 36 + valueMax + 6);
-  }
 }
 
 /** Puts the canvas on the clipboard as a PNG. The write starts at once, with the PNG still

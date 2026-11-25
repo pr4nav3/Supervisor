@@ -137,7 +137,7 @@ export async function refreshVoiceStatus(shouldRender = true): Promise<void> {
   paintVoiceRam();
 }
 
-export async function refreshVoiceDownload(shouldRender = true): Promise<void> {
+export async function refreshVoiceDownload(): Promise<void> {
   try {
     const download = await invoke<VoiceDownloadSnapshot>("get_voice_model_download");
     applyDownloadSnapshot(download);
@@ -154,10 +154,6 @@ export async function refreshVoiceDownload(shouldRender = true): Promise<void> {
     }
   } catch {
     voiceDownload = null;
-  }
-
-  if (shouldRender) {
-    render();
   }
 }
 
@@ -319,7 +315,7 @@ function renderModelInfoModal(): string {
             : installed && voiceDownload?.check_failed
             ? `${voiceDownload.message} It only runs while lines are being generated.`
             : installed
-            ? "It only runs while lines are being generated. Supervisor looks for updates once a day on its own; this button looks now."
+            ? "It only runs while lines are being generated. Supervisor downloads a newer voice engine by itself once a day; this button checks now."
             : `A one-time download of about ${escapeHtml(formatBytes(model?.required_bytes ?? 0))}. Generated lines play without it; generating new ones needs it.`
         }</p>
         <div class="modal-actions">
@@ -1199,6 +1195,14 @@ export function stopClip(): void {
   }
 }
 
+/** Lets go of every open audio file before lines are regenerated: Windows won't let the backend
+ *  replace a .wav while this window still has it open. */
+export function releaseAudio(): void {
+  stopVoicePreview();
+  nudgeAudio?.pause();
+  nudgeAudio?.removeAttribute("src");
+}
+
 /** Play buttons follow the clip playing, without a redraw. */
 export function paintPlayingClip(root: ParentNode = document): void {
   root.querySelectorAll<HTMLButtonElement>("button[data-action='play-clip']").forEach((button) => {
@@ -1507,15 +1511,9 @@ async function toggleVoicePreview(): Promise<void> {
   }
 }
 
-export function voiceOptions(selected: string, forClips = false): string {
+export function voiceOptions(selected: string): string {
   return availableVoices()
-    .map((voice) => {
-      if (forClips && voice.id === "none") {
-        return "";
-      }
-      const enabled = forClips ? Boolean(voice.profile?.reference_path) : voice.selectable;
-      return `<option value="${voice.id}" ${voice.id === selected ? "selected" : ""} ${enabled ? "" : "disabled"}>${escapeHtml(voice.name)}</option>`;
-    })
+    .map((voice) => `<option value="${voice.id}" ${voice.id === selected ? "selected" : ""} ${voice.selectable ? "" : "disabled"}>${escapeHtml(voice.name)}</option>`)
     .join("");
 }
 

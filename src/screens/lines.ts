@@ -12,7 +12,7 @@ import {
   bumpClipAsset, canEditPhrases, cleanSlug, clipBelongsToPhrase, clipForPhrase, clipForPhraseId,
   clipGenerateLockTitle, clipsVoice, dismissVoiceInfo, isCustomTone, MINI_ORB, momentPhrases,
   paintVoiceLayer, pickVoice, pickWhenReady, profileToneReady, refreshVoiceStatus,
-  releaseVoiceWorker, renameVoice, renderVoiceGapNotice, runVoiceBusy, sameTone, setPickWhenReady,
+  releaseAudio, releaseVoiceWorker, renameVoice, renderVoiceGapNotice, runVoiceBusy, sameTone, setPickWhenReady,
   setVoiceError, stopClip, stopVoicePreview, tonePhrases, upsertProfile, voiceBackend, voiceBusy,
   voiceError, voiceTone,
 } from "./voice";
@@ -246,7 +246,7 @@ export function renderNewPersonalityModal(): string {
         <form class="phrase-editor" id="new-tone">
           <label>
             <span>Name</span>
-            <input id="new-tone-input" maxlength="80" value="${attr(newToneDraft)}" placeholder="Coach, dry humor, drill sergeant…" autocomplete="off" />
+            <input id="new-tone-input" maxlength="80" value="${attr(newToneDraft)}" placeholder="Coach, dry humor, drill sergeant…" autocomplete="off" autofocus />
           </label>
           <label>
             <span>Start from</span>
@@ -431,7 +431,7 @@ export function renderLinePopup(): string {
         </div>
         <form class="phrase-editor" id="phrase-editor">
           <label>
-            <textarea id="phrase-editor-text" aria-label="Line" name="text" rows="1" maxlength="140" placeholder="Back to the task." autocomplete="off">${escapeHtml(editor.text)}</textarea>
+            <textarea id="phrase-editor-text" aria-label="Line" name="text" rows="1" maxlength="140" placeholder="Back to the task." autocomplete="off" autofocus>${escapeHtml(editor.text)}</textarea>
           </label>
           <span class="line-count">${editor.text.length}/140</span>
           <label>
@@ -588,15 +588,20 @@ async function dropLineAudio(phraseId: string): Promise<void> {
   }
 }
 
+/** Why a personality can't take this name, in a toast's words; null when it can. */
+function toneNameProblem(name: string): string | null {
+  if (!name) {
+    return "Name the personality";
+  }
+  return phraseToneOrder().some((tone) => sameTone(tone, name)) ? `There is already a ${toneLabel(name)} personality` : null;
+}
+
 /** A new personality, empty or with a copy of another's lines, that the viewed voice takes on. */
 async function createTone(): Promise<void> {
   const name = (newToneDraft ?? "").trim().slice(0, 80);
-  if (!name) {
-    showFeedback("Name the personality");
-    return;
-  }
-  if (phraseToneOrder().some((tone) => sameTone(tone, name))) {
-    showFeedback(`There is already a ${toneLabel(name)} personality`);
+  const problem = toneNameProblem(name);
+  if (problem) {
+    showFeedback(problem);
     return;
   }
   const from = (document.getElementById("new-tone-from") as HTMLSelectElement | null)?.value ?? "";
@@ -656,6 +661,8 @@ async function runClipQueue(phraseIds: string[]): Promise<boolean> {
     return false;
   }
   dismissVoiceInfo();
+  // A line playing is an open file; a regenerated one couldn't replace it.
+  releaseAudio();
   clipQueue = { voiceId: voice.id, phraseIds, index: 0, phase: "working", error: "", startedAt: performance.now(), stopAfter: false };
   clipQueueCancelled = false;
   clipQueueTicker = window.setInterval(paintClipQueue, 1000);
@@ -766,17 +773,14 @@ async function renameTone(): Promise<void> {
     return;
   }
   const next = edit.value.trim().slice(0, 80);
-  if (!next) {
-    showFeedback("Name the personality");
-    return;
-  }
   if (sameTone(next, edit.from)) {
     toneRename = null;
     paintLines();
     return;
   }
-  if (phraseToneOrder().some((tone) => sameTone(tone, next))) {
-    showFeedback(`There is already a ${toneLabel(next)} personality`);
+  const problem = toneNameProblem(next);
+  if (problem) {
+    showFeedback(problem);
     return;
   }
   const saved = await editLibrary(() => {
@@ -838,7 +842,6 @@ function openPhraseEditor(phraseId: string | null, tone: VoiceTone, moment: Phra
     text: phrase?.text ?? "",
   };
   paintVoiceLayer();
-  (document.getElementById("phrase-editor-text") as HTMLInputElement | null)?.focus();
 }
 export function phraseToneOrder(): VoiceTone[] {
   const tones: VoiceTone[] = [...toneOrder];
@@ -932,9 +935,6 @@ export async function linesAction(action: string, source?: HTMLElement): Promise
       paintClipsPanel();
     }
     paintVoiceLayer();
-    if (action === "new-tone") {
-      document.getElementById("new-tone-input")?.focus();
-    }
     return;
   }
 

@@ -404,7 +404,7 @@ button.wp-day.is-future:disabled {
 }
 
 .week-hero .recap-bar.is-on {
-  border-color: #141410;
+  border-color: var(--sv-colored-ink);
   background: var(--sv-green);
 }
 
@@ -439,7 +439,7 @@ button.wp-day.is-future:disabled {
 }
 
 .week-hero .recap-bar.is-today:not(.is-on) {
-  border-color: #141410;
+  border-color: var(--sv-colored-ink);
 }
 
 /* The right column: the Share card, then the Trends door filling the rest of the week card's height. */

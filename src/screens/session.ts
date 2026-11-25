@@ -260,10 +260,11 @@ function renderSoFarTiles(current: CurrentSession): string {
   ].join("");
 }
 
-/** Whether a chip shows as allowed: any rule behind it is. Clicking a chip allows its website and app
- *  together, or counts both again; the reminder card's Allow once allows only what was in front. */
+/** Whether a chip shows as allowed: every rule behind it is. Clicking a chip allows its website and app
+ *  together, or counts both again; the reminder card's Allow once allows only what was in front, so a
+ *  chip with one part allowed is not shown as allowed. */
 export function groupAllowed(group: Distraction, exceptions: AppRule[]): boolean {
-  return group.rules.some((rule) => exceptions.some((exception) => sameRule(exception, rule)));
+  return group.rules.every((rule) => exceptions.some((exception) => sameRule(exception, rule)));
 }
 
 /** The distractions, with the ones allowed for this session struck through. */
@@ -589,7 +590,8 @@ export async function playNudge(current: CurrentSession | null): Promise<void> {
  *  its button say it, and the user did nothing to be corrected. Breaks are pauses, so the round
  *  line plays whatever the session's status. */
 export async function playMoment(phase: string): Promise<void> {
-  if (phase === "break_over") {
+  // Mute means silence: the card still shows the moment.
+  if (phase === "break_over" || snapshot?.current?.status === "snoozed") {
     return;
   }
   // The round just finished takes the next line; moments also count break ends.

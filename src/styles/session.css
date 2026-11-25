@@ -83,7 +83,7 @@
 }
 
 .live-strip .strip-off {
-  background: #ff684f;
+  background: var(--sv-coral);
 }
 
 .live-strip .strip-away {

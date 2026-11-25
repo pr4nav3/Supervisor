@@ -243,10 +243,10 @@ function renderFirstRunBody(step: FirstRunStep, back: string): string {
       <section class="panel first-run-block">
         <p class="eyebrow">Webcam</p>
         <label class="setting-row toggle-row">
-          <span>Turn on webcam models</span>
-          ${toggle("first-run-webcam", settings.webcam_enabled, "Turn on webcam models")}
+          <span>Turn on the webcam</span>
+          ${toggle("first-run-webcam", settings.webcam_enabled, "Turn on the webcam")}
         </label>
-        <span class="explain">Vision models spot a phone or watch in your hand. They run only on this computer.</span>
+        <span class="explain">Vision models spot a phone in view. They run only on this computer.</span>
       </section>
       <p class="first-run-where">You can change both later in Settings.</p>
       <div class="first-run-actions">${back}<button class="primary" type="button" data-action="first-run-next">Next</button></div>
@@ -417,7 +417,7 @@ export async function discardPractice(id: number): Promise<void> {
   render();
 }
 
-export async function firstRunAction(action: string, source?: HTMLElement): Promise<void> {
+export async function firstRunAction(action: string): Promise<void> {
   if (action === "onboard-show") {
     openFirstRun();
     return;

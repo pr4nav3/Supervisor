@@ -7,7 +7,7 @@
 }
 
 .trend-card {
-  --plot-ink: #141410;
+  --plot-ink: var(--sv-colored-ink);
   display: grid;
   align-content: start;
   gap: 10px;
@@ -26,7 +26,7 @@
 
 .trend-focus :is(p, span),
 .trend-span :is(p, span) {
-  color: #141410;
+  color: var(--sv-colored-ink);
 }
 
 .trend-recovery {
@@ -115,7 +115,7 @@
   /* Room for the widest Avg tag, a month of three-digit hours ("Avg 744h 59m", 102px). */
   padding-right: 108px;
   padding-bottom: var(--axis-gap);
-  border-bottom: 2.5px solid #141410;
+  border-bottom: 2.5px solid var(--sv-colored-ink);
 }
 
 /* A tighter gap than the week chart, so twelve bars still read as wide; the labels match it. */
@@ -142,7 +142,7 @@
 }
 
 .trend-bars .recap-bar.is-on {
-  border-color: #141410;
+  border-color: var(--sv-colored-ink);
   background: #fff7df;
 }
 
@@ -161,7 +161,7 @@
   left: 0;
   right: 0;
   height: 0;
-  border-top: 2px dashed #141410;
+  border-top: 2px dashed var(--sv-colored-ink);
   pointer-events: none;
 }
 
@@ -171,7 +171,7 @@
   right: 0;
   padding: 3px 7px;
   border-radius: 4px;
-  background: #141410;
+  background: var(--sv-colored-ink);
   color: var(--sv-green);
   font-size: var(--sv-type-4);
   font-weight: 600;
@@ -233,7 +233,7 @@
   z-index: 1;
   width: 11px;
   height: 11px;
-  border: 2px solid #141410;
+  border: 2px solid var(--sv-colored-ink);
   border-radius: 2px;
   background: #fff7df;
   transform: translate(-50%, -50%);
@@ -300,7 +300,7 @@
   letter-spacing: 0.03em;
   text-transform: uppercase;
   white-space: nowrap;
-  color: #141410;
+  color: var(--sv-colored-ink);
 }
 
 .trend-pill.is-good {
@@ -314,7 +314,7 @@
 }
 
 .trend-pill.is-bad {
-  background: #ff684f;
+  background: var(--sv-coral);
 }
 
 .trend-line {
@@ -350,7 +350,7 @@
 }
 
 .trends-locked :is(p, strong) {
-  color: #141410;
+  color: var(--sv-colored-ink);
 }
 
 .trends-locked {

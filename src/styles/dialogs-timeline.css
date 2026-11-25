@@ -201,10 +201,6 @@
 
 /* Only the session timer window is ever this narrow (the main window's minimum is 920 wide). */
 @media (max-width: 900px) {
-  .state-slab h2 {
-    font-size: 2.2rem;
-  }
-
   .overlay-slab h2 {
     font-size: 1.45rem;
   }
@@ -234,7 +230,7 @@
 .overlay-marks .mark-distraction,
 .interrupt-alert,
 .interrupt-alert :is(h2, p, .interrupt-kicker) {
-  color: #141410;
+  color: var(--sv-colored-ink);
 }
 
 .state-slab .empty {
@@ -243,12 +239,12 @@
 
 :is(.timeline-bar, .mini-timeline) .state-focused,
 .legend-key.state-focused {
-  background: #a8eb37;
+  background: var(--sv-green);
 }
 
 :is(.timeline-bar, .mini-timeline) :is(.state-suspicious, .state-distracted),
 .legend-key:is(.state-suspicious, .state-distracted) {
-  background: #ff684f;
+  background: var(--sv-coral);
 }
 
 /* Phone = the webcam saw a phone in hand. Violet: apart from distraction coral and away blue. */

@@ -168,3 +168,13 @@ export function formatSpan(totalSeconds: number): string {
   }
   return `${seconds}s`;
 }
+
+/**
+ * How long a toast stays unless the caller says: 1.4 s for a glance-length line, then 60 ms a
+ * character (about reading speed) past 16 characters, at most 7 s. Worked: "Line saved" (10)
+ * → 1400 ms; a 60-character error → 1400 + 44 × 60 = 4040 ms; a 150-character camera error →
+ * 7000 ms (capped).
+ */
+export function feedbackDuration(message: string): number {
+  return Math.min(7000, 1400 + Math.max(0, message.length - 16) * 60);
+}

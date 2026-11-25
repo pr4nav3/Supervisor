@@ -26,7 +26,7 @@ export function renderSessionReport(report: SessionReport): string {
           ${flipStat("report-stat", "Duration", formatSpan(report.duration_seconds), "How long the session ran. Paused time isn't counted.")}
         ${flipStat("report-stat", "Focused", `${report.focus_percent}%`, "Of your time at the desk, the share you were on work. Away does not count.")}
         ${flipStat("report-stat", "Longest stretch", formatMinutes(report.longest_stretch_seconds), "Your longest run of work without a distraction or stepping away.")}
-        ${flipStat("report-stat", "Reminders", String(report.nudge_count), "How many times Supervisor spoke up to pull you back.")}
+        ${flipStat("report-stat", "Reminders", String(report.nudge_count), "How many reminders you got.")}
         ${pomodoroStat(report)}
         ${report.phone_seconds > 0 ? flipStat("report-stat", "Phone or watch", formatSpan(report.phone_seconds), "How long the webcam saw a phone or watch out.") : ""}
       </section>
@@ -338,7 +338,7 @@ function renderTimelineLegend(report: SessionReport, unrecorded: boolean): strin
 /** "18 October 2026, 11:13 AM · Normal" */
 function reportSummaryLine(report: SessionReport): string {
   const started = new Date(report.started_at);
-  const date = started.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
-  const time = started.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+  const date = started.toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" });
+  const time = started.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   return `${date}, ${time} · ${label(report.strictness)}`;
 }

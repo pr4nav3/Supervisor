@@ -63,8 +63,8 @@ export function renderWebcamSettings(): string {
           <section class="panel">
             <p class="eyebrow">Settings</p>
             <label class="setting-row toggle-row">
-              <span>Turn on webcam models</span>
-              ${toggle("webcam-phone-use", settings.webcam_enabled, "Turn on webcam models")}
+              <span>Turn on the webcam</span>
+              ${toggle("webcam-phone-use", settings.webcam_enabled, "Turn on the webcam", noCamera())}
             </label>
             <label class="setting-row toggle-row">
               <span>Run on GPU</span>
@@ -93,9 +93,12 @@ function osFloor(): string {
   return mac ? "macOS 14 or later" : "Windows 10 or later";
 }
 
-/** Named cameras where the OS lists them; otherwise the first four indexes. The saved one always shows. */
+/** The cameras the OS lists; none means the switch has nothing to turn on. The saved one always shows. */
 function cameraOptions(): string {
-  const names = webcamCameras.length ? [...webcamCameras] : [0, 1, 2, 3].map((index) => `Camera ${index}`);
+  if (webcamCameras.length === 0) {
+    return `<option value="${settings.webcam_camera}" selected disabled>No camera found</option>`;
+  }
+  const names = [...webcamCameras];
   while (names.length <= settings.webcam_camera) {
     names.push(`Camera ${names.length}`);
   }
@@ -114,6 +117,12 @@ async function refreshCameras(): Promise<void> {
   if (select) {
     select.innerHTML = cameraOptions();
   }
+  (document.getElementById("webcam-phone-use") as HTMLInputElement | null)?.toggleAttribute("disabled", noCamera());
+}
+
+/** No camera to turn the models on with; a switch already on can still be turned off. */
+function noCamera(): boolean {
+  return webcamCameras.length === 0 && !settings.webcam_enabled;
 }
 
 /** Two plain readings. The dot goes green with a face in view and red with a phone or watch. */
@@ -385,7 +394,7 @@ function playWebcamAlarm(): void {
   oscillator.stop(context.currentTime + 0.28);
 }
 
-export async function webcamAction(action: string, source?: HTMLElement): Promise<void> {
+export async function webcamAction(action: string): Promise<void> {
   if (action === "open-webcam-settings") {
     setSettingsView("webcam");
     webcamError = "";

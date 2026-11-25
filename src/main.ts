@@ -12,7 +12,7 @@ import {
   setSnapshot, setTheme, settings, settingsView, snapshot, theme,
 } from "./core/state";
 import {
-  captureUiState, invokeSnapshot, reconcilePolling, refreshSnapshot, restoreUiState, wire,
+  captureUiState, focusNewDialog, invokeSnapshot, reconcilePolling, refreshSnapshot, restoreUiState, wire,
 } from "./core/shell";
 import { EYE_SVG } from "./core/cards";
 import { flippedStats } from "./screens/report";
@@ -255,7 +255,7 @@ async function init(): Promise<void> {
     // One rebuild once the focus days and the voice list are both in, so the calendar pops in
     // with its data, once.
     void Promise.all([refreshTrends(false), refreshVoiceStatus(false)]).then(() => render());
-    void refreshVoiceDownload(false);
+    void refreshVoiceDownload();
   }
 }
 
@@ -635,14 +635,14 @@ export function render(): void {
   // The eye outlives the redraw: a new one would drop its blink and the way it was looking.
   const eye = document.querySelector(".brand-eye");
   app.innerHTML = `
-    <main class="app-shell">
+    <div class="app-shell">
       <header class="topbar">
         <div>
           <h1 class="brand">${EYE_SVG}Supervisor</h1>
         </div>
         <div class="topbar-status">
           ${current ? `<button class="status-chip" type="button" data-tab="session">${escapeHtml(statusChip(current))}</button>` : renderStreakChip()}
-          <button class="theme-toggle" type="button" data-action="toggle-theme">${theme === "dark" ? "Dark" : "Light"}</button>
+          <button class="theme-toggle" type="button" data-action="toggle-theme" aria-pressed="${theme === "dark"}">${theme === "dark" ? "Dark" : "Light"}</button>
         </div>
       </header>
 
@@ -662,7 +662,7 @@ export function render(): void {
       <div id="first-run-layer" class="slot">${renderFirstRun()}</div>
       <div id="voice-layer">${renderVoiceDialogs()}</div>
       <div id="modal-layer" class="slot">${renderModalLayer()}</div>
-    </main>
+    </div>
   `;
 
   if (eye) {
@@ -684,6 +684,7 @@ export function render(): void {
     });
   }
   restoreUiState(ui);
+  focusNewDialog();
   if (activeTab === "settings" && settingsView === "webcam") {
     paintWebcamDom();
   }
@@ -700,9 +701,10 @@ function renderStorageNotice(notice: StorageNotice | null): string {
     notice.kind === "reset"
       ? `Supervisor couldn't open its history, so it started a fresh one. The old file is kept at ${notice.moved_to}.`
       : notice.kind === "off"
-        ? `History isn't being saved right now (${notice.reason}). Sessions still run; they just won't be kept.`
-        : `Saving to history failed (${notice.reason}). The timer keeps running, but this session may be missing from History.`;
-  return `<section class="notice notice-storage"><span>${escapeHtml(text)}</span><button class="small-button" type="button" data-action="dismiss-storage-notice">Dismiss</button></section>`;
+        ? "History isn't being saved right now. Sessions still run; they just won't be kept."
+        : "Saving to history failed. The timer keeps running, but this session may be missing from History.";
+  // The database's own words on their own line, so the sentence reads well.
+  return `<section class="notice notice-storage"><span>${escapeHtml(text)}<br><small>${escapeHtml(notice.reason)}</small></span><button class="small-button" type="button" data-action="dismiss-storage-notice">Dismiss</button></section>`;
 }
 window.addEventListener("resize", () =>
   requestAnimationFrame(() => {
@@ -958,6 +960,7 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
     const button = document.querySelector(".theme-toggle");
     if (button) {
       button.textContent = theme === "dark" ? "Dark" : "Light";
+      button.setAttribute("aria-pressed", String(theme === "dark"));
     }
     return;
   }
@@ -971,11 +974,11 @@ export async function runAction(action: string, source?: HTMLElement): Promise<v
   // so the one that has it starts exactly as it did when all the branches were one chain.
   await Promise.all([
     trendsAction(action, source),
-    webcamAction(action, source),
-    overlayAction(action, source),
-    firstRunAction(action, source),
+    webcamAction(action),
+    overlayAction(action),
+    firstRunAction(action),
     preflightAction(action, source),
-    settingsAction(action, source),
+    settingsAction(action),
     linesAction(action, source),
     voiceAction(action, source),
     historyAction(action, source),
